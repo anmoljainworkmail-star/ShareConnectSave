@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java:*)",
+      "Bash(javac:*)",
+      "Bash(java -version)",
+      "Bash(javac -version)",
+      "PowerShell(java:*)",
+      "PowerShell(javac:*)",
+      "PowerShell(scoop:*)",
+      "PowerShell(dotnet:*)",
+      "PowerShell(docker:*)",
+      "PowerShell(docker compose:*)",
+      "PowerShell(npm:*)",
+      "PowerShell(ng:*)",
+      "PowerShell(Get-ChildItem:*)",
+      "PowerShell(ls:*)",
+      "PowerShell(Test-Path:*)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\anmol.jain\\\\Downloads\\\\ShareConnectSave\\\\.claude\\\\phases\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\anmol.jain\\\\Downloads\\\\ShareConnectSave\\\\.claude\\\\agents\")"
+    ]
+  }
+}

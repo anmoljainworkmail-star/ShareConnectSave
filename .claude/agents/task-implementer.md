@@ -1,8 +1,8 @@
 # Task Implementer Agent
 
-This is the template for implementation subagents. The `/phase` command assembles a complete prompt using this structure and spawns one agent per task.
+This is the template for implementation subagents. The `/start-task` command assembles a complete prompt using this structure and spawns one agent per task.
 
-The assembled prompt passed to each agent must contain all five sections below — the agent has NO access to files outside its prompt unless it reads them via tools.
+The assembled prompt passed to each agent must contain all sections below — the agent has NO access to files outside its prompt unless it reads them via tools.
 
 ---
 
@@ -11,7 +11,7 @@ The assembled prompt passed to each agent must contain all five sections below �
 When spawning a task implementation agent, build the prompt in this exact order:
 
 ```
-=== TASK CONTEXT ===
+=== YOUR ROLE ===
 You are implementing {TASK_ID} — {TASK_TITLE} for ShareConnectSave.
 Service: {SERVICE}
 Language: {LANGUAGE}
@@ -57,15 +57,71 @@ These rules apply regardless of what the spec says:
 
 7. ANGULAR — All components in NgModule. No standalone. Lazy-loaded feature modules.
 
+=== PROGRESS MANIFEST ===
+Your progress is checkpointed in `.claude/manifests/{TASK_ID}.json`.
+
+Update this file as you work:
+- After creating or modifying each file, add its repo-relative path to the "files_created" array.
+- After each acceptance criterion passes, add it to "criteria_checked" with value "PASS".
+- After each significant step, update "last_note" with a short human-readable description.
+
+This is the resume file. If this session is interrupted, the next agent reads it and continues.
+Never delete it mid-task. Set "status": "completed" only when all criteria pass.
+
+=== RESUME FROM CHECKPOINT === (only present when task was interrupted)
+This task was interrupted. The manifest shows:
+
+Files already on disk — read these first, do NOT recreate:
+{list}
+
+Criteria already passing:
+{list}
+
+Last checkpoint note: "{manifest.last_note}"
+
+Continue from here. Update the manifest as you complete each remaining step.
+
 === TASK ===
 Implement the task above exactly as specified.
 
 After writing all code:
 - Check each acceptance criterion and state PASS or FAIL for each.
-- If all PASS: write "IMPLEMENTATION COMPLETE" and list every file created or changed (one per line).
+- If all PASS:
+  1. Set "status": "completed" in `.claude/manifests/{TASK_ID}.json`
+  2. Write "IMPLEMENTATION COMPLETE"
+  3. List every file created or changed (one per line, repo-relative path)
 - If any FAIL: fix it before reporting complete.
 - Do NOT report complete if any criterion fails.
 ```
+
+---
+
+## Manifest file format
+
+Every task implementation writes its progress to `.claude/manifests/{TASK_ID}.json`:
+
+```json
+{
+  "task_id": "T002",
+  "title": "Kafka Topic + Contract Definitions",
+  "status": "in_progress",
+  "files_created": [
+    "contracts/kafka/user.verified.schema.json",
+    "contracts/kafka/connection.accepted.schema.json"
+  ],
+  "criteria_checked": {
+    "All 7 schema files exist and are valid JSON Schema": "PASS"
+  },
+  "last_note": "Created 2 of 7 schema files"
+}
+```
+
+Status values:
+- `"in_progress"` — task is running or was interrupted
+- `"completed"` — all acceptance criteria passed; agent wrote IMPLEMENTATION COMPLETE
+
+The `/start-task` command reads this file on every run. If status is `in_progress`, the next agent
+receives the checkpoint data and skips already-completed work.
 
 ---
 
@@ -75,4 +131,5 @@ After writing all code:
 - Include ALL skill file content, not a summary
 - The agent CAN use tools (Read, Write, Edit, Bash) — it doesn't need everything in the prompt
   but giving it the spec and skills upfront avoids extra reads and keeps it focused
-- After the agent completes and reports "IMPLEMENTATION COMPLETE", mark the task in PROGRESS.md
+- Always initialise the manifest file BEFORE spawning the agent (Step 3 of start-task.md)
+- After "IMPLEMENTATION COMPLETE", confirm manifest status is "completed" before marking PROGRESS.md

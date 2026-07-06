@@ -15,13 +15,38 @@ Read the full ticket content — this is what the developer agent will receive.
 
 From the ticket's `depends:` field, open PROGRESS.md and verify each dependency task is marked `[x]`. If any are `[ ]`, stop and list them: "Cannot start — waiting on: T00X, T00Y".
 
-## Step 3 — Load skill files
+## Step 3 — Check for an in-progress manifest (resume support)
+
+Open `.claude/manifests/$ARGUMENTS.json` if it exists.
+
+**If the file exists and `"status"` is `"in_progress"`:**
+- Tell the user: "Found in-progress checkpoint for $ARGUMENTS. Resuming from last known state."
+- Read the full manifest content — it contains `files_created`, `criteria_checked`, and `last_note`.
+- Set RESUME_MODE = true and keep the manifest data for use in Step 5.
+
+**If the file does not exist, or `"status"` is not `"in_progress"`:**
+- Set RESUME_MODE = false.
+- Write `.claude/manifests/$ARGUMENTS.json` with this initial content (replace placeholders):
+  ```json
+  {
+    "task_id": "$ARGUMENTS",
+    "title": "<title from ticket frontmatter>",
+    "status": "in_progress",
+    "files_created": [],
+    "criteria_checked": {},
+    "last_note": "Starting implementation"
+  }
+  ```
+
+## Step 4 — Load skill files
 
 From the ticket's `skills:` field, read the full content of each `.claude/skills/<skill-name>.md`. This content is injected into the developer agent's prompt.
 
-## Step 4 — Spawn developer agent
+## Step 5 — Spawn developer agent
 
 Call Agent with a self-contained prompt. The agent has access to Read, Write, Edit, and Bash.
+
+Build the prompt in this order:
 
 ```
 === YOUR ROLE ===
@@ -48,28 +73,71 @@ pattern being demonstrated — not what the code does, but what principle it app
 7. ANGULAR — NgModule only. No standalone components, directives, or pipes.
 8. COMMENTS — Name the pattern/principle, not what the code does.
 
+=== PROGRESS MANIFEST ===
+Your progress is checkpointed in `.claude/manifests/{TASK_ID}.json`.
+
+Update this file as you work:
+- After creating or modifying each file, add its repo-relative path to the "files_created" array.
+- After each acceptance criterion passes, add it to "criteria_checked" with value "PASS".
+- After each significant step, update "last_note" with a short description (e.g. "Created 3 of 7 schema files").
+
+This is the resume file — if this session is interrupted, the next run will read it and continue from here.
+Never delete this file mid-task. Set "status": "completed" only when all criteria pass.
+```
+
+**If RESUME_MODE is true, append this section BEFORE `=== YOUR JOB ===`:**
+
+```
+=== RESUME FROM CHECKPOINT ===
+This task was interrupted. Do not start from scratch — pick up where the previous agent left off.
+
+Files already on disk (read these first to understand current state, then skip recreating them):
+{for each path in manifest.files_created, one path per line}
+
+Acceptance criteria already passing:
+{for each key in manifest.criteria_checked with value "PASS", list criterion text}
+
+Last checkpoint note: "{manifest.last_note}"
+
+Start by reading the existing files listed above, then continue with the remaining steps.
+Update the manifest as you complete each remaining file or criterion.
+```
+
+**Always end the agent prompt with:**
+
+```
 === YOUR JOB ===
 Implement everything in the "What to build" and "Technical specification" sections.
 
 When done:
 1. Go through each acceptance criterion and state: AC1: PASS/FAIL — reason
 2. Fix any FAIL before reporting complete
-3. Write "IMPLEMENTATION COMPLETE"
-4. List every file created or changed (one per line, with path from project root)
+3. Set "status": "completed" in `.claude/manifests/{TASK_ID}.json`
+4. Write "IMPLEMENTATION COMPLETE"
+5. List every file created or changed (one per line, with path from project root)
 ```
 
-## Step 5 — After agent completes
+## Step 6 — After agent completes
 
-When agent reports "IMPLEMENTATION COMPLETE":
-1. Update the ticket: change `status: approved` → `status: done` in `.claude/tickets/$ARGUMENTS.md`
-2. Update PROGRESS.md: change `- [ ] $ARGUMENTS` → `- [x] $ARGUMENTS`
-3. Report to user:
-   "$ARGUMENTS implementation complete.
+**When agent reports "IMPLEMENTATION COMPLETE":**
+1. Change `status: approved` → `status: done` in `.claude/tickets/$ARGUMENTS.md`
+2. Change `- [ ] $ARGUMENTS` → `- [x] $ARGUMENTS` in PROGRESS.md
+3. Confirm `.claude/manifests/$ARGUMENTS.json` has `"status": "completed"` (agent should have set this; set it yourself if not)
+4. Report to user:
+   ```
+   $ARGUMENTS implementation complete.
    Files changed: [list from agent]
-   
-   Next: Review the code in your IDE, then run `/review-task $ARGUMENTS` when ready."
 
-If agent does NOT report "IMPLEMENTATION COMPLETE" or reports a failure:
-- Show the full agent output
+   Next: run /review-task $ARGUMENTS when ready.
+   ```
+
+**If agent does NOT report "IMPLEMENTATION COMPLETE" or reports a failure:**
+- Show the agent output
 - Do NOT update the ticket or PROGRESS.md
-- Ask the user how to proceed
+- The manifest remains `"in_progress"` with whatever progress was recorded
+- Tell the user:
+  ```
+  Implementation stopped before completion.
+  Progress saved to .claude/manifests/$ARGUMENTS.json.
+  Run /start-task $ARGUMENTS again to resume from the last checkpoint.
+  ```

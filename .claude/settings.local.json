@@ -17,7 +17,13 @@
       "PowerShell(ls:*)",
       "PowerShell(Test-Path:*)",
       "Bash(mkdir -p \"c:\\\\Users\\\\anmol.jain\\\\Downloads\\\\ShareConnectSave\\\\.claude\\\\phases\")",
-      "Bash(mkdir -p \"c:\\\\Users\\\\anmol.jain\\\\Downloads\\\\ShareConnectSave\\\\.claude\\\\agents\")"
+      "Bash(mkdir -p \"c:\\\\Users\\\\anmol.jain\\\\Downloads\\\\ShareConnectSave\\\\.claude\\\\agents\")",
+      "Bash(mkdir -p \"c:/Users/anmol.jain/Downloads/ShareConnectSave/.claude/tickets\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\anmol.jain\\Downloads\\ShareConnectSave\\.claude\\tickets"
     ]
   }
 }

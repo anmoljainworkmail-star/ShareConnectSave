@@ -7,7 +7,7 @@
 
 ## Phase 0 — Foundation & Contracts
 
-- [ ] T001 — Monorepo Scaffold _(Root)_
+- [x] T001 — Monorepo Scaffold _(Root)_
 - [ ] T002 — Kafka Topic + Contract Definitions _(contracts)_
 - [ ] T003 — Shared Error Envelope Contract _(contracts + shared-java-lib)_
 - [ ] T004 — Docker Compose Infrastructure Services _(infra)_

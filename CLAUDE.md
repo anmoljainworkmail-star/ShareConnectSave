@@ -115,7 +115,7 @@ Your role is **Tech Lead / Product Owner** — you review requirements and code.
 
 /review-task T001
   └── Reviewer agent checks code against ticket spec
-        └── APPROVED  →  done
+        └── APPROVED  →  /push T001  →  commit + push
             NEEDS_REWORK  →  Fixer agent fixes issues  →  Reviewer again
                               (auto-loop, max 3 cycles)
 ```
@@ -152,6 +152,27 @@ After this runs, open `.claude/tickets/` in your IDE. For each ticket you're hap
 
 ---
 
+### Committing and pushing
+
+**`/push T001`** — after `/review-task` returns APPROVED, run this. Stages all changes, commits with the standard message format below, then pushes to `origin main`.
+
+**`/push`** — push without committing. Use at end of phase or to back up mid-phase work.
+
+**Commit message format:**
+```
+T001: Monorepo scaffold — service folders + Docker Compose stubs
+T004: Docker Compose infrastructure — full local dev stack with health checks
+T016: Google OAuth flow — JWT issued at gateway, identity headers injected
+```
+Format: `{TASK_ID}: {ticket title} — {one-line teaching note}`
+
+**When to commit vs push:**
+- Commit after every APPROVED task → granular history, each commit = one concept
+- Push after every phase completes → each push is a working, meaningful state
+- Push mid-phase if ending a session → backup, not a release checkpoint
+
+---
+
 ### Dev utilities (use when needed)
 
 **`/test-service user-service`** — run tests for a named service. Use `all` to run every service. Determines the right test runner (Maven / dotnet test / npm) based on service name.
@@ -177,7 +198,10 @@ After this runs, open `.claude/tickets/` in your IDE. For each ticket you're hap
 /start-task T002          ← next ticket, same flow
 ...
 
+/push T002                ← commit after each APPROVED task
+
 /validate-contracts       ← after each phase completes
+/push                     ← push after phase is done
 ```
 
 ---

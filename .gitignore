@@ -1,0 +1,119 @@
+# =============================================================================
+# .NET / C# artifacts
+# =============================================================================
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.ncrunchproject
+*.ncrunchsolution
+*.DotSettings.user
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# .NET publish output
+publish/
+**/publish/
+
+# =============================================================================
+# Java / Maven artifacts
+# =============================================================================
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven wrapper binary — keep the .mvn/ folder and scripts, not the binary
+.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA / Eclipse / STS
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+.factorypath
+*.launch
+
+# =============================================================================
+# Node.js / Angular / npm
+# =============================================================================
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.stylelintcache
+
+# Angular cache
+.angular/cache/
+
+# TypeScript build output
+*.js.map
+*.d.ts.map
+
+# =============================================================================
+# Docker / Infrastructure
+# =============================================================================
+# IMPORTANT: Never commit secrets to source control.
+# All connection strings, API keys, and passwords live in .env only.
+.env
+.env.local
+.env.*.local
+*.env
+
+# Docker override files that contain local-only settings
+docker-compose.local.yml
+
+# =============================================================================
+# OS / Editor artifacts
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VSCode (keep .vscode/extensions.json and launch.json but not personal settings)
+.vscode/settings.json
+
+# JetBrains IDEs
+.idea/
+
+# =============================================================================
+# Logs and temp files
+# =============================================================================
+*.log
+logs/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# =============================================================================
+# Certificates and secrets (belt-and-suspenders — .env above catches most cases)
+# =============================================================================
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json

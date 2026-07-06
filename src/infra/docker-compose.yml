@@ -1,0 +1,177 @@
+# Docker Compose — Application service stubs only.
+# Infrastructure (Kafka, SQL Server, Redis, MongoDB) is wired in T004.
+# Pattern: Single source of truth for container topology. Each service stub
+# can be independently built/started before the full stack is ready.
+version: "3.9"
+
+services:
+
+  # API Gateway (YARP, .NET 9) — single ingress point; validates JWT, routes downstream.
+  # API Gateway pattern: cross-cutting concerns handled once, not in every service.
+  api-gateway:
+    image: shareconnectsave/api-gateway:dev
+    build:
+      context: ../../src/services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # User Service (.NET 9) — auth, profiles, OTP, identity verification.
+  user-service:
+    image: shareconnectsave/user-service:dev
+    build:
+      context: ../../src/services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "8081:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Discovery Service (Java / Spring Boot) — geospatial scan, BLE coordination, filters.
+  # Circuit Breaker pattern applied here against User Service calls (T0xx).
+  discovery-service:
+    image: shareconnectsave/discovery-service:dev
+    build:
+      context: ../../src/services/discovery-service
+      dockerfile: Dockerfile
+    container_name: discovery-service
+    ports:
+      - "8082:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Connection Service (Java / Spring Boot) — request lifecycle (pending -> accepted -> expired).
+  # Saga orchestrator for the connection acceptance flow.
+  connection-service:
+    image: shareconnectsave/connection-service:dev
+    build:
+      context: ../../src/services/connection-service
+      dockerfile: Dockerfile
+    container_name: connection-service
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Chat Service (.NET 9) — MongoDB messages, SignalR hub, TTL expiry.
+  chat-service:
+    image: shareconnectsave/chat-service:dev
+    build:
+      context: ../../src/services/chat-service
+      dockerfile: Dockerfile
+    container_name: chat-service
+    ports:
+      - "8084:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Rating Service (Java / Spring Boot) — submission, trust score recalculation.
+  # Dependency Inversion: TrustScoreCalculator injected as interface, not concrete class.
+  rating-service:
+    image: shareconnectsave/rating-service:dev
+    build:
+      context: ../../src/services/rating-service
+      dockerfile: Dockerfile
+    container_name: rating-service
+    ports:
+      - "8085:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Notification Service (.NET 9) — FCM push + SignalR event fan-out.
+  notification-service:
+    image: shareconnectsave/notification-service:dev
+    build:
+      context: ../../src/services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8086:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Report Service (Java / Spring Boot) — report queue, escalation, MongoDB.
+  report-service:
+    image: shareconnectsave/report-service:dev
+    build:
+      context: ../../src/services/report-service
+      dockerfile: Dockerfile
+    container_name: report-service
+    ports:
+      - "8087:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Admin Service (Java / Spring Boot) — dashboard, review queue, account actions.
+  admin-service:
+    image: shareconnectsave/admin-service:dev
+    build:
+      context: ../../src/services/admin-service
+      dockerfile: Dockerfile
+    container_name: admin-service
+    ports:
+      - "8088:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

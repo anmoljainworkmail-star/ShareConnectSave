@@ -1,0 +1,69 @@
+# docker-compose.override.yml — Dev-only overrides.
+# Docker Compose automatically merges this with docker-compose.yml when running locally.
+# Pattern: Environment-specific config without modifying the base file.
+# In production CI, only docker-compose.yml is used; dev adds this layer on top.
+version: "3.9"
+
+services:
+
+  api-gateway:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # DI pattern: gateway reads JWT_SECRET from env, never hardcoded
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set — copy .env.example to .env and fill in values}
+    volumes:
+      - ../services/api-gateway:/app/src
+
+  user-service:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Database per Service: user-service has its own connection string
+      # :? syntax — Docker Compose exits with an error if USER_DB_CONNECTION is not set.
+      # This prevents silent use of a hardcoded credential; the developer must supply a real value via .env.
+      - ConnectionStrings__UserDb=${USER_DB_CONNECTION:?USER_DB_CONNECTION must be set — copy .env.example to .env and fill in values}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+
+  discovery-service:
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=${DISCOVERY_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=DiscoveryServiceDb;encrypt=true;trustServerCertificate=true}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - SPRING_DATA_REDIS_HOST=${REDIS_HOST:-redis}
+
+  connection-service:
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=${CONNECTION_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=ConnectionServiceDb;encrypt=true;trustServerCertificate=true}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+
+  chat-service:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__ChatDb=${CHAT_DB_CONNECTION:-mongodb://mongodb:27017/ChatServiceDb}
+      - SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+
+  rating-service:
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=${RATING_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=RatingServiceDb;encrypt=true;trustServerCertificate=true}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+
+  notification-service:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - FCM_PROJECT_ID=${FCM_PROJECT_ID:-}
+      - SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}
+
+  report-service:
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATA_MONGODB_URI=${REPORT_MONGODB_URI:-mongodb://mongodb:27017/ReportServiceDb}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+
+  admin-service:
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=${ADMIN_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=AdminServiceDb;encrypt=true;trustServerCertificate=true}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}

@@ -25,7 +25,19 @@
       "Bash(git branch:*)",
       "Bash(git checkout:*)",
       "Bash(git stash:*)",
-      "Bash(flyway:*)"
+      "Bash(flyway:*)",
+      "Bash(mkdir *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(dotnet *)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "TodoWrite",
+      "WebFetch",
+      "WebSearch",
+      "NotebookEdit"
     ]
   }
 }

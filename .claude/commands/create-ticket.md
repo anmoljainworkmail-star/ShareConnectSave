@@ -26,42 +26,12 @@ Open `.claude/skill-map.md` and find "$ARGUMENTS". Note the skill names (do NOT 
 
 ## Step 3 — Spawn ticket creator agent
 
-Read `.claude/agents/ticket-creator.md` for the output format. Then call Agent with:
-
-```
-=== YOUR ROLE ===
-You are a technical PM creating a work ticket for ShareConnectSave.
-Your output is reviewed by the Tech Lead before any code is written.
-Write so a developer can implement without reading other files.
-Write so the Tech Lead understands the business value at a glance.
-
-=== SOURCE MATERIAL ===
-Task ID: {TASK_ID}
-
---- TASK SPEC (from SPECS.md, verbatim) ---
-{full task spec text}
-
---- BUSINESS CONTEXT (from REQUIREMENTS.md) ---
-{relevant requirements section}
-
---- PHASE GOAL ---
-{phase-N.md goal statement}
-
---- SKILLS REQUIRED ---
-{comma-separated skill names, or "none"}
-
-=== OUTPUT ===
-Create the file: .claude/tickets/{TASK_ID}.md
-
-Use exactly the template from the ticket-creator agent format:
-- frontmatter with status: draft
-- ## Why this ticket exists  (business context paragraph)
-- ## What to build  (concrete deliverable bullets)
-- ## Technical specification  (verbatim from SPECS.md)
-- ## Acceptance criteria  (verbatim as checklist)
-- ## Patterns demonstrated  (patterns + one-line teaching note each)
-- ## Agent implementation notes  (file paths, patterns to use, what NOT to do)
-```
+Read `.claude/agents/ticket-creator.md` for the full agent prompt. Call Agent with that content, substituting:
+- `{TASK_ID}` → the task ID from $ARGUMENTS
+- `{full task spec text}` → verbatim spec section from Step 2a
+- `{relevant requirements section}` → business context from Step 2b
+- `{phase-N.md goal statement}` → phase goal from Step 2c
+- `{comma-separated skill names, or "none"}` → skill names from Step 2d
 
 ## Step 4 — After ticket is created
 

@@ -1,3 +1,8 @@
+---
+model: haiku
+description: Applies specific numbered fixes from a code review — targeted edits only, no new features
+---
+
 # Fixer Agent
 
 This is the template for fix subagents. Spawned automatically by the session after a review returns NEEDS_REWORK.

@@ -1,3 +1,8 @@
+---
+model: sonnet
+description: Implements approved tickets — writes production-quality code across multiple services
+---
+
 # Task Implementer Agent
 
 This is the template for implementation subagents. The `/start-task` command assembles a complete prompt using this structure and spawns one agent per task.

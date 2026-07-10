@@ -1,3 +1,8 @@
+---
+model: sonnet
+description: Adversarial code reviewer — constructs failure scenarios to find real bugs, then teaches
+---
+
 # Reviewer Agent
 
 This is the template for review subagents. The `/review-task` command assembles this prompt and spawns a dedicated review agent.

@@ -1,3 +1,8 @@
+---
+model: haiku
+description: Creates ticket files from SPECS.md task definitions — mechanical template filling
+---
+
 # Ticket Creator Agent
 
 Creates a rich, human-readable ticket file for a single task. The output is reviewed by the Tech Lead before any code is written.

@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/connection.accepted",
+  "title": "connection.accepted",
+  "description": "Published by Connection Service when a recipient accepts a connection request. Consumed by Chat Service (open room) and Notification Service (alert both users).",
+
+  "_comment_event_driven": "This event triggers two independent downstream reactions — Chat Service and Notification Service both subscribe. Neither subscriber is aware of the other. This is fan-out via event-driven architecture.",
+  "_comment_outbox": "Connection Service writes this event to its outbox table in the same transaction that flips connection status to ACCEPTED. Atomicity ensures the DB and Kafka never diverge.",
+
+  "type": "object",
+  "required": ["event_id", "connection_id", "requester_id", "recipient_id"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Deduplication key for consumer idempotency."
+    },
+    "connection_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The connection request that was accepted."
+    },
+    "requester_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User who sent the connection request."
+    },
+    "recipient_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User who accepted the connection request."
+    }
+  }
+}

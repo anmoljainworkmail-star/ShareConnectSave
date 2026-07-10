@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/rating.submitted",
+  "title": "rating.submitted",
+  "description": "Published by Rating Service when a user submits a rating. Consumed by Rating Service itself (self-consumption pattern) to trigger trust score recalculation asynchronously.",
+
+  "_comment_self_consume": "Rating Service both produces and consumes this event. This is a deliberate decoupling of submission from calculation — the write side (accept rating) is separated from the read-side projection (recalculate trust score). Prevents the HTTP request from blocking on recalculation.",
+  "_comment_tags_enum": "Tags are constrained to a fixed vocabulary here. Adding a new tag means updating this enum — which forces a versioning conversation. Free-text tags would silently diverge between services.",
+
+  "type": "object",
+  "required": ["event_id", "rating_id", "rater_id", "rated_id", "tags"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Deduplication key for consumer idempotency."
+    },
+    "rating_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The rating record ID."
+    },
+    "rater_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User who submitted the rating."
+    },
+    "rated_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User whose trust score will be recalculated."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Structured feedback tags. Positive and negative tags drive trust score direction. Empty array is valid (neutral rating).",
+      "items": {
+        "type": "string",
+        "enum": [
+          "friendly",
+          "respectful",
+          "on_time",
+          "good_communication",
+          "would_travel_again",
+          "didnt_show_up",
+          "fake_destination",
+          "abusive",
+          "spam",
+          "asked_for_money"
+        ]
+      },
+      "uniqueItems": true
+    }
+  }
+}

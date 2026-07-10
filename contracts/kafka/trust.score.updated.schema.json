@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/trust.score.updated",
+  "title": "trust.score.updated",
+  "description": "Published by Rating Service after recalculating a user's trust score. Consumed by Discovery Service to update scan pool visibility and request-send throttling.",
+
+  "_comment_projection": "Discovery Service maintains a read-side cache of trust scores. This event is the write to that projection — Rating Service never calls Discovery Service directly (Dependency Inversion at the service boundary).",
+  "_comment_badge_level": "badge_level is the discretised tier derived from new_score. Consumers use the tier, not the raw score, for business rules. This shields consumers from scoring algorithm changes — update the thresholds in Rating Service without changing Discovery Service logic.",
+
+  "type": "object",
+  "required": ["event_id", "user_id", "new_score", "badge_level", "request_limit"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Deduplication key for consumer idempotency."
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User whose trust score changed."
+    },
+    "new_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Recalculated trust score in range [0, 100]."
+    },
+    "badge_level": {
+      "type": "string",
+      "enum": ["trusted", "standard", "restricted"],
+      "description": "Tier derived from new_score. trusted: high score, Trusted badge shown. standard: mid-range. restricted: low score, suspended from discovery."
+    },
+    "request_limit": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Maximum connection requests this user may send per day. Derived from badge_level. Discovery Service enforces this as a throttle."
+    }
+  }
+}

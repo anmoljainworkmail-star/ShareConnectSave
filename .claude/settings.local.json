@@ -20,7 +20,9 @@
       "Bash(mkdir -p \"c:\\\\Users\\\\anmol.jain\\\\Downloads\\\\ShareConnectSave\\\\.claude\\\\agents\")",
       "Bash(mkdir -p \"c:/Users/anmol.jain/Downloads/ShareConnectSave/.claude/tickets\")",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\anmol.jain\\Downloads\\ShareConnectSave\\.claude\\tickets"

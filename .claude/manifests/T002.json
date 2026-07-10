@@ -1,0 +1,21 @@
+{
+  "task_id": "T002",
+  "title": "Kafka Topic + Contract Definitions",
+  "status": "completed",
+  "files_created": [
+    "contracts/kafka/user.verified.schema.json",
+    "contracts/kafka/connection.accepted.schema.json",
+    "contracts/kafka/connection.expired.schema.json",
+    "contracts/kafka/chat.closed.schema.json",
+    "contracts/kafka/rating.submitted.schema.json",
+    "contracts/kafka/trust.score.updated.schema.json",
+    "contracts/kafka/report.filed.schema.json",
+    "contracts/kafka/README.md"
+  ],
+  "criteria_checked": {
+    "all_7_schema_files_exist_and_valid": "PASS",
+    "every_required_field_from_requirements_present": "PASS",
+    "readme_lists_producer_consumer_per_topic": "PASS"
+  },
+  "last_note": "All 7 schemas + README created. event_id on every schema. closed_reason, badge_level, tags all use enum constraints."
+}

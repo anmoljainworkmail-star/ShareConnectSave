@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/chat.closed",
+  "title": "chat.closed",
+  "description": "Published by Chat Service when a chat room is closed. Consumed by Rating Service (prompt both users to rate) and Notification Service (inform both users).",
+
+  "_comment_saga": "chat.closed is a critical saga step. It triggers the rating phase — the final step in the connection lifecycle. If both users mark Met Successfully, closed_reason is met_successfully. Timeout and admin_closed are the two compensating paths.",
+  "_comment_closed_reason": "Enum over free text — restricts the state machine to known transitions. A service cannot accidentally send an unrecognised reason that a consumer silently ignores.",
+
+  "type": "object",
+  "required": ["event_id", "chat_id", "connection_id", "user_a_id", "user_b_id", "closed_reason"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Deduplication key for consumer idempotency."
+    },
+    "chat_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The MongoDB chat room document ID."
+    },
+    "connection_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The connection this chat was associated with."
+    },
+    "user_a_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "One participant — corresponds to requester_id from connection.accepted."
+    },
+    "user_b_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Other participant — corresponds to recipient_id from connection.accepted."
+    },
+    "closed_reason": {
+      "type": "string",
+      "enum": ["met_successfully", "timeout", "admin_closed"],
+      "description": "Why the chat was closed. Rating Service only prompts users if reason is met_successfully."
+    }
+  }
+}

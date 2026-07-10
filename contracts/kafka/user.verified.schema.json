@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/user.verified",
+  "title": "user.verified",
+  "description": "Published by User Service when a user completes identity verification. Consumed by Discovery Service to add the user to the geospatial scan pool.",
+
+  "_comment_event_driven": "Past-tense naming signals a fact, not a command. Discovery Service reacts autonomously — User Service has no knowledge of Discovery Service's existence.",
+  "_comment_event_id": "event_id is the idempotency key. Every consumer stores it in a processed_events table to safely skip duplicate deliveries under Kafka's at-least-once guarantee.",
+
+  "type": "object",
+  "required": ["event_id", "user_id", "gender", "verified_at"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 — deduplication key for consumer idempotency. Written to outbox table by producer in the same DB transaction as the verification record."
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The verified user's internal UUID."
+    },
+    "gender": {
+      "type": "string",
+      "enum": ["female", "male", "unspecified"],
+      "description": "Used by Discovery Service to apply the women-only mode filter server-side. Never exposed in API responses to other users."
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of verification completion."
+    }
+  }
+}

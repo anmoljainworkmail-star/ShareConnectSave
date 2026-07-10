@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/report.filed",
+  "title": "report.filed",
+  "description": "Published by Report Service when a user files a report against another user. Consumed by Admin Service which escalates the review queue if report_count_for_target exceeds a threshold.",
+
+  "_comment_threshold": "report_count_for_target is denormalised into this event so Admin Service can apply threshold logic without querying Report Service's database. Each service owns its data — Admin reads a summary, not raw rows (Database per Service principle).",
+  "_comment_dlq": "If the outbox relay fails to publish this event after 3 retries, it routes to report.filed.dlq for manual inspection. Safety reports must not be silently lost.",
+
+  "type": "object",
+  "required": ["event_id", "report_id", "reporter_id", "reported_id", "reason", "report_count_for_target"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Deduplication key for consumer idempotency."
+    },
+    "report_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The MongoDB report document ID."
+    },
+    "reporter_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User who filed the report."
+    },
+    "reported_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User being reported."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "harassment",
+        "fake_profile",
+        "inappropriate_content",
+        "scam",
+        "abusive_behaviour",
+        "spam",
+        "other"
+      ],
+      "description": "Report category selected by the reporter."
+    },
+    "report_count_for_target": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total number of reports filed against reported_id (including this one). Admin Service uses this to auto-escalate when the count crosses a configured threshold."
+    }
+  }
+}

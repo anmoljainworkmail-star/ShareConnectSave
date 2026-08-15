@@ -31,13 +31,22 @@ Open `README.md` at the repo root. This is a spoken-explanation narrative for in
 - **"Concepts I can explain cold because of this"** — if this ticket's "Patterns demonstrated" introduces a genuinely new concept not already bulleted here, add one bullet in the same voice (concept name bolded, then a plain-English explanation of what it means and why it's used — not copy-pasted from the ticket). If the concept already has a bullet, leave it alone.
 - Do NOT create per-ticket sections or a separate changelog table. If a paragraph is getting long, tighten the prose rather than splitting it into a list — this stays a narrative someone could read aloud.
 
-### Step 4 — Stage all changes
+### Step 4 — Update GLOSSARY.md
+
+Open `GLOSSARY.md` at the repo root. This is a one-liner reference for code-level concepts (annotations, attributes, language keywords) — distinct from README's "Concepts I can explain cold," which covers architecture-level patterns.
+
+- Look at the files just implemented for this ticket. For each annotation/attribute/keyword that is genuinely new (not already listed) and non-trivial (worth a one-liner, not `public`/`private`-obvious), add one bullet under the right language section (create a new `##` section if this ticket introduces a new language/framework not yet covered).
+- Format: **`the exact syntax`** — one-sentence plain-English explanation of what it does and why it's used here. _(TASK_ID, `file.ext`)_
+- Do not duplicate a concept that already has an entry, even if this ticket uses it again — just leave the existing line alone.
+- If this ticket introduced no new syntax-level concepts (e.g. it's a config-only or scaffold-only ticket), skip this step — do not force an entry.
+
+### Step 5 — Stage all changes
 
 ```
 git add -A
 ```
 
-### Step 5 — Commit with standard message
+### Step 6 — Commit with standard message
 
 Construct the commit message:
 ```
@@ -56,13 +65,13 @@ Run:
 git commit -m "{constructed message}"
 ```
 
-### Step 6 — Push
+### Step 7 — Push
 
 ```
 git push origin main
 ```
 
-### Step 7 — Report
+### Step 8 — Report
 
 ```
 Pushed: {TASK_ID} — {commit message}

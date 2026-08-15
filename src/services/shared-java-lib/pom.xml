@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<!--
+	  Pattern: no spring-boot-starter-parent here.
+	  Reason: this is a *library* jar depended on by five services, not a runnable
+	  application. If it inherited spring-boot-starter-parent, its own
+	  spring-boot-maven-plugin config and version-managed BOM would ride along into
+	  every consumer's dependency tree, fighting each service's own parent. A shared
+	  library declares only what it needs to compile and leaves version resolution
+	  to whichever application eventually consumes it.
+	-->
+	<groupId>com.shareconnectsave</groupId>
+	<artifactId>shared-java-lib</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>jar</packaging>
+	<name>shared-java-lib</name>
+	<description>Shared error-envelope contract (ErrorResponse + GlobalExceptionHandler) for all Java services.</description>
+
+	<properties>
+		<java.version>21</java.version>
+		<maven.compiler.source>21</maven.compiler.source>
+		<maven.compiler.target>21</maven.compiler.target>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<spring.version>6.1.13</spring.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-web</artifactId>
+			<version>${spring.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+			<version>3.3.5</version>
+		</dependency>
+
+		<!--
+		  Pattern: Dependency Inversion (SOLID-D) applied to build config, not just code.
+		  Reason: GlobalExceptionHandler reads MDC (org.slf4j.MDC) to fetch the trace ID.
+		  scope=provided means this module compiles against the slf4j-api *abstraction*
+		  only — it never bundles or chooses a concrete logging implementation. Every
+		  consuming service already supplies slf4j-api transitively via
+		  spring-boot-starter-logging (Logback). Declaring it here as "provided" documents
+		  the compile-time need without letting this library dictate the runtime logger.
+		-->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>2.0.16</version>
+			<scope>provided</scope>
+		</dependency>
+	</dependencies>
+
+</project>

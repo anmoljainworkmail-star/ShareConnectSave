@@ -1,0 +1,55 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Shared Error Envelope
+  version: "1.0.0"
+  description: >
+    Single source of truth for the HTTP error shape returned by every ShareConnectSave
+    service — four .NET services and five Java services, all sitting behind one YARP
+    gateway. This file is not meant to be served on its own; every service's OpenAPI
+    spec (see T005) `$ref`s the ErrorResponse schema defined here instead of redefining
+    it, so the Angular client only ever has to parse one error shape regardless of
+    which of the nine services produced it.
+
+# _comment_polyglot_contract: this YAML is the language-neutral source of truth.
+# The C# record (services/user-service/Contracts/ErrorResponse.cs) and the Java
+# record (services/shared-java-lib/.../ErrorResponse.java) are both DERIVED from
+# this schema — the schema does not follow whatever a language's serializer defaults to.
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      title: ErrorResponse
+      description: >
+        Standard error envelope. Every non-2xx response from every service — Java or
+        .NET — returns exactly this shape. Enables one error-handling code path on the
+        Angular side, and lets the gateway/Jaeger correlate a client-visible error back
+        to the exact distributed trace that produced it via `traceId`.
+      required:
+        - code
+        - message
+        - traceId
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: >
+            Machine-readable, upper-snake-case error identifier. Stable across
+            deployments — the Angular client is expected to switch on this field,
+            never on `message` (which is human-readable and may change wording).
+          examples:
+            - VALIDATION_ERROR
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: >
+            Human-readable explanation, safe to show directly to an end user. Must
+            never leak stack traces, SQL, or internal identifiers.
+        traceId:
+          type: string
+          description: >
+            The active OpenTelemetry trace ID for the request that produced this error.
+            Read from the tracing context (Java: MDC populated by OpenTelemetry
+            instrumentation; .NET: Activity.Current), never randomly generated —
+            a generated ID would not exist in Jaeger and would defeat the point of
+            including it.

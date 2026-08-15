@@ -1,0 +1,19 @@
+{
+  "task_id": "T003",
+  "title": "Shared Error Envelope Contract",
+  "status": "completed",
+  "files_created": [
+    "contracts/openapi/error-envelope.yaml",
+    "src/services/user-service/Contracts/ErrorResponse.cs",
+    "src/services/shared-java-lib/pom.xml",
+    "src/services/shared-java-lib/src/main/java/com/shareconnectsave/shared/ErrorResponse.java",
+    "src/services/shared-java-lib/src/main/java/com/shareconnectsave/shared/GlobalExceptionHandler.java"
+  ],
+  "criteria_checked": {
+    "AC1_error_response_fields": "PASS",
+    "AC2_validation_error_400": "PASS",
+    "AC3_internal_error_500": "PASS",
+    "AC4_csharp_record_matches_shape": "PASS"
+  },
+  "last_note": "All 5 files created. Java module has no Spring Boot parent (per spec) and declares only spring-web + spring-boot-starter-validation, plus slf4j-api as provided-scope for MDC. C# record uses JsonPropertyName to pin camelCase keys. shared-java-lib intentionally not wired into any service's pom.xml yet, per ticket scope."
+}

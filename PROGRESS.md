@@ -9,7 +9,7 @@
 
 - [x] T001 — Monorepo Scaffold _(Root)_
 - [x] T002 — Kafka Topic + Contract Definitions _(contracts)_
-- [ ] T003 — Shared Error Envelope Contract _(contracts + shared-java-lib)_
+- [x] T003 — Shared Error Envelope Contract _(contracts + shared-java-lib)_
 - [ ] T004 — Docker Compose Infrastructure Services _(infra)_
 - [ ] T005 — OpenAPI Specs — All Services _(contracts/openapi)_
 

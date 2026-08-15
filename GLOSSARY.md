@@ -23,6 +23,13 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 
 - **`additionalProperties: false`** — a JSON Schema / OpenAPI keyword that rejects any object containing a field not explicitly listed under `properties`, so a future accidental (or convenient-in-the-moment) field addition fails contract validation instead of silently widening the shape. _(T003, `error-envelope.yaml`)_
 
+## Docker Compose / YAML
+
+- **`${VAR:?message}`** — reads env var `VAR`; if it's unset or empty, Compose refuses to start the container and prints `message` instead of silently proceeding with a blank value. A fail-fast guard clause for required config. _(T004, `docker-compose.yml`)_
+- **`${VAR:-default}`** — reads env var `VAR`; if it's unset or empty, falls back to `default` instead of failing. Used for config that has a sane dev default (e.g. a hostname), as opposed to `:?` which is reserved for things that must never silently default (secrets). _(T004, `docker-compose.override.yml`)_
+- **`depends_on: <service>: condition: service_healthy`** — waits for the target service's `healthcheck` to report healthy, not just for its container process to exist, before starting this service. _(T004, `docker-compose.yml`)_
+- **`depends_on: <service>: condition: service_completed_successfully`** — waits for a one-shot service (`restart: "no"`) to exit with code 0, rather than waiting on a healthcheck (one-shot jobs don't stay running long enough to have one). _(T004, `docker-compose.yml`)_
+
 ---
 
 _Add new entries only for concepts that actually appear in committed code — not everything mentioned in a skill file. If a concept reappears in a later task using the same mechanism, don't duplicate the entry._

@@ -2,7 +2,7 @@
 # Docker Compose automatically merges this with docker-compose.yml when running locally.
 # Pattern: Environment-specific config without modifying the base file.
 # In production CI, only docker-compose.yml is used; dev adds this layer on top.
-version: "3.9"
+# No top-level `version:` key — deprecated in Compose v2.
 
 services:
 

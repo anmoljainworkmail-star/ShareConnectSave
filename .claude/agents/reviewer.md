@@ -163,3 +163,44 @@ If NEEDS_REWORK, follow with a numbered issue list. Each issue must include:
   - Exactly what to change
 
 This list is passed verbatim to the fix agent.
+
+=== MANUAL QA STEPS ===
+Only produce this section if the verdict is APPROVED or APPROVED_WITH_MINOR_ISSUES.
+Skip it entirely on NEEDS_REWORK — there's nothing worth manually verifying yet.
+
+Write a numbered checklist a human can follow start-to-finish with no other context to
+confirm the acceptance criteria actually hold at runtime, not just in code. Base the
+shape of the steps on what this ticket actually is:
+
+  - Infra / Docker / config ticket → prerequisite state (e.g. "Docker Desktop running"),
+    exact copy-pasteable shell commands (env setup, `docker compose up`, `docker compose ps`),
+    and what a healthy/expected result looks like for each one (a port, a status column,
+    a log line) versus what a failure looks like.
+  - API / backend endpoint ticket → exact `curl` (or equivalent) request including headers/body,
+    and the expected status code + response shape. Include one request that should fail
+    (bad input, missing auth header) and its expected error envelope.
+  - Kafka producer/consumer ticket → how to publish or observe a message (Kafka UI URL + topic
+    name, or a CLI command), and what state change to look for as proof it was consumed/produced
+    (a DB row, a log line, a downstream event).
+  - UI / Angular component ticket → literal click-by-click steps ("open http://localhost:4200,
+    click X, verify Y appears"), covering the happy path and at least one edge case called out
+    in the ticket's acceptance criteria.
+
+Format:
+
+  ## Manual QA — {TASK_ID}
+
+  **Prerequisites:** {what must already be running/true}
+
+  1. {action — command or click}
+     Expect: {exact observable result}
+  2. {action}
+     Expect: {exact observable result}
+  ...
+
+  **Cleanup:** {how to tear back down, e.g. `docker compose down`, closing a test connection}
+
+Keep every step concrete and runnable as written — no "verify it works", no placeholders
+a human has to fill in themselves. If a criterion truly cannot be exercised in this
+environment (e.g. no Docker engine available to the reviewer), say so explicitly in that
+step instead of writing a step that can't actually be followed.

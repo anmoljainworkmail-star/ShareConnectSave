@@ -1,10 +1,172 @@
-# Docker Compose — Application service stubs only.
-# Infrastructure (Kafka, SQL Server, Redis, MongoDB) is wired in T004.
+# Docker Compose — Infrastructure services (T004) + application service stubs (T001).
 # Pattern: Single source of truth for container topology. Each service stub
 # can be independently built/started before the full stack is ready.
-version: "3.9"
+# No top-level `version:` key — that field is deprecated in Compose v2; the schema
+# version is implied by the Compose CLI you run, not declared in the file.
 
 services:
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure (T004) — every microservice depends on at least one of these.
+  # Ordered roughly by startup dependency: SQL Server before its init job,
+  # everything before Kafka UI.
+  # ---------------------------------------------------------------------------
+
+  # SQL Server 2022 — one instance hosts many databases; "database per service" is
+  # enforced by giving each service a connection string to only its own database,
+  # never by SQL Server itself. See ./sql/init-databases.sql for what gets created.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    environment:
+      # Named/typed guard clause via Compose's ${VAR:?message} syntax — fail fast
+      # and loud instead of silently booting SQL Server with an empty password.
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD:?SA_PASSWORD must be set — copy .env.example to .env and fill in values}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      # SQL Server 2022 images ship sqlcmd under mssql-tools18 (requires -C to trust
+      # the self-signed dev cert); older images use mssql-tools. Try both so the
+      # healthcheck doesn't silently rot if the base image changes tool layout.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # One-shot init JOB, not a long-running service — it creates the per-service
+  # databases once SQL Server is actually accepting connections, then exits.
+  # Healthchecks as dependency gate: `condition: service_healthy` is what stops
+  # this from racing the SA login before the server is ready (SQL Server's own
+  # entrypoint has no /docker-entrypoint-initdb.d/ equivalent, unlike Postgres/Mongo).
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-init
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD:?SA_PASSWORD must be set — copy .env.example to .env and fill in values}
+    volumes:
+      - ./sql/init-databases.sql:/init/init-databases.sql:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -i /init/init-databases.sql
+        || /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -i /init/init-databases.sql
+    restart: "no"
+
+  # MongoDB 7 — owns Chat (ephemeral messages, TTL-indexed) and Report (escalation
+  # queue) data. Collections/indexes for chat_db and report_db are created in T007
+  # (mongo-init scripts) — this ticket only stands the server up.
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      # Mongo (unlike SQL Server) DOES support /docker-entrypoint-initdb.d/, so this
+      # mount point is wired now even though the directory is empty until T007 adds
+      # its .js/.sh init scripts — no compose changes needed when that ticket lands.
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Kafka (Bitnami) — single broker, dev only, running in KRaft mode.
+  #
+  # KRaft ("Kafka Raft") replaces Zookeeper as of Kafka 3.5+ (Zookeeper support
+  # was removed entirely in Kafka 4.0, which `bitnami/kafka:latest` now tracks) —
+  # Kafka manages its own cluster metadata and leader election internally,
+  # instead of delegating that job to a separate coordination service. Plain
+  # English: earlier Kafka needed a second system just to agree on "who's in
+  # charge" the way a company might need an outside notary to certify decisions;
+  # KRaft lets Kafka notarize its own decisions. In production this still runs
+  # as a quorum of 3-5 nodes voting on metadata (the same Raft consensus idea
+  # used elsewhere in distributed systems); here it's shrunk to a single node
+  # that is simultaneously the only broker AND the only controller/voter —
+  # fine for dev, never for prod.
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      # Two listener names on two ports: PLAINTEXT (9092) for actual client
+      # traffic (producers/consumers/admin tools), CONTROLLER (9093) for the
+      # KRaft quorum-voting traffic between controller nodes. A single-node
+      # dev quorum still needs this split — Kafka won't let client and
+      # controller traffic share one listener.
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      # The quorum's voter list — "node 0, reachable at kafka:9093" — is how a
+      # single broker can also be its own controller. A real prod cluster lists
+      # 3-5 voters here instead of one.
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      # Gotcha worth knowing before Phase 2+: advertised listener is pinned to
+      # "localhost" so a producer/consumer running on the HOST (a human at a
+      # terminal, or Kafka UI's browser-facing bits) can reach the broker at
+      # localhost:9092. The cost — once the broker hands back this address in its
+      # metadata response, any OTHER CONTAINER that bootstrapped via "kafka:9092"
+      # gets redirected to ITS OWN localhost on the next reconnect, not the broker,
+      # and silently stops receiving messages. Fine for T004 (infra-only; the
+      # acceptance criterion is host reachability) — but before any real service
+      # publishes/consumes, this needs a dual listener (one name for
+      # container-to-container, one for host-to-container). Tracked for T009.
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Redis 7 — cache-aside store for Discovery Service AND the SignalR backplane
+  # for Chat/Notification. One instance, logical separation via DB index (T008).
+  # No auth: acceptable only because this never leaves the dev Docker network/localhost.
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Kafka UI — dev convenience for inspecting topics/messages without a CLI.
+  # depends_on + condition: service_healthy again: the UI shouldn't even try to
+  # list topics before the broker can answer.
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "9000:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Application service stubs (T001) — each now gates on the infra it actually
+  # needs via depends_on/condition: service_healthy, so `docker compose up`
+  # never races a service against a database that isn't accepting connections yet.
+  # ---------------------------------------------------------------------------
 
   # API Gateway (YARP, .NET 9) — single ingress point; validates JWT, routes downstream.
   # API Gateway pattern: cross-cutting concerns handled once, not in every service.
@@ -33,6 +195,11 @@ services:
       context: ../../src/services/user-service
       dockerfile: Dockerfile
     container_name: user-service
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
     ports:
       - "8081:8080"
     environment:
@@ -53,6 +220,15 @@ services:
       context: ../../src/services/discovery-service
       dockerfile: Dockerfile
     container_name: discovery-service
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     ports:
       - "8082:8080"
     environment:
@@ -72,6 +248,13 @@ services:
       context: ../../src/services/connection-service
       dockerfile: Dockerfile
     container_name: connection-service
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     ports:
       - "8083:8080"
     environment:
@@ -90,6 +273,13 @@ services:
       context: ../../src/services/chat-service
       dockerfile: Dockerfile
     container_name: chat-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     ports:
       - "8084:8080"
     environment:
@@ -110,6 +300,13 @@ services:
       context: ../../src/services/rating-service
       dockerfile: Dockerfile
     container_name: rating-service
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     ports:
       - "8085:8080"
     environment:
@@ -128,6 +325,15 @@ services:
       context: ../../src/services/notification-service
       dockerfile: Dockerfile
     container_name: notification-service
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     ports:
       - "8086:8080"
     environment:
@@ -147,6 +353,11 @@ services:
       context: ../../src/services/report-service
       dockerfile: Dockerfile
     container_name: report-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     ports:
       - "8087:8080"
     environment:
@@ -165,6 +376,13 @@ services:
       context: ../../src/services/admin-service
       dockerfile: Dockerfile
     container_name: admin-service
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     ports:
       - "8088:8080"
     environment:
@@ -175,3 +393,16 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+# Named volumes — persist SQL Server / MongoDB data across `docker compose down`
+# (but not `down -v`). Named, not bind-mounted: dev data shouldn't live in the repo tree.
+volumes:
+  sqlserver-data:
+  mongodb-data:
+
+# Named network: every service resolves every other by container name (e.g. "kafka:9092")
+# because they all land on this one network — pinning its name (instead of letting Compose
+# derive "<project>_default") makes that name predictable for anyone inspecting `docker network ls`.
+networks:
+  default:
+    name: shareconnectsave-net

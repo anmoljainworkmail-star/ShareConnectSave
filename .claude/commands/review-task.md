@@ -22,7 +22,13 @@ Read `.claude/agents/reviewer.md` for the full agent prompt. Call Agent with tha
 ## Step 4 — Handle verdict
 
 ### APPROVED or APPROVED_WITH_MINOR_ISSUES:
-Report verdict and minor items to user. Done.
+Extract the `=== MANUAL QA STEPS ===` section from the review agent's output (present
+whenever the verdict is APPROVED or APPROVED_WITH_MINOR_ISSUES) and write it verbatim to
+`.claude/qa/$ARGUMENTS.qa.md` (create the `.claude/qa/` folder if it doesn't exist yet).
+If that file already exists from a prior review pass on this ticket, overwrite it — the
+checklist should always reflect the latest reviewed code.
+
+Report verdict, minor items, and the QA checklist location to user. Done.
 
 ### NEEDS_REWORK:
 Extract the numbered issue list. Spawn fix agent (cycle 1):
@@ -40,5 +46,5 @@ After fix agent reports "FIX COMPLETE" → spawn another review agent (same prom
 
 ## Step 5 — Report outcome
 
-On APPROVED: "$ARGUMENTS review passed (after N cycle(s)). Ready to move to next task."
+On APPROVED: "$ARGUMENTS review passed (after N cycle(s)). Manual QA checklist written to `.claude/qa/$ARGUMENTS.qa.md` — run through it before `/push $ARGUMENTS`. Ready to move to next task."
 On manual intervention: show remaining issues, ask how to proceed.

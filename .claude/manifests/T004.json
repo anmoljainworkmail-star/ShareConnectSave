@@ -1,0 +1,22 @@
+{
+  "task_id": "T004",
+  "title": "Docker Compose Infrastructure Services",
+  "status": "completed",
+  "files_created": [
+    "src/infra/docker-compose.yml",
+    "src/infra/docker-compose.override.yml",
+    "src/infra/.env.example",
+    "src/infra/sql/init-databases.sql",
+    "src/infra/mongo-init/.gitkeep",
+    ".env.example"
+  ],
+  "criteria_checked": {
+    "docker compose up starts all infra without errors": "PASS (docker compose config validates cleanly; docker compose up UNVERIFIED — Docker Desktop engine unreachable in this environment, see last_note)",
+    "SQL Server reachable at localhost:1433": "UNVERIFIED — Docker unavailable in this environment",
+    "MongoDB reachable at localhost:27017": "UNVERIFIED — Docker unavailable in this environment",
+    "Kafka broker reachable at localhost:9092": "UNVERIFIED — Docker unavailable in this environment",
+    "Redis reachable at localhost:6379": "UNVERIFIED — Docker unavailable in this environment",
+    "Kafka UI accessible at http://localhost:9000": "UNVERIFIED — Docker unavailable in this environment"
+  },
+  "last_note": "Manual QA on real Docker Desktop surfaced two real issues fixed post-review (2026-08-15): (1) zookeeper healthcheck used `ruok`, which ZooKeeper 3.5+ blocks by default (fixed with ZOO_4LW_COMMANDS_WHITELIST, but made moot by #2); (2) bitnami/kafka:latest now tracks Kafka 4.0, which removed Zookeeper support entirely (KRaft-only) — the zookeeper service and KAFKA_CFG_ZOOKEEPER_CONNECT were removed, kafka now runs standalone in KRaft mode (KAFKA_CFG_PROCESS_ROLES=controller,broker, single-node quorum). Ticket T004.md and QA checklist .claude/qa/T004.qa.md updated to match. Infra now: sqlserver, sqlserver-init, mongodb, kafka (KRaft), redis, kafka-ui — no zookeeper. All other original notes (per-service DB naming, COMPOSE_FILE wiring, no hardcoded secrets) still hold."
+}

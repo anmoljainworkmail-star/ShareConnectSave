@@ -140,7 +140,7 @@ After this runs, open `.claude/tickets/` in your IDE. For each ticket you're hap
 
 **`/start-task T001`** — implement an approved ticket. Reads the ticket file, loads the required skill files, spawns a developer agent. Fails immediately if the ticket isn't approved yet.
 
-**`/review-task T001`** — review the code that was just written. Spawns a reviewer agent that checks the code against every acceptance criterion and architecture rule. If issues are found, automatically spawns a fixer agent and re-reviews. Loops up to 3 times. Reports APPROVED or asks for your help if still failing.
+**`/review-task T001`** — review the code that was just written. Spawns a reviewer agent that checks the code against every acceptance criterion and architecture rule. If issues are found, automatically spawns a fixer agent and re-reviews. Loops up to 3 times. Reports APPROVED or asks for your help if still failing. On APPROVED, also writes a manual QA checklist to `.claude/qa/T001.qa.md` — run through it before `/push`.
 
 **`/explain-task T001`** — before starting a task, get a deep explanation of what it teaches: which patterns it uses, why each decision was made, what would break without it. Use this to understand a ticket before you approve it.
 
@@ -212,6 +212,7 @@ Format: `{TASK_ID}: {ticket title} — {one-line teaching note}`
 |---|---|
 | `PROGRESS.md` | Checklist — mark `[x]` when a task is done. Source of truth for `/status`. |
 | `.claude/tickets/T00X.md` | Ticket files — created by agents, reviewed and approved by you |
+| `.claude/qa/T00X.qa.md` | Manual QA checklist — written by `/review-task` on APPROVED; run through it before `/push` |
 | `.claude/skill-map.md` | Maps each task ID to the skill files its agent needs |
 | `.claude/phases/phase-N.md` | Phase manifest — ordered task list and phase goal |
 | `.claude/skills/*.md` | Domain knowledge files injected into agent prompts |

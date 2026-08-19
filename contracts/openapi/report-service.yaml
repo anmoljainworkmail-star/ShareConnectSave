@@ -1,0 +1,209 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Report Service
+  version: "1.0.0"
+  description: >
+    Report filing and admin escalation queue. JWT validated at API Gateway
+    (YARP). Services receive X-User-Id (uuid), X-User-Role (user|admin),
+    X-User-Gender (female|male|unspecified) headers. Never re-validate the JWT.
+
+tags:
+  - name: reports
+
+paths:
+  /reports:
+    post:
+      tags: [reports]
+      summary: File a report against another user
+      description: >
+        Writes the report and an outbox record for `report.filed` in the
+        same transaction (Outbox Pattern). Escalation (queue priority bump
+        past a report-count threshold) is computed by ReportEscalationSaga
+        reacting to that event, NOT synchronously in this request — so
+        filing a report stays fast even while the count/threshold check
+        fans out to Admin Service.
+      operationId: fileReport
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreateRequest'
+      responses:
+        '201':
+          description: Report filed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags: [reports]
+      summary: List reports (admin only)
+      operationId: listReports
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: Reports returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not an admin.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /reports/{id}:
+    get:
+      tags: [reports]
+      summary: Get a single report's detail (admin only)
+      operationId: getReport
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Report returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not an admin.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Injected by the API Gateway after JWT validation.
+      schema:
+        type: string
+        format: uuid
+    XUserRole:
+      name: X-User-Role
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [user, admin]
+
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid identity headers.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Report not found.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    ReportReason:
+      type: string
+      enum:
+        - Harassment
+        - Fake profile
+        - Inappropriate content
+        - Asked for money
+        - Other
+
+    ReportCreateRequest:
+      type: object
+      required: [reported_id, reason]
+      properties:
+        reported_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        connection_id:
+          type: ["string", "null"]
+          format: uuid
+          description: Set when the report originates from within a chat, per REQUIREMENTS.md §8.
+        details:
+          type: ["string", "null"]
+          maxLength: 1000
+
+    # report_count_for_target and escalation state are NOT returned here —
+    # they are internal saga bookkeeping consumed off the `report.filed`
+    # Kafka event by Admin Service, not client-facing data (Single
+    # Responsibility: this DTO describes the report, not the saga's state).
+    Report:
+      type: object
+      required: [id, reporter_id, reported_id, reason, created_at, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporter_id:
+          type: string
+          format: uuid
+        reported_id:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        connection_id:
+          type: ["string", "null"]
+          format: uuid
+        details:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, escalated, reviewed, dismissed]
+        created_at:
+          type: string
+          format: date-time

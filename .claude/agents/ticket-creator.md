@@ -24,6 +24,9 @@ Task ID: {TASK_ID}
 --- SKILLS REQUIRED ---
 {comma-separated skill names, or "none"}
 
+--- KNOWN FOLLOW-UPS (from .claude/notes/follow-ups.md, entries whose "Affects" list includes {TASK_ID}) ---
+{verbatim text of matching entries, or "none"}
+
 === OUTPUT ===
 Create the file: .claude/tickets/{TASK_ID}.md
 
@@ -77,8 +80,16 @@ must not override.
 - Specific patterns to use (refer to skill file sections by name)
 - What NOT to do (common mistakes for this type of task)
 
+## Known follow-ups
+Only include this section if KNOWN FOLLOW-UPS is not "none".
+List each matching entry as a short actionable line: what a prior review found,
+and what this ticket's implementation must decide or address because of it.
+Do not soften or drop these — they exist because a past reviewer approved
+adjacent work only on the condition that a later task would pick this up.
+
 === WHAT NOT TO DO ===
 - Do not include the content of skill files — reference them by name only
 - Do not add acceptance criteria that aren't in the original spec
 - Do not make architectural decisions the spec hasn't already made
 - Do not write implementation code in the ticket
+- Do not fabricate follow-up items — only include entries actually present in KNOWN FOLLOW-UPS

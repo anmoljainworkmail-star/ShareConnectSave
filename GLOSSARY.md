@@ -22,6 +22,9 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 ## OpenAPI / Contracts
 
 - **`additionalProperties: false`** — a JSON Schema / OpenAPI keyword that rejects any object containing a field not explicitly listed under `properties`, so a future accidental (or convenient-in-the-moment) field addition fails contract validation instead of silently widening the shape. _(T003, `error-envelope.yaml`)_
+- **`openapi: 3.1.0`** — declares the spec version; 3.1 (unlike 3.0.x) is fully JSON Schema-compatible, so the same `type`/`enum`/`$ref` rules work identically whether the schema is embedded in an OpenAPI file or a standalone JSON Schema document like `error-envelope.yaml`. _(T005, `user-service.yaml`)_
+- **`$ref: './error-envelope.yaml#/components/schemas/ErrorResponse'`** — a JSON Reference: the part before `#` is a relative path to another file, the part after is a JSON Pointer into that file's structure. This is what lets eight separate service specs all point at one shared error schema instead of each redefining it. _(T005, `user-service.yaml`)_
+- **`components.responses` (named, reusable response objects)** — defines a response shape once per file (e.g. `BadRequest`, `Unauthorized`) and has every operation that can return it `$ref` the same block, instead of repeating the same `400`/`401` schema under every single endpoint. _(T005, `user-service.yaml`)_
 
 ## Docker Compose / YAML
 

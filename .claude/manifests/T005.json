@@ -1,0 +1,21 @@
+{
+  "task_id": "T005",
+  "title": "OpenAPI Specs (All Services)",
+  "status": "completed",
+  "files_created": [
+    "contracts/openapi/user-service.yaml",
+    "contracts/openapi/discovery-service.yaml",
+    "contracts/openapi/connection-service.yaml",
+    "contracts/openapi/chat-service.yaml",
+    "contracts/openapi/rating-service.yaml",
+    "contracts/openapi/notification-service.yaml",
+    "contracts/openapi/report-service.yaml",
+    "contracts/openapi/admin-service.yaml"
+  ],
+  "criteria_checked": {
+    "AC1_all_8_files_valid_openapi_3_1": "PASS",
+    "AC2_every_requirements_endpoint_represented": "PASS",
+    "AC3_error_responses_reference_ErrorResponse": "PASS"
+  },
+  "last_note": "All 8 service OpenAPI 3.1 specs written and validated via a Node/js-yaml script: parsed cleanly, no duplicate path keys, every operation has operationId+responses, every non-2xx response resolves (directly or via component ref) to error-envelope.yaml#/components/schemas/ErrorResponse, no securitySchemes added anywhere. Task complete."
+}

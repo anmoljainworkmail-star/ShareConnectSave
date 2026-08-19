@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Discovery Service
+  version: "1.0.0"
+  description: >
+    Geospatial scan (GPS mode), BLE offline-fallback token resolution, and
+    discovery filters (women-only, radius, route overlap). JWT validated at
+    API Gateway (YARP). Services receive X-User-Id (uuid), X-User-Role
+    (user|admin), X-User-Gender (female|male|unspecified) headers. Never
+    re-validate the JWT.
+
+tags:
+  - name: scan
+  - name: ble
+  - name: settings
+
+paths:
+  /scan/start:
+    post:
+      tags: [scan]
+      summary: Start a GPS discovery scan
+      description: >
+        Activates the radar. Location is tracked continuously for the
+        lifetime of the scan (client streams updates; not modeled here as a
+        single request/response cycle — this endpoint just opens the scan
+        session). Coordinates are never persisted beyond the active scan
+        (Location Privacy — non-functional requirement).
+      operationId: startScan
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserGender'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanStartRequest'
+      responses:
+        '201':
+          description: Scan session opened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is suspended from discovery (very low trust score).
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /scan/stop:
+    delete:
+      tags: [scan]
+      summary: Stop the active scan
+      operationId: stopScan
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '204':
+          description: Scan session closed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No active scan session for this user.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /scan/nearby:
+    get:
+      tags: [scan]
+      summary: Get the current list of nearby discoverable users
+      description: >
+        # Cache-Aside: profile fields shown on each card (name, photo, rating,
+        # preferred_language) are read from a Redis cache populated on miss
+        # from User Service, not re-fetched per scan tick — keeps discovery's
+        # P95 < 500ms NFR achievable even if User Service is briefly slow.
+        Server applies radius, route-overlap %, departure-time window, block
+        list, status, and (if enabled) women-only filters. Gender is never
+        present in the response — it is a filter predicate only.
+      operationId: getNearbyUsers
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserGender'
+      responses:
+        '200':
+          description: Nearby users returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NearbyUserCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No active scan session — call POST /scan/start first.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ble/resolve:
+    post:
+      tags: [ble]
+      summary: Resolve rotating BLE tokens to full profiles once back online
+      description: >
+        Offline-fallback flow: while disconnected, the client only sees
+        rotating hashed tokens over Bluetooth (never a raw user ID —
+        Security by design). Once connectivity returns, the client posts
+        the tokens it collected and gets back resolvable profile cards for
+        the ones the server can still map to a live, in-scan user.
+      operationId: resolveBleTokens
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BleResolveRequest'
+      responses:
+        '200':
+          description: Resolved profiles (unresolvable tokens are simply omitted).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NearbyUserCard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /settings/women-only:
+    put:
+      tags: [settings]
+      summary: Toggle women-only discovery mode
+      description: >
+        Modeled as a stored settings toggle, not a query parameter on
+        /scan/nearby — the filter must apply consistently to every future
+        scan tick, not be something a client can silently omit. Server
+        re-validates X-User-Gender = female on every write; a non-female
+        caller gets 403, never a silently-ignored toggle.
+      operationId: setWomenOnlyMode
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserGender'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WomenOnlySettingRequest'
+      responses:
+        '200':
+          description: Setting updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WomenOnlySettingRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Women-only mode is only available to callers with gender = female.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Injected by the API Gateway after JWT validation.
+      schema:
+        type: string
+        format: uuid
+    XUserGender:
+      name: X-User-Gender
+      in: header
+      required: true
+      description: >
+        Injected by the API Gateway after JWT validation. Used server-side as
+        a filter predicate for women-only mode — never echoed back about
+        other users in any response.
+      schema:
+        type: string
+        enum: [female, male, unspecified]
+
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid identity headers.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    ScanStartRequest:
+      type: object
+      required: [destination, departure_time, latitude, longitude]
+      properties:
+        destination:
+          type: string
+        departure_time:
+          type: string
+          format: date-time
+        latitude:
+          type: number
+        longitude:
+          type: number
+        radius_meters:
+          type: integer
+          default: 1000
+          description: Discovery radius. Default 1 km per requirements.
+
+    ScanSession:
+      type: object
+      required: [scan_id, status]
+      properties:
+        scan_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active]
+
+    # No gender field. Discovery cards are shown to OTHER users, and gender
+    # is a filter predicate only — including it here would leak it through
+    # the one surface REQUIREMENTS.md explicitly forbids (§10).
+    NearbyUserCard:
+      type: object
+      required: [user_id, name, destination, leaving_in_minutes, route_match_percent, discovery_source]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        photo_url:
+          type: ["string", "null"]
+        rating_average:
+          type: ["number", "null"]
+        destination:
+          type: string
+        leaving_in_minutes:
+          type: integer
+        route_match_percent:
+          type: number
+        preferred_language:
+          type: string
+        discovery_source:
+          type: string
+          enum: [gps, ble]
+          description: >
+            BLE-sourced cards carry far fewer fields — profile details
+            cannot be resolved offline (see BleOfflineCard usage in the
+            client; this schema's optional fields are simply absent for BLE).
+        approx_distance_meters:
+          type: ["number", "null"]
+
+    BleResolveRequest:
+      type: object
+      required: [tokens]
+      properties:
+        tokens:
+          type: array
+          items:
+            type: string
+          description: Rotating, hashed tokens collected while offline. Never raw user IDs.
+
+    WomenOnlySettingRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean

@@ -28,7 +28,17 @@ whenever the verdict is APPROVED or APPROVED_WITH_MINOR_ISSUES) and write it ver
 If that file already exists from a prior review pass on this ticket, overwrite it — the
 checklist should always reflect the latest reviewed code.
 
-Report verdict, minor items, and the QA checklist location to user. Done.
+If the verdict is APPROVED_WITH_MINOR_ISSUES, the minor items are non-blocking findings
+that a future task must still pick up — they do not persist on their own. Append each one
+to `.claude/notes/follow-ups.md` (create the file with a `# Review Follow-ups` header and
+brief explanation of its purpose if it doesn't exist yet) under a `## From $ARGUMENTS
+(TASK_TITLE)` heading, one numbered entry per finding, each ending with an "Affects:" line
+naming the specific downstream task IDs whose implementation or ticket should address it.
+Use your judgment on which task IDs are affected — infer from what service/file the finding
+touches and which future SPECS.md tasks own that service.
+
+Report verdict, minor items, the QA checklist location, and (if applicable) confirmation
+that follow-ups were logged, to the user. Done.
 
 ### NEEDS_REWORK:
 Extract the numbered issue list. Spawn fix agent (cycle 1):

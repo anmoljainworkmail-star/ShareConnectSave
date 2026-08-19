@@ -1,0 +1,520 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — User Service
+  version: "1.0.0"
+  description: >
+    Auth, profile, OTP, identity verification, and block management.
+    JWT validated at API Gateway (YARP). Services receive X-User-Id (uuid),
+    X-User-Role (user|admin), X-User-Gender (female|male|unspecified) headers.
+    Never re-validate the JWT.
+
+    Contract-first design (SOLID-I / Interface Segregation at the file level):
+    this spec only exposes what User Service owns. Other services never read
+    user data by joining into this schema directly — they call these endpoints,
+    or react to `user.verified` on Kafka.
+
+tags:
+  - name: auth
+  - name: profile
+  - name: identity
+  - name: blocks
+
+paths:
+  /auth/google:
+    post:
+      tags: [auth]
+      summary: Exchange a Google ID token for a ShareConnectSave session
+      description: >
+        # Security-by-design exception: this is the ONE endpoint in the whole
+        # platform that is NOT called with X-User-Id already present, because
+        # no ShareConnectSave identity exists yet at this point — the gateway
+        # routes it through unauthenticated, and User Service itself verifies
+        # the Google ID token and mints the first-ever JWT for this user.
+        Public entry point. Verifies the Google ID token, creates the user
+        record if new, and returns an app JWT + refresh token. The JWT is
+        opaque to every downstream service — only the gateway ever inspects it.
+      operationId: googleAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthRequest'
+      responses:
+        '200':
+          description: Existing user authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '201':
+          description: New user created and authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/otp/send:
+    post:
+      tags: [auth]
+      summary: Send an OTP to the user's phone number
+      description: >
+        Mandatory step after Google sign-in, before the account is fully
+        verified. Called with a provisional X-User-Id (pre-verification) —
+        the gateway already issued a limited-scope JWT from /auth/google.
+      operationId: sendOtp
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpSendRequest'
+      responses:
+        '200':
+          description: OTP dispatched.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        # T005 review follow-up: standard REST practice models a cool-down
+        # lockout as 429 Too Many Requests, not 409. Deferred to the
+        # implementing service (T017) — see .claude/notes/follow-ups.md.
+        # The ErrorResponse `code` field should be OTP_LOCKED so the Angular
+        # client (T063) can render "wait N minutes" rather than a generic error.
+        '409':
+          description: OTP lockout — too many attempts, retry after cool-down.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/otp/verify:
+    post:
+      tags: [auth]
+      summary: Verify the OTP code and complete phone verification
+      operationId: verifyOtp
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerifyRequest'
+      responses:
+        '200':
+          description: Phone verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profile:
+    get:
+      tags: [profile]
+      summary: Get the caller's own profile
+      operationId: getProfile
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: Profile returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [profile]
+      summary: Update the caller's own profile
+      description: >
+        Includes preferred language, gender, and discovery status (looking /
+        not available). Trust score and verification badge are NOT settable
+        here — they are derived fields owned by Rating Service and the
+        identity-verification flow respectively (Single Responsibility).
+      operationId: updateProfile
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+      responses:
+        '200':
+          description: Profile updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profile/photo:
+    post:
+      tags: [profile]
+      summary: Upload or replace the profile photo
+      description: >
+        Required before identity verification can start if the Google account
+        had no profile photo — this uploaded photo becomes the face-match base.
+      operationId: uploadProfilePhoto
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  contentEncoding: base64
+                  description: Image file bytes.
+      responses:
+        '200':
+          description: Photo stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /identity/verify:
+    post:
+      tags: [identity]
+      summary: Submit a selfie for liveness + face-match identity verification
+      operationId: submitIdentityVerification
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [selfie]
+              properties:
+                selfie:
+                  type: string
+                  contentEncoding: base64
+      responses:
+        '202':
+          description: Verification submitted, processing async.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: No base photo on file — user must upload a profile photo first.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /identity/status:
+    get:
+      tags: [identity]
+      summary: Get the caller's identity verification status
+      operationId: getIdentityStatus
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Status returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /blocks/{userId}:
+    post:
+      tags: [blocks]
+      summary: Block another user
+      description: >
+        Bidirectional enforcement: Discovery Service excludes matches where
+        either party has blocked the other. This service only owns the block
+        record — it does not reach into Discovery's index (Database per Service).
+      operationId: blockUser
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Block created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockedUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: User already blocked.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [blocks]
+      summary: Remove a block (permanent until manually removed)
+      operationId: unblockUser
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Block removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /blocks:
+    get:
+      tags: [blocks]
+      summary: List users the caller has blocked
+      operationId: listBlocks
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Block list returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlockedUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: >
+        Injected by the API Gateway (YARP) after JWT validation. Services
+        trust this header and never re-validate the JWT (API Gateway pattern
+        — auth is a cross-cutting concern handled once, centrally).
+      schema:
+        type: string
+        format: uuid
+    XUserRole:
+      name: X-User-Role
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [user, admin]
+
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid identity headers.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    # T005 review follow-up: request schemas below don't set
+    # additionalProperties: false, so an unexpected extra field silently
+    # passes validation instead of being rejected. Cosmetic strictness gap,
+    # not a blocker — see .claude/notes/follow-ups.md.
+    GoogleAuthRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+
+    # T005 review follow-up: this returns a refresh_token but no
+    # POST /auth/refresh endpoint exists to redeem it. Intentional scope
+    # deferral, not dropped — add the endpoint when token refresh is
+    # implemented (see .claude/notes/follow-ups.md).
+    AuthResponse:
+      type: object
+      required: [access_token, refresh_token, user_id, onboarding_complete]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+        onboarding_complete:
+          type: boolean
+
+    OtpSendRequest:
+      type: object
+      required: [phone_number]
+      properties:
+        phone_number:
+          type: string
+
+    OtpVerifyRequest:
+      type: object
+      required: [phone_number, code]
+      properties:
+        phone_number:
+          type: string
+        code:
+          type: string
+
+    # Gender appears here because this is the OWN-profile endpoint. Discovery
+    # Service's nearby-user DTO deliberately omits gender (see
+    # discovery-service.yaml) — it is a filter predicate, never a broadcast field.
+    Profile:
+      type: object
+      required: [user_id, name, gender, preferred_language, status, trust_score, identity_verified]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        photo_url:
+          type: ["string", "null"]
+        gender:
+          type: string
+          enum: [female, male, unspecified]
+        preferred_language:
+          type: string
+        status:
+          type: string
+          enum: [looking_for_companion, not_available]
+        rating_average:
+          type: ["number", "null"]
+        trust_score:
+          type: number
+        trusted_badge:
+          type: boolean
+        identity_verified:
+          type: boolean
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        preferred_language:
+          type: string
+        gender:
+          type: string
+          enum: [female, male, unspecified]
+        status:
+          type: string
+          enum: [looking_for_companion, not_available]
+
+    PhotoUploadResponse:
+      type: object
+      required: [photo_url]
+      properties:
+        photo_url:
+          type: string
+
+    IdentityStatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [not_started, pending, verified, rejected]
+        rejected_reason:
+          type: ["string", "null"]
+
+    BlockedUser:
+      type: object
+      required: [user_id, blocked_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        blocked_at:
+          type: string
+          format: date-time

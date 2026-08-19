@@ -1,0 +1,278 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Connection Service
+  version: "1.0.0"
+  description: >
+    Connection request lifecycle: pending -> accepted / declined / expired.
+    JWT validated at API Gateway (YARP). Services receive X-User-Id (uuid),
+    X-User-Role (user|admin), X-User-Gender (female|male|unspecified)
+    headers. Never re-validate the JWT.
+
+    # Saga (Choreography): this service owns steps 1-2 of
+    # ConnectionLifecycleSaga (REQUIREMENTS.md). It does not call Chat
+    # Service directly — accepting a request emits `connection.accepted`
+    # on Kafka and Chat Service reacts. If chat-room creation fails
+    # downstream, Chat publishes a compensating event that reverts this
+    # service's state back to PENDING; that compensation is NOT an HTTP
+    # call, so it is not modeled as an endpoint in this file.
+
+tags:
+  - name: connections
+
+paths:
+  /connections:
+    post:
+      tags: [connections]
+      summary: Send a connection request to a discovered user
+      description: >
+        Per-user rate limiting is enforced here (NFR: Security) — throttled
+        further for users with repeated negative ratings via
+        `trust.score.updated` events consumed from Rating Service.
+      operationId: createConnection
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectionCreateRequest'
+      responses:
+        '201':
+          description: Request created in PENDING state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        # T005 review follow-up: this 403 conflates "blocked" (authorization) with
+        # "throttled" (rate limiting) into one status code. Standard REST practice
+        # uses 429 Too Many Requests for the throttle case. Deferred to the
+        # implementing service (T029) rather than reworking the contract here —
+        # see .claude/notes/follow-ups.md. When implemented, the ErrorResponse
+        # `code` field must distinguish BLOCKED from THROTTLED so the Angular
+        # client (T067) can render different messaging for each.
+        '403':
+          description: Recipient has blocked the caller, or caller is throttled/suspended.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '409':
+          description: A pending connection already exists between these two users.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /connections/pending:
+    get:
+      tags: [connections]
+      summary: List the caller's pending connection requests (sent and received)
+      operationId: listPendingConnections
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Pending connections returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Connection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /connections/{id}/accept:
+    put:
+      tags: [connections]
+      summary: Accept a pending connection request
+      description: >
+        Transitions PENDING -> ACCEPTED and writes an outbox record for
+        `connection.accepted` in the same DB transaction (Outbox Pattern) —
+        Chat Service opens the room only after consuming that event, never
+        by polling this API.
+      operationId: acceptConnection
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Connection accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not the recipient of this request.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Request is not in PENDING state (already accepted/declined/expired).
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /connections/{id}/decline:
+    put:
+      tags: [connections]
+      summary: Decline a pending connection request
+      operationId: declineConnection
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Connection declined.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not the recipient of this request.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Request is not in PENDING state.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /connections/{id}:
+    get:
+      tags: [connections]
+      summary: Get a single connection's current state
+      operationId: getConnection
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Connection returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is neither the requester nor the recipient.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Injected by the API Gateway after JWT validation.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid identity headers.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Connection not found.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    ConnectionCreateRequest:
+      type: object
+      required: [recipient_id]
+      properties:
+        recipient_id:
+          type: string
+          format: uuid
+
+    Connection:
+      type: object
+      required: [id, requester_id, recipient_id, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        requester_id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, accepted, declined, expired]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: TTL cutoff (default 10 minutes) for an unanswered request.

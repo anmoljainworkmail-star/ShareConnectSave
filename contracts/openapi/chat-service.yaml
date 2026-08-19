@@ -1,0 +1,297 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Chat Service
+  version: "1.0.0"
+  description: >
+    Temporary chat: MongoDB-backed messages, SignalR real-time delivery, TTL
+    expiry. JWT validated at API Gateway (YARP). Services receive X-User-Id
+    (uuid), X-User-Role (user|admin), X-User-Gender (female|male|unspecified)
+    headers. Never re-validate the JWT.
+
+    # No history endpoint: REQUIREMENTS.md §6 and the Chat Privacy NFR make
+    # this a hard requirement, not a missing feature. MongoDB's TTL index is
+    # the enforcement mechanism — once a document expires, no application
+    # code path (including this spec) can retrieve it. GET /chats/{id} below
+    # only ever returns messages for a currently OPEN room, never a closed one.
+
+tags:
+  - name: chat
+
+paths:
+  /chats/{connectionId}:
+    get:
+      tags: [chat]
+      summary: Get the live chat room and its current (not historical) messages
+      description: >
+        Only returns data while the room is open. Once closed, the room and
+        its messages are gone from the read path — there is deliberately no
+        way to distinguish "expired" from "never existed" to a caller who
+        wasn't a participant (avoids leaking that a connection ever happened).
+      operationId: getChat
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: connectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chat room with currently-live messages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatRoom'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not a participant in this chat.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Chat not found, not yet open, or already closed/expired.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [chat]
+      summary: Force-close a chat (admin action or 2-hour timeout job)
+      description: >
+        Not a normal user action — called by an admin (X-User-Role: admin)
+        or by an internal scheduled job enforcing the 2-hour auto-close rule.
+        Publishes `chat.closed` with `closed_reason` set accordingly, same
+        as the Met-Successfully path (Liskov Substitution: callers of the
+        "close chat" behaviour don't need to know which trigger caused it).
+      operationId: closeChat
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: connectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseChatRequest'
+      responses:
+        '204':
+          description: Chat closed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not authorized to force-close this chat.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Chat not open.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chats/{connectionId}/messages:
+    post:
+      tags: [chat]
+      summary: Send a message in an open chat
+      description: >
+        Persisted to MongoDB with the room's TTL, then fanned out over
+        SignalR to both participants. This HTTP endpoint is the write path;
+        SignalR is the read/delivery path for the other participant — the
+        two are intentionally decoupled (Interface Segregation: senders and
+        real-time listeners depend on different contracts).
+      operationId: sendMessage
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: connectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message accepted and delivered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not a participant in this chat.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Chat not open.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chats/{connectionId}/met:
+    post:
+      tags: [chat]
+      summary: Mark "Met Successfully" for the caller
+      description: >
+        Either participant tapping this starts the 5-minute grace period
+        before the room closes and triggers the rating flow
+        (`chat.closed` -> Rating Service). This is step 4 of
+        ConnectionLifecycleSaga.
+      operationId: markMetSuccessfully
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: connectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Recorded; chat will close after the grace period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatRoom'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not a participant in this chat.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Chat not open.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Injected by the API Gateway after JWT validation.
+      schema:
+        type: string
+        format: uuid
+    XUserRole:
+      name: X-User-Role
+      in: header
+      required: false
+      description: Injected by the API Gateway. Required to be `admin` for forced closes not triggered by the timeout job.
+      schema:
+        type: string
+        enum: [user, admin]
+
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid identity headers.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    ChatRoom:
+      type: object
+      required: [connection_id, status, opened_at, participant_ids, messages]
+      properties:
+        connection_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [open, closing, closed]
+        opened_at:
+          type: string
+          format: date-time
+        participant_ids:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: string
+            format: uuid
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+
+    Message:
+      type: object
+      required: [id, sender_id, text, sent_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        sent_at:
+          type: string
+          format: date-time
+
+    SendMessageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+
+    CloseChatRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [met_grace_period, timeout, admin]

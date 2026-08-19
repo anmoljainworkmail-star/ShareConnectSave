@@ -1,0 +1,341 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Admin Service
+  version: "1.0.0"
+  description: >
+    Admin dashboard: review queue, trust score overrides, suspend/reinstate,
+    per-user report history. JWT validated at API Gateway (YARP). Services
+    receive X-User-Id (uuid), X-User-Role (user|admin), X-User-Gender
+    (female|male|unspecified) headers. Never re-validate the JWT. Every
+    endpoint in this file requires X-User-Role: admin — 403 otherwise.
+
+    # Database per Service: Admin Service has no database of its own for
+    # user/report/rating data. It reads other services' data over HTTP
+    # (User, Rating, Report Services) rather than joining into their
+    # schemas directly — the review queue below is an aggregation view
+    # assembled at request time, not a locally-owned table.
+
+tags:
+  - name: admin
+
+paths:
+  /admin/queue:
+    get:
+      tags: [admin]
+      summary: Get the manual review queue
+      description: >
+        Accounts land here via ReportEscalationSaga (repeated reports past
+        threshold) or via a very-low trust score from Rating Service.
+      operationId: getReviewQueue
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: Queue returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewQueueItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/users/{id}/trust-score:
+    put:
+      tags: [admin]
+      summary: Override a user's trust score
+      description: >
+        A manual escape hatch on top of Rating Service's calculated score —
+        the override is stored as an explicit admin action, not silently
+        blended into the calculated value, so the calculation stays
+        auditable (Single Responsibility: TrustScoreCalculator still only
+        calculates; this is a separate, explicit override record).
+      operationId: overrideTrustScore
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrustScoreOverrideRequest'
+      responses:
+        '200':
+          description: Override applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustScoreOverrideResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/users/{id}/suspend:
+    put:
+      tags: [admin]
+      summary: Suspend a user from discovery
+      operationId: suspendUser
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuspendRequest'
+      responses:
+        '200':
+          description: User suspended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountStatusResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: User is already suspended.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/users/{id}/reinstate:
+    put:
+      tags: [admin]
+      summary: Reinstate a suspended user
+      operationId: reinstateUser
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User reinstated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountStatusResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: User is not currently suspended.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/users/{id}/reports:
+    get:
+      tags: [admin]
+      summary: View a user's report history
+      description: >
+        Proxies to Report Service rather than reading its data store
+        directly (Database per Service) — Admin Service depends on Report
+        Service's HTTP contract, not its MongoDB collection shape.
+      operationId: getUserReportHistory
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Report history returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Injected by the API Gateway after JWT validation. Identifies the acting admin for audit purposes.
+      schema:
+        type: string
+        format: uuid
+    XUserRole:
+      name: X-User-Role
+      in: header
+      required: true
+      description: Must be `admin` for every endpoint in this file.
+      schema:
+        type: string
+        enum: [user, admin]
+
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid identity headers.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Caller does not have the admin role.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    NotFound:
+      description: User not found.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    ReviewQueueItem:
+      type: object
+      required: [user_id, reason, queued_at, report_count, trust_score]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [report_escalation, low_trust_score]
+        queued_at:
+          type: string
+          format: date-time
+        report_count:
+          type: integer
+        trust_score:
+          type: number
+
+    TrustScoreOverrideRequest:
+      type: object
+      required: [score, reason]
+      properties:
+        score:
+          type: number
+        reason:
+          type: string
+          maxLength: 500
+
+    TrustScoreOverrideResult:
+      type: object
+      required: [user_id, score, overridden_by, overridden_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        score:
+          type: number
+        overridden_by:
+          type: string
+          format: uuid
+        overridden_at:
+          type: string
+          format: date-time
+
+    SuspendRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+
+    AccountStatusResult:
+      type: object
+      required: [user_id, status, updated_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, suspended]
+        updated_at:
+          type: string
+          format: date-time
+
+    ReportSummary:
+      type: object
+      required: [id, reason, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [open, escalated, reviewed, dismissed]
+        created_at:
+          type: string
+          format: date-time

@@ -24,6 +24,7 @@ For each task without a ticket, run this sequence:
 - Find the relevant section in REQUIREMENTS.md that this task implements
 - Get the skill names for this task from `.claude/skill-map.md` (names only, not file contents)
 - Get the phase goal from `.claude/phases/phase-$ARGUMENTS.md`
+- Open `.claude/notes/follow-ups.md` if it exists; extract any entry (not already `[resolved: ...]`) whose "Affects" list includes this TASK_ID, verbatim. Use "none" if the file doesn't exist or nothing matches.
 
 **b) Spawn a ticket creator agent** with:
 ```
@@ -47,6 +48,9 @@ Task ID: {TASK_ID}
 
 --- SKILLS REQUIRED (names only) ---
 {skill names, or "none"}
+
+--- KNOWN FOLLOW-UPS (from .claude/notes/follow-ups.md, entries whose "Affects" list includes {TASK_ID}) ---
+{verbatim text of matching entries, or "none"}
 
 === OUTPUT ===
 Create the file: .claude/tickets/{TASK_ID}.md
@@ -89,6 +93,12 @@ Specific guidance for the developer:
 - Key files to create (paths from project root)
 - Patterns to use (with reference to skill file section names)
 - What NOT to do (common mistakes for this task type)
+
+## Known follow-ups
+Only include this section if KNOWN FOLLOW-UPS is not "none". List each matching
+entry as a short actionable line: what a prior review found, and what this
+ticket's implementation must decide or address because of it. Do not fabricate
+entries — only include what's actually present in KNOWN FOLLOW-UPS.
 ```
 
 Run tasks sequentially. Show progress: "Creating T001... done. Creating T002... done."

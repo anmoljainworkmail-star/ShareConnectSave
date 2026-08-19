@@ -24,6 +24,9 @@ Find which phase this task belongs to (use `.claude/skill-map.md` or SPECS.md ph
 **d) Skills needed:**
 Open `.claude/skill-map.md` and find "$ARGUMENTS". Note the skill names (do NOT read the skill file content — just the names).
 
+**e) Known follow-ups:**
+Open `.claude/notes/follow-ups.md` if it exists. Find any entry whose "Affects" list includes "$ARGUMENTS". Extract those entries verbatim (skip entries already marked `[resolved: ...]`). If the file doesn't exist or no entry matches, use "none".
+
 ## Step 3 — Spawn ticket creator agent
 
 Read `.claude/agents/ticket-creator.md` for the full agent prompt. Call Agent with that content, substituting:
@@ -32,6 +35,7 @@ Read `.claude/agents/ticket-creator.md` for the full agent prompt. Call Agent wi
 - `{relevant requirements section}` → business context from Step 2b
 - `{phase-N.md goal statement}` → phase goal from Step 2c
 - `{comma-separated skill names, or "none"}` → skill names from Step 2d
+- `{verbatim text of matching entries, or "none"}` → follow-ups from Step 2e
 
 ## Step 4 — After ticket is created
 

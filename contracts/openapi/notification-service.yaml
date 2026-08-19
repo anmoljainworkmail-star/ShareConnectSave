@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: ShareConnectSave — Notification Service
+  version: "1.0.0"
+  description: >
+    FCM push + SignalR event fan-out. JWT validated at API Gateway (YARP)
+    for every OTHER service in this platform — but Notification Service's
+    only HTTP surface is internal, service-to-service, and is deliberately
+    NOT routed through the public gateway at all.
+
+    # Security by design: this endpoint has no X-User-Id header and no
+    # gateway-issued identity, because it is never reached by a browser or
+    # mobile client. It sits on the Docker Compose internal network only
+    # (see REQUIREMENTS.md "Service URLs") — callers are other services
+    # (Connection, Chat, Rating, Report) resolving it by container name.
+    # In production this would additionally be firewalled at the network
+    # layer / mTLS between services; that hardening is out of scope for
+    # this spec, which only documents the request/response shape.
+    #
+    # In practice most triggers for this service arrive over Kafka
+    # (`connection.accepted`, `chat.closed`, etc. — see /contracts/kafka),
+    # not HTTP. This endpoint exists for the rare synchronous case where a
+    # calling service needs an immediate ack that a notification was queued.
+
+tags:
+  - name: internal
+
+paths:
+  /internal/notify:
+    post:
+      tags: [internal]
+      summary: Trigger a push and/or SignalR notification for a user (internal only)
+      operationId: notify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotifyRequest'
+      responses:
+        '202':
+          description: Notification accepted for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotifyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  responses:
+    BadRequest:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+
+  schemas:
+    NotifyRequest:
+      type: object
+      required: [target_user_id, channel, event_type, payload]
+      properties:
+        target_user_id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          enum: [push, signalr, both]
+          description: >
+            `push` = FCM (background/app-closed delivery). `signalr` = live
+            in-app event (e.g. new message, connection accepted) for a
+            connected client. `both` covers the common case where the
+            client may or may not currently be foregrounded.
+        event_type:
+          type: string
+          description: Mirrors the originating Kafka event name where applicable, e.g. connection.accepted, chat.closed.
+        payload:
+          type: object
+          description: Event-specific data forwarded to the client; shape varies by event_type.
+          additionalProperties: true
+
+    NotifyResponse:
+      type: object
+      required: [notification_id, queued]
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        queued:
+          type: boolean

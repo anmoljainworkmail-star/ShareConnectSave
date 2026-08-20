@@ -18,6 +18,17 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 
 - **C# `record`** — same idea as a Java record: an immutable data type where two instances are equal if their values match, not just if they're the same object reference. _(T003, `ErrorResponse.cs`)_
 - **`[JsonPropertyName("...")]`** (`System.Text.Json`) — pins the exact JSON key name for a property or record parameter, overriding whatever the ambient serializer's naming policy (e.g. PascalCase by default) would otherwise produce. Needed because C#'s default casing doesn't match Java's. _(T003, `ErrorResponse.cs`)_
+- **`IDesignTimeDbContextFactory<TContext>`** — a factory interface EF Core's CLI tooling (`dotnet ef migrations add`) looks for when it needs to construct a `DbContext` outside the app's normal startup (no host, no DI container running); implementing it is what lets `dotnet ef` build a context to diff against, using its own connection string lookup rather than the app's runtime configuration path. _(T006, `AppDbContextFactory.cs`)_
+- **`entity.HasIndex(x => x.Prop).IsUnique()`** (EF Core fluent API, in `OnModelCreating`) — configures a database-level unique index on a column via code instead of a data annotation; EF Core generates the corresponding migration DDL from this call. _(T006, `AppDbContext.cs`)_
+
+## SQL Server / T-SQL
+
+- **`V{version}__{description}.sql`** (Flyway naming convention) — two underscores between version and description; Flyway checksums the file after its first run and refuses to start if the bytes ever change, so a migration can't silently re-run or drift. _(T006, `V001__discovery_service_initial_schema.sql`)_
+- **`AS geography::Point(lat, lng, srid) PERSISTED`** — a computed column: its value is derived from other columns in the same row (here, turning two floats into a native spatial point) and physically stored (`PERSISTED`) rather than recalculated on every read. _(T006, `V001__discovery_service_initial_schema.sql`)_
+- **`CREATE SPATIAL INDEX ... USING GEOGRAPHY_AUTO_GRID`** — indexes a `geography` column by tessellating the earth into a grid so a proximity/distance query can prune almost the entire table before doing real distance math, instead of scanning every row. _(T006, `V001__discovery_service_initial_schema.sql`)_
+- **`SET ANSI_NULLS/ANSI_PADDING/ANSI_WARNINGS/ARITHABORT/CONCAT_NULL_YIELDS_NULL/NUMERIC_ROUNDABORT/QUOTED_IDENTIFIER`** — session-level options SQL Server requires to all be set to specific values before it will let you index a computed column; different client drivers (e.g. `sqlcmd` vs. JDBC) default these differently, so relying on a default instead of setting them explicitly can make a migration pass under manual testing and fail in the real app. _(T006, `V001__discovery_service_initial_schema.sql`)_
+- **`CREATE UNIQUE INDEX ... WHERE <condition>`** (filtered unique index) — enforces uniqueness only among rows matching the `WHERE` clause, so e.g. only one currently-`PENDING` row per key pair is disallowed, while old `EXPIRED`/`ACCEPTED` history doesn't block a legitimate future row. _(T006, `V001__connection_service_initial_schema.sql`)_
+- **`CHECK (col IS NULL OR ISJSON(col)=1)`** — a check constraint that validates a `NVARCHAR` column contains syntactically valid JSON (when present), without needing a separate normalized table for the JSON's contents. _(T006, `V001__rating_service_initial_schema.sql`)_
 
 ## OpenAPI / Contracts
 

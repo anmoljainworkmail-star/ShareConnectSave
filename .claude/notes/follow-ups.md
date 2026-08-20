@@ -38,3 +38,25 @@ so the audit trail of what was known and when survives.
    Affects: any task implementing request DTOs against these specs (T015+, T021+, T029+).
    Action: low priority — add `additionalProperties: false` to request schemas when
    touching them, no dedicated ticket needed.
+
+## From T006 (SQL Server Database Schemas)
+
+1. **Discovery Service has no Flyway/mssql-jdbc runtime dependency wired up yet**, so the
+   `V001__discovery_service_initial_schema.sql` migration cannot actually execute — `pom.xml`
+   has no `flyway-core`/`flyway-sqlserver`/`mssql-jdbc`, and `application.properties` has no
+   `spring.datasource.*`/`spring.flyway.*` config. This is expected at this stage (T006 is
+   schema-only) but must not be forgotten when the project is bootstrapped.
+   Affects: T021 (Discovery Service — Spring Boot Project Setup).
+   Action: when wiring up the datasource, make sure Flyway runs through the JDBC driver
+   (not a raw `sqlcmd` test) so the migration's `SET ARITHABORT ON` etc. actually take
+   effect — JDBC defaults `ARITHABORT` to OFF unlike `sqlcmd`, which is exactly the gap
+   this migration's SET block exists to close.
+
+2. **Redundant index on `ratings.connection_id`.** `idx_ratings_connection_id` (single-column)
+   is now redundant next to the unique composite `idx_ratings_connection_id_rater_id
+   (connection_id, rater_id)` — SQL Server can already satisfy a "find by connection_id"
+   query using the composite index's leading column. Not incorrect, just unnecessary
+   storage/write overhead.
+   Affects: T041 (Rating Service — Spring Boot Setup + DB Schema).
+   Action: low priority — drop `idx_ratings_connection_id` in a follow-up migration when
+   next touching this schema, no dedicated ticket needed.

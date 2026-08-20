@@ -1,0 +1,25 @@
+{
+  "task_id": "T006",
+  "title": "SQL Server Database Schemas",
+  "status": "completed",
+  "files_created": [
+    "src/services/user-service/user-service.csproj",
+    "src/services/user-service/Models/User.cs",
+    "src/services/user-service/Models/OtpAttempt.cs",
+    "src/services/user-service/Models/IdentityVerification.cs",
+    "src/services/user-service/Infrastructure/AppDbContext.cs",
+    "src/services/user-service/Infrastructure/AppDbContextFactory.cs",
+    "src/services/user-service/Migrations/20260820070019_InitialSchema.cs",
+    "src/services/user-service/Migrations/20260820070019_InitialSchema.Designer.cs",
+    "src/services/user-service/Migrations/AppDbContextModelSnapshot.cs",
+    "src/services/discovery-service/src/main/resources/db/migration/V001__discovery_service_initial_schema.sql",
+    "src/services/connection-service/src/main/resources/db/migration/V001__connection_service_initial_schema.sql",
+    "src/services/rating-service/src/main/resources/db/migration/V001__rating_service_initial_schema.sql"
+  ],
+  "criteria_checked": {
+    "Migrations run cleanly on fresh SQL Server instance": "PASS",
+    "All tables have appropriate indexes (user_id FK, status, created_at)": "PASS",
+    "Geospatial columns on scan_sessions use SQL Server geography type for destination point": "PASS"
+  },
+  "last_note": "All 3 Flyway SQL scripts (Discovery/Connection/Rating) and the EF Core migration (User Service) were verified end-to-end against a real throwaway SQL Server 2022 container (mcr.microsoft.com/mssql/server:2022-latest via docker run) — created DBs matching the actual naming convention from T004's init-databases.sql (UserServiceDb/DiscoveryServiceDb/ConnectionServiceDb/RatingServiceDb, not the ticket's original snake_case names), applied all migrations with zero errors, and spot-checked tables/indexes/spatial index/FK cascade/JSON CHECK constraint with sqlcmd queries and live INSERT tests. Test container removed after verification (no residue). Followed actual repo layout src/services/<service>/... (not services/<service>/... as written generically in the ticket) since T001 already established that path. Admin Service and Chat/Report (Mongo) intentionally have no SQL schema per ticket scope."
+}

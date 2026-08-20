@@ -64,7 +64,19 @@ Read `.claude/agents/task-implementer.md` for the full agent prompt. Call Agent 
    Next: run /review-task $ARGUMENTS when ready.
    ```
 
-**If agent does NOT report "IMPLEMENTATION COMPLETE" or reports a failure:**
+**If the agent stopped because it needs a CLI codegen command run manually** (per the
+"CLI COMMANDS THE TECH LEAD RUNS, NOT YOU" rule in task-implementer.md — e.g. `dotnet ef
+migrations add`, `ng generate`, `mvn archetype:generate`):
+- Do NOT update the ticket or PROGRESS.md. The manifest stays `"in_progress"`.
+- Show the user the exact command(s) the agent reported, with its explanation of each flag.
+- Tell the user: "Run this yourself with `! <command>` so the output lands in our
+  conversation — then let me know and I'll continue $ARGUMENTS from there."
+- Once the user reports the command ran (and shares or confirms the output), resume by
+  running `/start-task $ARGUMENTS` again — the manifest's resume support picks up from
+  the checkpoint, and the agent can build on the real generated files instead of guessing.
+
+**If agent does NOT report "IMPLEMENTATION COMPLETE" or reports a failure (and it's not
+the manual-command case above):**
 - Show the agent output
 - Do NOT update the ticket or PROGRESS.md
 - The manifest remains `"in_progress"` with whatever progress was recorded

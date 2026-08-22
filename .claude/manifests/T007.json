@@ -1,0 +1,17 @@
+{
+  "task_id": "T007",
+  "title": "MongoDB Setup",
+  "status": "completed",
+  "files_created": [
+    "src/infra/mongo-init/01-init-chat.js",
+    "src/infra/mongo-init/02-init-report.js",
+    "src/infra/docker-compose.yml",
+    "src/infra/.env.example"
+  ],
+  "criteria_checked": {
+    "AC1_init_script_runs_on_docker_compose_up_via_volume_mount": "PASS",
+    "AC2_ttl_index_on_messages_sent_at_created_with_expireAfterSeconds": "PASS",
+    "AC3_compound_indexes_on_chat_id_and_user_id_fields": "PASS"
+  },
+  "last_note": "Completed. Deviated from ticket's literal chat_db/report_db names — used ChatServiceDb/ReportServiceDb to match connection strings T004 already established in docker-compose.override.yml and root .env.example. Added MONGO_TTL_SECONDS env var (default 7200) to mongodb service in docker-compose.yml; documented in src/infra/.env.example. Removed mongo-init/.gitkeep now that real init scripts exist."
+}

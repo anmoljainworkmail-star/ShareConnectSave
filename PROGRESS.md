@@ -18,7 +18,7 @@
 ## Phase 1 — Infrastructure
 
 - [x] T006 — SQL Server Database Schemas _(Flyway migrations)_
-- [ ] T007 — MongoDB Setup _(chat_db + report_db init scripts)_
+- [x] T007 — MongoDB Setup _(chat_db + report_db init scripts)_
 - [ ] T008 — Redis Setup _(config — DB 0 discovery cache, DB 1 SignalR backplane)_
 - [ ] T009 — Kafka Topics Init _(7 topics, partitions, retention)_
 - [ ] T010 — Scoop + JDK 21 Install Script _(dev-setup.ps1)_

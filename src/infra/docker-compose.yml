@@ -65,6 +65,15 @@ services:
   mongodb:
     image: mongo:7
     container_name: mongodb
+    environment:
+      # No Hardcoded Config principle: TTL is a business rule (privacy — how
+      # long a chat message may live), not a constant. Read by the T007 init
+      # scripts via mongosh's `process.env.MONGO_TTL_SECONDS` (mongosh is a
+      # Node.js process, so it inherits whatever env vars Compose passes into
+      # this container — no extra plumbing needed). Defaulted with `:-7200`
+      # (2 hours) rather than `:?required` because this one has a safe,
+      # sensible default unlike a secret such as SA_PASSWORD.
+      - MONGO_TTL_SECONDS=${MONGO_TTL_SECONDS:-7200}
     ports:
       - "27017:27017"
     volumes:

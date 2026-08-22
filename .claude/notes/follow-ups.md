@@ -60,3 +60,40 @@ so the audit trail of what was known and when survives.
    Affects: T041 (Rating Service — Spring Boot Setup + DB Schema).
    Action: low priority — drop `idx_ratings_connection_id` in a follow-up migration when
    next touching this schema, no dedicated ticket needed.
+
+## From T007 (MongoDB Setup)
+
+1. **Falsy-zero bug in TTL parsing.** `01-init-chat.js:43` uses
+   `parseInt(process.env.MONGO_TTL_SECONDS, 10) || 7200`. Since `0` is falsy in JavaScript,
+   an explicit `MONGO_TTL_SECONDS=0` (e.g. someone deliberately testing "disable retention")
+   is silently discarded and replaced with the 7200s default. There's also no guard against
+   a negative value — `MONGO_TTL_SECONDS=-5` passes straight through to
+   `createIndex({sent_at:1}, {expireAfterSeconds: -5})`, which MongoDB rejects, crashing the
+   init script non-obviously (the error only surfaces in `docker-entrypoint-initdb.d` logs).
+   Affects: T035 (Chat Service Setup + MongoDB — TTL index on messages.sent_at).
+   Action: replace with an explicit `Number.isNaN()` check instead of `||`, and reject
+   negative values before calling `createIndex`, when T035 next touches this TTL config.
+
+2. **Theoretical TOCTOU in `ensureCollection`.** `01-init-chat.js:50-55` and
+   `02-init-report.js:30-35` do a check-then-act (`getCollectionNames().indexOf(name) === -1`
+   → `createCollection(name)`) with no atomicity between the check and the create. Not
+   reachable under the current execution model (Docker runs each init file once, sequentially,
+   single container) — only a real risk if the init model ever changes to allow concurrent or
+   parallel script execution.
+   Affects: T035 (Chat Service Setup + MongoDB), T051 (Report Service — Spring Boot +
+   Spring Data MongoDB Setup).
+   Action: low priority — add a one-line comment acknowledging the race if either task
+   changes how/when these scripts run; no fix needed under the current single-run model.
+
+3. **Ticket AC3 wording is inconsistent with its own implementation notes.** T007's
+   "What to build" section asks for one compound `(chat_id, sender_id)` index, its
+   "Agent implementation notes" section instead calls for two separate single-field indexes
+   (and explains why — a compound index can't efficiently serve a `sender_id`-only
+   moderation-lookup query), and the acceptance criterion itself says "user_id," a field
+   that doesn't exist anywhere in the schema (the actual field is `sender_id`). The code
+   correctly followed the more detailed implementation notes; only the ticket text is wrong.
+   Affects: T035 (Chat Service Setup + MongoDB), T051 (Report Service Setup) — both will
+   reference T007 as prior art when writing their own tickets/specs.
+   Action: no code change needed. When drafting tickets for T035/T051, don't copy T007's
+   AC wording verbatim — use "sender_id" and describe the two-single-field-index rationale
+   directly instead of "compound index."

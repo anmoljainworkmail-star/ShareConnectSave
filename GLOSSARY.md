@@ -37,6 +37,13 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`$ref: './error-envelope.yaml#/components/schemas/ErrorResponse'`** — a JSON Reference: the part before `#` is a relative path to another file, the part after is a JSON Pointer into that file's structure. This is what lets eight separate service specs all point at one shared error schema instead of each redefining it. _(T005, `user-service.yaml`)_
 - **`components.responses` (named, reusable response objects)** — defines a response shape once per file (e.g. `BadRequest`, `Unauthorized`) and has every operation that can return it `$ref` the same block, instead of repeating the same `400`/`401` schema under every single endpoint. _(T005, `user-service.yaml`)_
 
+## MongoDB / mongosh
+
+- **`db.getSiblingDB('name')`** — switches context to a different database within the same `mongosh` connection without opening a separate connection string; used so one init script can provision multiple logical databases in a single run. _(T007, `01-init-chat.js`)_
+- **`createIndex({field: 1}, {expireAfterSeconds: N})`** — creates a TTL index: MongoDB's own background sweep deletes any document once `field`'s timestamp is more than `N` seconds in the past, no application code involved. _(T007, `01-init-chat.js`)_
+- **`/docker-entrypoint-initdb.d/`** — a directory the official `mongo` image scans on container startup, running every `.js`/`.sh` file inside via `mongosh` — but only the very first time the container starts against an empty data volume, never on later restarts. _(T007, `docker-compose.yml`)_
+- **`process.env.VAR_NAME` inside a mongosh script** — `mongosh` is itself a Node.js process, so it inherits whatever environment variables Docker Compose passes into the container; this is how an init script reads config like `MONGO_TTL_SECONDS` with no extra plumbing. _(T007, `01-init-chat.js`)_
+
 ## Docker Compose / YAML
 
 - **`${VAR:?message}`** — reads env var `VAR`; if it's unset or empty, Compose refuses to start the container and prints `message` instead of silently proceeding with a blank value. A fail-fast guard clause for required config. _(T004, `docker-compose.yml`)_

@@ -50,6 +50,14 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`${VAR:-default}`** — reads env var `VAR`; if it's unset or empty, falls back to `default` instead of failing. Used for config that has a sane dev default (e.g. a hostname), as opposed to `:?` which is reserved for things that must never silently default (secrets). _(T004, `docker-compose.override.yml`)_
 - **`depends_on: <service>: condition: service_healthy`** — waits for the target service's `healthcheck` to report healthy, not just for its container process to exist, before starting this service. _(T004, `docker-compose.yml`)_
 - **`depends_on: <service>: condition: service_completed_successfully`** — waits for a one-shot service (`restart: "no"`) to exit with code 0, rather than waiting on a healthcheck (one-shot jobs don't stay running long enough to have one). _(T004, `docker-compose.yml`)_
+- **`command: ["redis-server", "/path/to/redis.conf"]`** — overrides the image's default startup arguments. Mounting a custom config file into a container via a volume does not make the stock image load it on its own; the container still has to be told, via `command`, to start the process with that file as an argument. _(T008, `docker-compose.yml`)_
+
+## Redis / redis.conf
+
+- **`maxmemory <size>`** — a hard cap on how much memory Redis's dataset may use; once reached, what happens next is governed entirely by `maxmemory-policy`. _(T008, `redis.conf`)_
+- **`maxmemory-policy allkeys-lru`** — once `maxmemory` is hit, silently evict the least-recently-used key across the whole keyspace to make room for a new write. Redis's actual factory default, `noeviction`, does the opposite — it rejects the new write with an OOM error instead. _(T008, `redis.conf`)_
+- **`save ""`** — disables RDB snapshotting entirely, so the dataset does not survive a container restart. Combined with `appendonly` left at its default (`no`), no persistence mechanism is active at all. _(T008, `redis.conf`)_
+- **Logical database index (`databases 16`, selected via `SELECT n` or a client's connection options)** — a single Redis server process can host up to 16 independent numbered keyspaces; picking different indices for unrelated data lets them share one server without their keys ever colliding, with no enforcement beyond every client agreeing to use the right number. _(T008, `redis.conf`)_
 
 ---
 

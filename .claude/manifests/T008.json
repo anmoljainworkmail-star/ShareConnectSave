@@ -1,0 +1,16 @@
+{
+  "task_id": "T008",
+  "title": "Redis Setup",
+  "status": "completed",
+  "files_created": [
+    "src/infra/redis.conf",
+    "src/infra/README.md",
+    "src/infra/docker-compose.yml"
+  ],
+  "criteria_checked": {
+    "AC1_redis_starts_with_config_file_mounted": "PASS",
+    "AC2_redis_cli_ping_returns_pong": "PASS",
+    "AC3_db_separation_documented": "PASS"
+  },
+  "last_note": "Deviated from ticket's literal /infra path — used src/infra to match the actual location docker-compose.yml already lives at (established in T004/T007). Verified live: docker compose up -d redis, confirmed maxmemory=268435456 (256mb), maxmemory-policy=allkeys-lru, save=\"\", databases=16 via redis-cli CONFIG GET, then stopped/removed the container. redis.conf mounted read-only; added an explicit `command: [\"redis-server\", \"/usr/local/etc/redis/redis.conf\"]` override since mounting the file alone does not make the stock image's entrypoint read it. src/infra/README.md created fresh (did not exist before) documenting DB 0 = Discovery cache, DB 1 = SignalR backplane."
+}

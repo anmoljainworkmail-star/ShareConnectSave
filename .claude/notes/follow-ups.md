@@ -97,3 +97,38 @@ so the audit trail of what was known and when survives.
    Action: no code change needed. When drafting tickets for T035/T051, don't copy T007's
    AC wording verbatim — use "sender_id" and describe the two-single-field-index rationale
    directly instead of "compound index."
+
+## From T008 (Redis Setup)
+
+1. **Misleading network-exposure comment on the Redis port mapping.**
+   `docker-compose.yml:146` claims Redis "never leaves the dev Docker network/localhost,"
+   but `ports: "6379:6379"` at `:158-159` publishes to `0.0.0.0` on the host — every
+   network interface the dev machine has (Wi-Fi, Ethernet, VPN), not just loopback. On a
+   shared network (this is explicitly a training/workshop project), anyone else on that
+   network segment can reach Redis with no auth and run `KEYS *`/`FLUSHALL`. The same
+   port-publishing pattern exists for SQL Server (1433), MongoDB (27017), and Kafka (9092)
+   in the same file, so this isn't new to T008 — but T008's comment is the one that
+   incorrectly asserts safety.
+   Affects: none of the currently-scoped SPECS.md tasks own "harden local dev network
+   exposure" as dedicated work — this is a stack-wide `docker-compose.yml` hygiene item
+   from T004, not a single future service ticket.
+   Action: either bind loopback-only (`"127.0.0.1:6379:6379"`, and consider the same for
+   1433/27017/9092) or correct the comment to state the actual exposure and why it's
+   accepted for a local training machine. No urgency pre-push; revisit if this stack is
+   ever run somewhere less trusted than a personal dev machine.
+
+2. **`SIGNALR_REDIS_CONNECTION` has no Redis database index.**
+   `docker-compose.override.yml:43` (chat-service) and `:57` (notification-service) set
+   `SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}` — a bare `host:port` with no
+   `,defaultDatabase=1`. `README.md:30` designates DB 1 for the SignalR backplane, but
+   StackExchange.Redis defaults to DB 0 when no index is given, which is the same DB
+   Discovery Service's cache-aside data lives in. Not exploitable yet — no consuming code
+   exists — but whoever writes the SignalR startup code will silently land on DB 0 unless
+   they remember to append the index themselves; nothing about the variable's name or
+   shape hints one is needed.
+   Affects: T036 (SignalR Hub + Real-time Messaging — Redis backplane DB 1), T048 (SignalR
+   Notification Hub — Redis backplane DB 1, shared with Chat).
+   Action: when implementing T036/T048, append `,defaultDatabase=1` to the connection
+   string (or set it via `ConfigurationOptions.DefaultDatabase` in code), and consider
+   renaming/commenting `SIGNALR_REDIS_CONNECTION` in the override file now so the missing
+   index isn't missed later.

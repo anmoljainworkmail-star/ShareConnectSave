@@ -147,6 +147,14 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
+    # Mounting the file alone does nothing — the image's default entrypoint
+    # (`redis-server`) starts with no arguments and never looks at this path
+    # unless told to. The command override is what actually makes Redis boot
+    # with our maxmemory/eviction/persistence settings instead of stock
+    # defaults. :ro because this container should never rewrite its own config.
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
       - "6379:6379"
     healthcheck:

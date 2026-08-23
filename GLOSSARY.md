@@ -70,6 +70,13 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`save ""`** — disables RDB snapshotting entirely, so the dataset does not survive a container restart. Combined with `appendonly` left at its default (`no`), no persistence mechanism is active at all. _(T008, `redis.conf`)_
 - **Logical database index (`databases 16`, selected via `SELECT n` or a client's connection options)** — a single Redis server process can host up to 16 independent numbered keyspaces; picking different indices for unrelated data lets them share one server without their keys ever colliding, with no enforcement beyond every client agreeing to use the right number. _(T008, `redis.conf`)_
 
+## PowerShell
+
+- **`[Parameter(Mandatory)]` / `[ValidateSet('A','B')]`** — function parameter attributes: `Mandatory` makes PowerShell prompt/fail if the caller omits the argument instead of silently passing `$null`; `ValidateSet` rejects any value not in the listed set before the function body ever runs. _(T010, `dev-setup.ps1`)_
+- **`$script:` scope modifier** — inside a function, `$summary += $x` only mutates a local copy of `$summary`, because PowerShell reads outer-scope variables but writes create a new local one; explicitly assigning back to `$script:summary` is what makes the change visible to the rest of the script. _(T010, `dev-setup.ps1`)_
+- **`2>&1`** — merges a command's stderr stream into stdout so both can be captured together; needed here because `java -version` writes its version banner to stderr by long-standing JVM convention, not stdout. _(T010, `dev-setup.ps1`)_
+- **`-ErrorAction SilentlyContinue`** — turns a cmdlet's non-terminating error into a silent no-op (still returns `$null`/empty) instead of printing red error text, used for existence checks where "not found" is an expected, normal outcome rather than a failure. _(T010, `dev-setup.ps1`)_
+
 ---
 
 _Add new entries only for concepts that actually appear in committed code — not everything mentioned in a skill file. If a concept reappears in a later task using the same mechanism, don't duplicate the entry._

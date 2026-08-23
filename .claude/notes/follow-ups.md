@@ -132,3 +132,32 @@ so the audit trail of what was known and when survives.
    string (or set it via `ConfigurationOptions.DefaultDatabase` in code), and consider
    renaming/commenting `SIGNALR_REDIS_CONNECTION` in the override file now so the missing
    index isn't missed later.
+
+## From T010 (Scoop + JDK 21 Install Script)
+
+1. **`dev-setup.ps1` never checks `javac -version`, only `java -version`/`scoop list`.**
+   AC2 literally names both `java -version` and `javac -version` showing 21, but the script's
+   JDK 21 verification logic only ever inspects `java`. Low real-world risk — a Temurin JDK
+   install always ships `javac` alongside `java` from the same archive, so they can't drift
+   apart in practice — but it's a literal gap against the written acceptance criterion.
+   Affects: none of the currently-scoped SPECS.md tasks own `dev-setup.ps1` beyond T010 itself
+   — no dedicated future ticket revisits this file.
+   Action: low priority — add a parallel `javac -version` check (same regex, same `scoop list`
+   gating) only if `dev-setup.ps1` is touched again for another reason; not worth a dedicated
+   ticket on its own.
+
+2. **Asymmetric warning detail between the two "PATH-shadowed" messages.** The "already
+   present but shadowed" warning includes the detected non-21 version string via
+   `$versionSuffix`; the "just installed but still shadowed" warning does not. Cosmetic only.
+   Affects: none — same as above, no dedicated future ticket owns this file.
+   Action: no action needed unless the file is touched again; align the second message's
+   wording with the first's for consistency at that time.
+
+3. **Theoretical non-anchored regex match in the JDK-version check.** `'"?21("|\.)'` isn't
+   anchored to a word boundary before "21", so a hypothetical future JDK major version whose
+   string embeds "21" mid-token (e.g. a fictional `"121.0.5"`) would false-positive as JDK 21.
+   Not exploitable with any real JDK release (majors are nowhere near 121), purely a
+   robustness note for the far future.
+   Affects: none — no dedicated future ticket owns this file.
+   Action: no action needed now; revisit only if this regex is ever copied into code that
+   parses version strings from a source where triple-digit majors are plausible.

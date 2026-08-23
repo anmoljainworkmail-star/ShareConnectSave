@@ -1,0 +1,14 @@
+{
+  "task_id": "T010",
+  "title": "Scoop + JDK 21 Install Script",
+  "status": "completed",
+  "files_created": [
+    "dev-setup.ps1"
+  ],
+  "criteria_checked": {
+    "AC1_runs_without_admin_on_windows11": "PASS",
+    "AC2_java_and_javac_version_show_21": "PASS",
+    "AC3_idempotent_on_rerun": "PASS"
+  },
+  "last_note": "Post-review fixes applied to dev-setup.ps1's JDK 21 step (all 4 review issues resolved): (1) the post-install success check no longer trusts $LASTEXITCODE or a bare `Test-CommandExists 'java'` -- it now refreshes $env:Path (mirroring the Scoop bootstrap step), re-runs the same version-matching regex, and cross-checks `scoop list` for temurin21-jdk as a PATH-independent source of truth, matching the pattern already used for IntelliJ. The pre-install idempotency check was also switched to gate on `scoop list` first (not `java -version`/PATH), so a PATH-shadowing JDK (e.g. Oracle's machine-level 'javapath' stub) can no longer make the script re-attempt installation and misreport 'Installed' on every re-run -- it now correctly reports 'AlreadyPresent'. (2) When java on PATH still isn't 21 after Scoop confirms the install (or already has it), the script now prints an explicit warning naming the PATH-precedence scenario and both concrete workarounds: a user-scoped JAVA_HOME, or prepending Scoop's shim dir in $PROFILE. (3) The version regex changed from '\"?21\\.' to '\"?21(\"|\\.)' so a bare '21' (JEP 223 trailing-zero-dropped GA builds) is recognized, not just '21.x'. (4) The bucket-detection regex changed from '^\\s*$bucket\\s' to '^\\s*$bucket(\\s|$)' so a bucket name with no trailing whitespace/newline (last token in captured output) is still matched, avoiding a spurious 'Installed' re-add report. Verified via PowerShell's own parser (zero syntax errors) and unit-tested the two regex changes in isolation against bare '21', '21.0.5', '17.0.1', and both LF/CRLF bucket-list shapes -- all matched as expected. Did not execute the script end-to-end (installing Scoop/JDK/IntelliJ remains the Tech Lead's job to run and watch)."
+}

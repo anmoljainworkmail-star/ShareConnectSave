@@ -51,6 +51,17 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`depends_on: <service>: condition: service_healthy`** — waits for the target service's `healthcheck` to report healthy, not just for its container process to exist, before starting this service. _(T004, `docker-compose.yml`)_
 - **`depends_on: <service>: condition: service_completed_successfully`** — waits for a one-shot service (`restart: "no"`) to exit with code 0, rather than waiting on a healthcheck (one-shot jobs don't stay running long enough to have one). _(T004, `docker-compose.yml`)_
 - **`command: ["redis-server", "/path/to/redis.conf"]`** — overrides the image's default startup arguments. Mounting a custom config file into a container via a volume does not make the stock image load it on its own; the container still has to be told, via `command`, to start the process with that file as an argument. _(T008, `docker-compose.yml`)_
+- **`entrypoint: ["/bin/bash", "/script.sh"]`** — replaces the image's built-in entrypoint entirely, not just the arguments passed to it. Different from `command` above: the `bitnami/kafka` image's default entrypoint starts a broker process, so a one-shot init job has to override the entrypoint itself to run a plain script instead. _(T009, `docker-compose.yml`)_
+
+## Kafka (Bitnami image) / Bash
+
+- **`KAFKA_CFG_*` environment variables** — the Bitnami Kafka image's convention for setting `server.properties` at container start: strip the property name's dots, uppercase it, prefix `KAFKA_CFG_` (e.g. `advertised.listeners` → `KAFKA_CFG_ADVERTISED_LISTENERS`). Lets broker config live in Compose YAML instead of a mounted properties file. _(T009, `docker-compose.yml`)_
+- **`kafka-topics.sh --create --if-not-exists`** — the `--if-not-exists` flag makes topic creation a no-op instead of an error when the topic is already there, so the script can be re-run safely on every `docker compose up`. _(T009, `kafka-init.sh`)_
+- **`set -euo pipefail`** — exits immediately on any command failure (`-e`), treats an unset variable as an error (`-u`), and makes a pipeline fail if any stage of it fails, not just the last one (`-o pipefail`). Without it, a failed step could be silently swallowed and the script would still exit 0. _(T009, `kafka-init.sh`)_
+
+## Git / .gitattributes
+
+- **`*.sh text eol=lf`** — forces any `.sh` file to always be stored and checked out with LF line endings, overriding a repo's `core.autocrlf` setting for that file type. Needed here because a CRLF-terminated shebang line breaks bash when the script is bind-mounted from a Windows working tree into a Linux container. _(T009, `.gitattributes`)_
 
 ## Redis / redis.conf
 

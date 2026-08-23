@@ -1,0 +1,12 @@
+# Force LF line endings for shell scripts regardless of core.autocrlf.
+#
+# Why this exists (T009): this repo runs with core.autocrlf=true, which
+# rewrites LF to CRLF in the working tree on checkout. Several Compose
+# services (kafka-init, and any future ones) bind-mount a .sh file straight
+# from the Windows working tree into a Linux container and execute it with
+# bash. A CRLF-terminated shebang line or CRLF-terminated `if`/loop lines
+# breaks bash parsing (`$'\r': command not found` or worse, silent no-ops) —
+# this is a classic Windows-host + Linux-container gotcha, not a hypothetical.
+# Pinning eol=lf means the working-tree copy that gets bind-mounted is always
+# LF, no matter what a developer's local Git config does.
+*.sh text eol=lf

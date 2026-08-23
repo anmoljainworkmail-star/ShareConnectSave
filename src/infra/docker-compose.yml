@@ -107,33 +107,46 @@ services:
     container_name: kafka
     ports:
       - "9092:9092"
+      # 29092 is deliberately NOT published to the host — INTERNAL is for
+      # container-to-container traffic only (see below). Publishing it would
+      # invite host tooling to bootstrap through it and get advertised
+      # "kafka:29092" back, which the host can't resolve either.
     environment:
       - KAFKA_CFG_NODE_ID=0
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      # Two listener names on two ports: PLAINTEXT (9092) for actual client
-      # traffic (producers/consumers/admin tools), CONTROLLER (9093) for the
-      # KRaft quorum-voting traffic between controller nodes. A single-node
-      # dev quorum still needs this split — Kafka won't let client and
-      # controller traffic share one listener.
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      # Pattern: Listener Segregation — three listener *names* on three ports.
+      # CONTROLLER (9093) carries KRaft quorum-voting traffic, kept apart from
+      # client traffic because Kafka refuses to let them share a listener.
+      # PLAINTEXT (9092) and INTERNAL (29092) both carry ordinary client
+      # traffic, split by *who* is connecting — see the advertised-listener
+      # comment below for why one listener isn't enough here.
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,INTERNAL://:29092,CONTROLLER://:9093
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      # Kafka refuses to guess which listener carries replica-fetch/leader
+      # traffic once more than one listener shares the PLAINTEXT protocol —
+      # it throws a startup config error unless this is explicit. Doesn't
+      # matter functionally on a single-broker dev cluster (there's no other
+      # broker to replicate to), but it removes the ambiguity Kafka would
+      # otherwise refuse to boot with.
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
       # The quorum's voter list — "node 0, reachable at kafka:9093" — is how a
       # single broker can also be its own controller. A real prod cluster lists
       # 3-5 voters here instead of one.
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
       - ALLOW_PLAINTEXT_LISTENER=yes
-      # Gotcha worth knowing before Phase 2+: advertised listener is pinned to
-      # "localhost" so a producer/consumer running on the HOST (a human at a
-      # terminal, or Kafka UI's browser-facing bits) can reach the broker at
-      # localhost:9092. The cost — once the broker hands back this address in its
-      # metadata response, any OTHER CONTAINER that bootstrapped via "kafka:9092"
-      # gets redirected to ITS OWN localhost on the next reconnect, not the broker,
-      # and silently stops receiving messages. Fine for T004 (infra-only; the
-      # acceptance criterion is host reachability) — but before any real service
-      # publishes/consumes, this needs a dual listener (one name for
-      # container-to-container, one for host-to-container). Tracked for T009.
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      # T009 fix for the gotcha flagged in T004: Kafka's client protocol is
+      # two-phase — connect to bootstrap.servers, fetch metadata, then
+      # reconnect to whatever address that metadata *advertises* for the
+      # broker. A single advertised address can't serve both audiences: the
+      # HOST machine needs "localhost:9092" (that's the T004 AC — Kafka
+      # reachable from a terminal outside Docker); any CONTAINER (Kafka UI,
+      # this stack's kafka-init job, and every future producer/consumer)
+      # needs an address that resolves *inside* the Docker network, or its
+      # second-phase reconnect loops back to itself and every request times
+      # out. Two listener names -> two advertised addresses -> both audiences
+      # reconnect to something that's actually the broker.
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092,INTERNAL://kafka:29092
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 10s
@@ -174,10 +187,33 @@ services:
       - "9000:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=local
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      # kafka:29092 (INTERNAL listener), not kafka:9092 (PLAINTEXT) — Kafka UI
+      # is itself a container, so it needs the listener that advertises a
+      # Docker-network-resolvable address. Using kafka:9092 here would satisfy
+      # the initial bootstrap connection but then break on the metadata
+      # redirect to "localhost:9092", which inside this container is itself —
+      # topic/message browsing would silently fail. See the kafka service's
+      # KAFKA_CFG_ADVERTISED_LISTENERS comment for the full explanation.
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
     depends_on:
       kafka:
         condition: service_healthy
+
+  # One-shot init JOB (T009) — creates the Kafka topics every service's event
+  # flow depends on, then exits. Same "job, not a service" shape as
+  # sqlserver-init: gated on kafka's healthcheck via depends_on/service_healthy,
+  # runs once, restart: "no" so Compose doesn't loop-restart a job that already
+  # succeeded.
+  kafka-init:
+    image: bitnami/kafka:latest
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./kafka-init.sh:/kafka-init.sh:ro
+    entrypoint: ["/bin/bash", "/kafka-init.sh"]
+    restart: "no"
 
   # ---------------------------------------------------------------------------
   # Application service stubs (T001) — each now gates on the infra it actually

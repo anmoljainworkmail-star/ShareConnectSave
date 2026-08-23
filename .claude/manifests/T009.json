@@ -1,0 +1,18 @@
+{
+  "task_id": "T009",
+  "title": "Kafka Topics Init",
+  "status": "completed",
+  "files_created": [
+    "src/infra/kafka-init.sh",
+    ".gitattributes"
+  ],
+  "files_modified": [
+    "src/infra/docker-compose.yml"
+  ],
+  "criteria_checked": {
+    "AC1_all_7_topics_visible_in_kafka_ui": "PASS",
+    "AC2_init_service_exits_0": "PASS",
+    "AC3_topics_idempotent_on_rerun": "PASS"
+  },
+  "last_note": "Implemented and live-verified with `docker compose up`: started kafka, ran kafka-init (exit 0, all 7 topics created with 3 partitions/RF1), re-ran kafka-init to confirm idempotency (exit 0, no errors, no duplicate-create attempts failed), started kafka-ui and confirmed via its API (/api/clusters and /api/clusters/local/topics) that all 7 topics are visible. Along the way, fixed a real bug flagged in the kafka service's own docker-compose.yml comment (\"Tracked for T009\") and in .claude/qa/T004.qa.md: KAFKA_CFG_ADVERTISED_LISTENERS was pinned to localhost:9092 only, which would have made kafka-init (and kafka-ui) hang/time out on every request past the initial bootstrap connection, since Kafka's client protocol reconnects to whatever address the broker advertises in metadata, and 'localhost' inside another container means itself, not the broker. Added a second INTERNAL listener (kafka:29092, not published to host) for container-to-container clients, and repointed kafka-ui at it. PLAINTEXT/localhost:9092 is preserved unchanged for host reachability (that's an existing T004 AC). Also added .gitattributes (*.sh text eol=lf) because this repo has core.autocrlf=true and no prior .gitattributes, and kafka-init.sh is bind-mounted straight from the Windows working tree into a Linux container and bash-executed -- a CRLF conversion on a future checkout would break it. Executable bit intentionally left as-is: this repo has core.filemode=false (chmod changes aren't tracked by git here), and the compose entrypoint invokes it explicitly as `bash /kafka-init.sh` rather than `./kafka-init.sh`, so the executable bit has no functional effect. Cleaned up all test containers/network after verification (docker compose down)."
+}

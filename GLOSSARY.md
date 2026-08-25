@@ -20,6 +20,7 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`[JsonPropertyName("...")]`** (`System.Text.Json`) — pins the exact JSON key name for a property or record parameter, overriding whatever the ambient serializer's naming policy (e.g. PascalCase by default) would otherwise produce. Needed because C#'s default casing doesn't match Java's. _(T003, `ErrorResponse.cs`)_
 - **`IDesignTimeDbContextFactory<TContext>`** — a factory interface EF Core's CLI tooling (`dotnet ef migrations add`) looks for when it needs to construct a `DbContext` outside the app's normal startup (no host, no DI container running); implementing it is what lets `dotnet ef` build a context to diff against, using its own connection string lookup rather than the app's runtime configuration path. _(T006, `AppDbContextFactory.cs`)_
 - **`entity.HasIndex(x => x.Prop).IsUnique()`** (EF Core fluent API, in `OnModelCreating`) — configures a database-level unique index on a column via code instead of a data annotation; EF Core generates the corresponding migration DDL from this call. _(T006, `AppDbContext.cs`)_
+- **`<PackageReference Include="..." Version="..." />`** (`.csproj`) — declares a NuGet dependency directly in the project file's XML; equivalent to running `dotnet add package`, but hand-editing avoids invoking the CLI tool for what's otherwise a one-line addition. _(T011, `api-gateway.csproj`)_
 
 ## SQL Server / T-SQL
 
@@ -69,6 +70,12 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`maxmemory-policy allkeys-lru`** — once `maxmemory` is hit, silently evict the least-recently-used key across the whole keyspace to make room for a new write. Redis's actual factory default, `noeviction`, does the opposite — it rejects the new write with an OOM error instead. _(T008, `redis.conf`)_
 - **`save ""`** — disables RDB snapshotting entirely, so the dataset does not survive a container restart. Combined with `appendonly` left at its default (`no`), no persistence mechanism is active at all. _(T008, `redis.conf`)_
 - **Logical database index (`databases 16`, selected via `SELECT n` or a client's connection options)** — a single Redis server process can host up to 16 independent numbered keyspaces; picking different indices for unrelated data lets them share one server without their keys ever colliding, with no enforcement beyond every client agreeing to use the right number. _(T008, `redis.conf`)_
+
+## YARP / ASP.NET Core Reverse Proxy
+
+- **`AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))`** — registers YARP's proxy services and builds its entire route/cluster table once at startup from a config section, instead of routes being defined in C# code. _(T011, `Program.cs`)_
+- **`app.MapReverseProxy()`** — registers YARP's proxy handler as the endpoint for every route loaded above; a request matching none of them falls through to ASP.NET Core's default 404 since no catch-all/fallback is mapped. _(T011, `Program.cs`)_
+- **`"Transforms": [{ "PathRemovePrefix": "/user" }]`** — a YARP route transform that strips the matched prefix before forwarding, so `/user/api/profile` reaches the downstream service as `/api/profile` instead of the prefix being forwarded too. _(T011, `appsettings.json`)_
 
 ## PowerShell
 

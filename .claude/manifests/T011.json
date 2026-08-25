@@ -1,0 +1,16 @@
+{
+  "task_id": "T011",
+  "title": "YARP Gateway Project Setup",
+  "status": "completed",
+  "files_created": [
+    "src/services/api-gateway/api-gateway.csproj",
+    "src/services/api-gateway/Program.cs",
+    "src/services/api-gateway/appsettings.json",
+    "src/services/api-gateway/Properties/launchSettings.json"
+  ],
+  "criteria_checked": {
+    "AC1_gateway_starts_and_proxies_to_downstream_stub": "PASS (verified by static config review, not a live run)",
+    "AC2_unknown_routes_return_404": "PASS (verified by static config review, not a live run)"
+  },
+  "last_note": "Added Yarp.ReverseProxy 2.2.0 PackageReference to existing api-gateway.csproj; wrote config-driven ReverseProxy Routes/Clusters section (8 services, PathRemovePrefix transform, internal container port 8080 for all destinations) into appsettings.json; wired AddReverseProxy().LoadFromConfig(...) + MapReverseProxy() in Program.cs with no catch-all fallback so unmatched routes fall through to default 404; updated launchSettings.json applicationUrl to bind port 8080 for local dotnet run. No Dockerfile created per corrected repo state (T014 owns that). No dotnet CLI commands run."
+}

@@ -27,7 +27,7 @@
 
 ## Phase 2 — API Gateway (.NET)
 
-- [ ] T011 — YARP Gateway Project Setup
+- [x] T011 — YARP Gateway Project Setup
 - [ ] T012 — JWT Validation Middleware _(Google JWKS, header injection)_
 - [ ] T013 — Rate Limiting Middleware _(100/min global, 10/min connections)_
 - [ ] T014 — Gateway Docker Image
@@ -167,6 +167,21 @@ _Note: T073–T080 reserved — not currently assigned._
 - [ ] T094 — Apply Outbox to All .NET Services _(replace direct IProducer calls)_
 - [ ] T095 — Consumer Idempotency _(ProcessedEvent table, 7-day pruning, all Java consumers)_
 - [ ] T096 — ConnectionLifecycleSaga State Tracking _(saga_state table, 5-min timeout, compensating revert, connection.chat-failed topic)_
+
+---
+
+## Backlog — not ticketed, revisit after all 96 tasks are done
+
+- **Metrics dashboard (Prometheus + Grafana).** `REQUIREMENTS.md`'s tech table lists
+  `Micrometer + OpenTelemetry` under Observability, but no task in this list wires
+  Micrometer's metrics to anything. T087–T090 (Phase 13) only cover **traces** (Jaeger)
+  and **structured logs** (JSON to stdout) — request rates, latency percentiles, and
+  error-rate-over-time dashboards are not covered anywhere. Candidate future ticket:
+  scrape `/actuator/prometheus` (Java) and `/metrics` (.NET, via
+  `OpenTelemetry.Exporter.Prometheus.AspNetCore` or similar) with a Prometheus
+  container, visualize in Grafana — same "off-the-shelf, not custom-built" approach
+  already used for Jaeger in T089. Deliberately deferred until the full 96-task list
+  is done rather than bolted on mid-phase.
 
 ---
 

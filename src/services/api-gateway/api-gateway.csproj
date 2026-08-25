@@ -7,4 +7,11 @@
     <RootNamespace>api_gateway</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- API Gateway pattern: this single package is what turns the gateway into a
+         config-driven reverse proxy instead of a service that has to hand-write
+         forwarding logic for every downstream route. -->
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
+  </ItemGroup>
+
 </Project>

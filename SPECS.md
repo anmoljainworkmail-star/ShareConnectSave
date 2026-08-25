@@ -602,11 +602,22 @@ Set up:
 - Flyway migration location: `classpath:db/migration`
 - `GET /actuator/health` → 200
 - `GlobalExceptionHandler` from shared-java-lib (T003)
+- `spring.threads.virtual.enabled: true` in `application.yml` — Spring MVC's default
+  thread-per-request model holds a Tomcat platform thread for a request's full
+  duration, including idle time blocked on outbound HTTP (e.g. this service's
+  WebClient call to User Service in T023/T027). Virtual threads (Java 21) unmount
+  from the OS thread while blocked, so a burst of slow-but-live downstream calls
+  can't exhaust the platform thread pool. This is every Java service's default
+  going forward (Discovery, Connection, Rating, Report, Admin) — establish it here
+  since T021 is the template the other four "Spring Boot Setup" tickets copy.
+  Complements, not replaces, the Resilience4j circuit breaker (T027): virtual
+  threads absorb a SLOW dependency, the circuit breaker absorbs a DOWN one.
 
 **Acceptance criteria:**
 - [ ] Service starts and connects to SQL Server + Redis
 - [ ] `/actuator/health` returns `{ "status": "UP" }`
 - [ ] Flyway migrations run on startup
+- [ ] `application.yml` has `spring.threads.virtual.enabled: true`
 
 ---
 

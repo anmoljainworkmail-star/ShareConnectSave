@@ -86,6 +86,31 @@ public class ConnectionService {
 }
 ```
 
+## Virtual Threads — freeing the request thread during outbound HTTP calls
+
+```yaml
+# application.yml — every Java service enables this in T021/T029/T041/T051/T056 (Spring Boot Setup)
+spring:
+  threads:
+    virtual:
+      enabled: true
+```
+
+```java
+// Pattern: Virtual Threads (Java 21 / Project Loom)
+// Reason: Spring MVC is thread-per-request — by default, a Tomcat platform thread
+// stays checked out for a request's *entire* duration, including time spent idle
+// while blocked on a downstream HTTP call (e.g. Discovery -> User Service). Enough
+// concurrent slow calls exhausts the fixed-size platform thread pool even though the
+// CPU is idle. Virtual threads are cheap (JVM-managed, not OS threads) and unmount
+// from their carrier OS thread automatically when they block on I/O — so `.block()`
+// below no longer ties up a scarce resource, and this project keeps writing plain
+// synchronous code instead of rewriting every service reactively (WebFlux).
+// This complements, not replaces, the Resilience4j circuit breaker below: virtual
+// threads stop a SLOW User Service from starving the thread pool; the circuit
+// breaker stops a DOWN User Service from being called at all. Both are needed.
+```
+
 ## WebClient — outbound HTTP (not RestTemplate)
 
 ```java
@@ -99,7 +124,9 @@ public WebClient userServiceClient(WebClient.Builder builder) {
     .build();
 }
 
-// Usage: block() is acceptable for services that are not fully reactive
+// Usage: .block() is safe here specifically because virtual threads are enabled
+// (see above) — the calling thread unmounts while the Mono resolves instead of
+// occupying a platform thread for the round-trip.
 UserProfile profile = userServiceClient.get()
   .uri("/users/{id}", userId)
   .retrieve()

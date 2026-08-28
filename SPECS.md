@@ -370,10 +370,19 @@ Configure `appsettings.json` routes to all 8 downstream services (use container 
 **Skills/Commands:** none
 
 **Spec:**
-Add JWT Bearer authentication middleware. Validate:
-- Signature (Google's JWKS endpoint for the Google Sign-In tokens)
+Add JWT Bearer authentication middleware. This validates the **app's own JWT** — the one
+`user-service` issues from `POST /auth/google` (T016) — not Google's raw Sign-In token.
+Google's token only ever carries Google's own fields (`sub`, `email`, `name`, `picture`);
+it has no concept of this app's `role`/`gender`, so those claims can only come from a
+token this app itself signed, after `user-service` already looked the user up.
+
+Validate:
+- Signature — fetched from `user-service`'s own JWKS endpoint
+  (`http://user-service:8080/.well-known/jwks.json`, RS256/RSA public key), cached the same
+  way Google's JWKS would have been (~24h), not Google's JWKS endpoint
 - Expiry
-- Audience (your app's client ID from `process.env.GOOGLE_CLIENT_ID`)
+- Audience/issuer — this app's own configured values (`process.env.JWT_AUDIENCE`,
+  `process.env.JWT_ISSUER`), not `GOOGLE_CLIENT_ID`
 
 On valid JWT: extract `sub` (user ID), `role`, `gender` claims. Inject as headers before forwarding:
 ```
@@ -384,7 +393,11 @@ X-User-Gender: <gender>
 
 Strip the `Authorization` header before forwarding downstream (services must not receive the raw JWT).
 
-Public routes (no JWT required): `POST /auth/google`, `POST /auth/otp/send`, `POST /auth/otp/verify`.
+Public routes (no JWT required): `POST /user/auth/google`, `POST /user/auth/otp/send`,
+`POST /user/auth/otp/verify` — gateway-facing paths (with the `/user` prefix YARP's route
+table requires), not the un-prefixed paths `user-service`'s own OpenAPI spec documents.
+These are the only calls that ever involve Google's raw token, and that handling happens
+inside `user-service` (T016), never at the gateway.
 
 **Acceptance criteria:**
 - [ ] Request with valid JWT → headers injected, Authorization stripped, proxied
@@ -405,8 +418,8 @@ Use .NET 9 built-in rate limiting (`Microsoft.AspNetCore.RateLimiting`).
 
 Policies:
 - **Global:** 100 req/min per IP (sliding window)
-- **Connection requests:** 10 req/min per `X-User-Id` on `POST /connections` (fixed window)
-- **OTP:** 5 req/10min per phone number on `POST /auth/otp/send`
+- **Connection requests:** 10 req/min per `X-User-Id` on `POST /connection/connections` (fixed window) — gateway-facing path (YARP's `/connection` prefix + connection-service's own `/connections`), not the un-prefixed path connection-service's own OpenAPI spec documents
+- **OTP:** 5 req/10min per phone number on `POST /user/auth/otp/send` — gateway-facing path, same reasoning
 
 429 responses use the shared error envelope: `{ "code": "RATE_LIMIT_EXCEEDED", ... }`.
 
@@ -479,6 +492,11 @@ Body: `{ "id_token": "<google id token>" }`
 2. Extract `sub`, `email`, `name`, `picture`.
 3. Upsert user in `users` table.
 4. Issue a signed JWT with claims: `sub` = user_id (our UUID), `role` = "user", `gender` (from profile if set).
+   Sign with RS256 using an RSA private key held only by `user-service` — never a shared
+   symmetric secret — and expose the matching public key at `GET /.well-known/jwks.json`
+   (standard JWKS shape: `{ "keys": [...] }`) so the gateway (T012) can fetch and cache it
+   to validate this token on every later request, without ever holding the private key
+   itself.
 5. Return: `{ "access_token": "...", "refresh_token": "...", "is_new_user": true/false }`
 
 New users (`is_new_user: true`) must complete profile setup before discovery is enabled. Set `status = incomplete` until phone is verified and gender is set.

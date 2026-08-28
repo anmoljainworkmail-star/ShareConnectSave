@@ -1,0 +1,19 @@
+{
+  "task_id": "T012",
+  "title": "JWT Validation Middleware",
+  "status": "completed",
+  "files_created": [
+    "src/services/api-gateway/Configuration/JwtOptions.cs",
+    "src/services/api-gateway/Services/JwksService.cs",
+    "src/services/api-gateway/Middleware/JwtValidationMiddleware.cs",
+    "src/services/api-gateway/Program.cs",
+    "src/services/api-gateway/appsettings.json",
+    "src/services/api-gateway/api-gateway.csproj"
+  ],
+  "criteria_checked": {
+    "AC1_valid_jwt_headers_injected_and_proxied": "PASS (static review) - ValidateToken() checks signature/issuer/audience/lifetime against JwksService-supplied keys; on success sub/role/gender are extracted, Authorization header removed, X-User-Id/X-User-Role/X-User-Gender injected, then _next(context) forwards to app.MapReverseProxy(). No live user-service JWKS/token available yet (T016 not built), so no end-to-end HTTP round-trip was run — verified by reading the middleware logic and confirming `dotnet build` compiles cleanly.",
+    "AC2_invalid_or_expired_jwt_401_not_forwarded": "PASS (static review) - missing/malformed Authorization header returns 401 via WriteUnauthorizedAsync without calling _next(); JwtSecurityTokenHandler.ValidateToken throws SecurityTokenException (or subclasses, e.g. SecurityTokenExpiredException) on bad signature/expiry/issuer/audience, which is caught and turned into a 401 with the {code,message,traceId} envelope, again without calling _next(). Missing required claims (sub/role/gender) also short-circuits to 401. Not exercised against a real token since T016 doesn't exist yet.",
+    "AC3_public_routes_bypass": "PASS (static review) - IsPublicRoute() is checked first as a guard clause; for exactly /auth/google, /auth/otp/send, /auth/otp/verify it calls _next(context) immediately and returns, skipping JWKS fetch and token validation entirely."
+  },
+  "last_note": "Implementation complete and verified via `dotnet build` (0 errors/warnings). Used a hand-written IConfigurationRetriever<JsonWebKeySet> (JwksDocumentRetriever, nested in JwksService.cs) plugged into Microsoft.IdentityModel.Protocols.ConfigurationManager<T> for JWKS caching, since the package has no built-in bare-JWKS retriever (only OpenIdConnectConfigurationRetriever for full OIDC discovery documents, which is Google's shape, not user-service's). All 3 acceptance criteria verified by static/code review only, per ticket instructions -- T016 (user-service, the JWKS issuer) does not exist yet so there is no live endpoint or real signed token to round-trip against. POST-COMPLETION FIX (Tech Lead review, before marking done): PublicRoutePaths in JwtValidationMiddleware.cs originally used the un-prefixed paths from user-service's own OpenAPI spec (/auth/google etc). The middleware runs before app.MapReverseProxy(), so it actually sees the client's gateway-facing path including the /user prefix from T011's YARP route table -- the un-prefixed check would never match, locking out login entirely. Corrected to /user/auth/google, /user/auth/otp/send, /user/auth/otp/verify. Same path-prefix correction also applied preemptively to T013's still-draft ticket text (POST /connections -> POST /connection/connections, POST /auth/otp/send -> POST /user/auth/otp/send) so the same bug doesn't recur when T013 is implemented."
+}

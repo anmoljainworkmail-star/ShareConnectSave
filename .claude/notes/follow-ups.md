@@ -199,6 +199,32 @@ so the audit trail of what was known and when survives.
    already accepted for Redis/SQL Server/Kafka/Mongo under the T008 follow-up above. Revisit
    if this stack is ever run somewhere less trusted than a personal dev machine.
 
+## From T012 (JWT Validation Middleware)
+
+1. **The catch-all exception handler in `JwtValidationMiddleware` could mishandle a future
+   cancellation-token change in the JWKS-fetch library.** `JwtValidationMiddleware.cs`'s final
+   `catch (Exception ex)` block (added to close a malformed-token 500 bug) currently can never
+   be reached via `context.RequestAborted` firing during a JWKS fetch, because the pinned
+   `Microsoft.IdentityModel.Protocols` 8.2.1's `ConfigurationManager<T>.GetConfigurationAsync`
+   does not honor the passed cancellation token at all — verified empirically with an isolated
+   repro against the exact pinned package (three scenarios: mid-fetch cancellation, pre-cancelled
+   token, concurrent callers — zero exceptions thrown in any case). If a future upgrade of that
+   package starts honoring cancellation (arguably the technically correct behavior), an ordinary
+   client disconnect mid-request would throw `OperationCanceledException`, get caught by the
+   current catch-all, and attempt to write a 401 response to a connection that's already gone —
+   likely throwing again from inside the catch block itself, reintroducing an unhandled-exception
+   path triggered by routine client disconnects rather than any malicious or malformed input.
+   Affects: none of the currently-scoped SPECS.md tasks own revisiting this file specifically —
+   T013 (Rate Limiting Middleware) adds new middleware but doesn't touch `JwtValidationMiddleware.cs`,
+   and T014 (Gateway Docker Image) doesn't touch application code. This is a NuGet-upgrade-triggered
+   risk, not tied to any planned future ticket.
+   Action: low priority — add a defensive
+   `catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { return; }`
+   positioned before the generic catch-all, whenever `JwtValidationMiddleware.cs` is next touched
+   for another reason, or whenever `Microsoft.IdentityModel.Protocols`/`Microsoft.IdentityModel.Tokens`
+   is upgraded (re-verify the cancellation-honoring behavior at that time, since this finding is
+   pinned to the specific 8.2.1 version tested).
+
 ## From T010 (Scoop + JDK 21 Install Script)
 
 1. **`dev-setup.ps1` never checks `javac -version`, only `java -version`/`scoop list`.**

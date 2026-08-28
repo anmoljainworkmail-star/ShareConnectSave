@@ -28,7 +28,7 @@
 ## Phase 2 — API Gateway (.NET)
 
 - [x] T011 — YARP Gateway Project Setup
-- [ ] T012 — JWT Validation Middleware _(Google JWKS, header injection)_
+- [x] T012 — JWT Validation Middleware _(Google JWKS, header injection)_
 - [ ] T013 — Rate Limiting Middleware _(100/min global, 10/min connections)_
 - [ ] T014 — Gateway Docker Image
 

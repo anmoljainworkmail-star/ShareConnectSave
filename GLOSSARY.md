@@ -22,6 +22,15 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`entity.HasIndex(x => x.Prop).IsUnique()`** (EF Core fluent API, in `OnModelCreating`) — configures a database-level unique index on a column via code instead of a data annotation; EF Core generates the corresponding migration DDL from this call. _(T006, `AppDbContext.cs`)_
 - **`<PackageReference Include="..." Version="..." />`** (`.csproj`) — declares a NuGet dependency directly in the project file's XML; equivalent to running `dotnet add package`, but hand-editing avoids invoking the CLI tool for what's otherwise a one-line addition. _(T011, `api-gateway.csproj`)_
 
+## JWT Validation & JWKS (.NET)
+
+- **`MapInboundClaims = false`** (`JwtSecurityTokenHandler`) — disables the handler's default behavior of silently renaming short claim names (`sub`, `role`) to legacy long-form `ClaimTypes` URIs on the resulting principal; without it, code reading claims by their original short names gets back `null` even from a perfectly valid token. _(T012, `JwtValidationMiddleware.cs`)_
+- **`RequireHttps = false`** (`HttpDocumentRetriever`, `Microsoft.IdentityModel.Protocols`) — allows fetching a JWKS/OIDC document over plain HTTP instead of refusing outright; the library defaults to `true` since JWKS fetches normally cross the public internet, but an internal Docker Compose network has no TLS between services. _(T012, `JwksService.cs`)_
+- **`ValidAlgorithms`** (`TokenValidationParameters`) — explicitly restricts which signing algorithm(s) a token's signature is allowed to be checked against, instead of relying on implicit key-type matching; pins out a class of "algorithm confusion" attacks. _(T012, `JwtValidationMiddleware.cs`)_
+- **`ConfigurationManager<T>`** (`Microsoft.IdentityModel.Protocols`) — a generic fetch-once-cache-and-auto-refresh helper: given a retriever and a refresh interval, `GetConfigurationAsync()` returns the cached value until the interval elapses, then transparently re-fetches on the next call. _(T012, `JwksService.cs`)_
+- **`IConfigurationRetriever<T>`** — the plug-in interface `ConfigurationManager<T>` calls to actually fetch and parse a document; implementing it directly (rather than subclassing `ConfigurationManager<T>`) is what let this project supply a bare-JWKS parser where the library only ships one for full OIDC discovery documents. _(T012, `JwksService.cs`)_
+- **`AddHttpClient<TInterface, TImplementation>()`** (typed client) — registers a class through `IHttpClientFactory`, automatically injecting a pooled, periodically-recycled `HttpClient` into its constructor; avoids both the socket-exhaustion risk of `new HttpClient()` per call and the stale-DNS risk of a hand-rolled long-lived singleton holding one connection pool forever. _(T012, `Program.cs`)_
+
 ## SQL Server / T-SQL
 
 - **`V{version}__{description}.sql`** (Flyway naming convention) — two underscores between version and description; Flyway checksums the file after its first run and refuses to start if the bytes ever change, so a migration can't silently re-run or drift. _(T006, `V001__discovery_service_initial_schema.sql`)_

@@ -12,6 +12,20 @@
          config-driven reverse proxy instead of a service that has to hand-write
          forwarding logic for every downstream route. -->
     <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
+
+    <!-- JWT Validation (T012): Microsoft.IdentityModel.Protocols supplies
+         ConfigurationManager<T> — the framework's built-in "fetch a document,
+         cache it, re-fetch only after a configured interval" machinery.
+         JwksService.cs plugs a small custom IConfigurationRetriever<JsonWebKeySet>
+         into it, because the built-in retriever this package ships
+         (OpenIdConnectConfigurationRetriever) parses a full OpenID Connect
+         discovery document — Google's shape — not a bare JWKS document, which
+         is what user-service's own /.well-known/jwks.json is. Tokens and Jwt
+         packages supply TokenValidationParameters and the handler that
+         actually verifies signature/expiry/issuer/audience. -->
+    <PackageReference Include="Microsoft.IdentityModel.Protocols" Version="8.2.1" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.2.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
   </ItemGroup>
 
 </Project>

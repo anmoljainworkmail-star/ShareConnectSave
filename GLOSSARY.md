@@ -31,6 +31,14 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`IConfigurationRetriever<T>`** — the plug-in interface `ConfigurationManager<T>` calls to actually fetch and parse a document; implementing it directly (rather than subclassing `ConfigurationManager<T>`) is what let this project supply a bare-JWKS parser where the library only ships one for full OIDC discovery documents. _(T012, `JwksService.cs`)_
 - **`AddHttpClient<TInterface, TImplementation>()`** (typed client) — registers a class through `IHttpClientFactory`, automatically injecting a pooled, periodically-recycled `HttpClient` into its constructor; avoids both the socket-exhaustion risk of `new HttpClient()` per call and the stale-DNS risk of a hand-rolled long-lived singleton holding one connection pool forever. _(T012, `Program.cs`)_
 
+## Rate Limiting (.NET)
+
+- **`PartitionedRateLimiter<TResource, TPartitionKey>.Create(...)`** (`System.Threading.RateLimiting`) — builds a limiter whose actual limit-checking logic is deferred to a per-request partition-key function, instead of one fixed limit shared by every caller regardless of who they are. _(T013, `Program.cs`)_
+- **`RateLimitPartition.Get(partitionKey, factory)`** — tells the framework "reuse this exact limiter instance for this partition key"; the factory delegate only runs the first time a given key is seen, not on every request against that key. _(T013, `RateLimitPartitionRegistry.cs`)_
+- **`HttpContext.RequestServices`** — the DI scope tied to the current request. Resolving a singleton from it returns the same instance the app's real root container already created — unlike a separately constructed `ServiceProvider`, which would build its own, disconnected copy of every "singleton." _(T013, `Program.cs`)_
+- **`Response.OnStarting(callback)`** — registers a callback that fires exactly once, the instant before the response's status code and headers are actually sent — late enough to know the final outcome (success, or a middleware's own rejection), but still early enough to add a header to it. _(T013, `RateLimitHeadersMiddleware.cs`)_
+- **`MemoryCacheEntryOptions.RegisterPostEvictionCallback`** (`IMemoryCache`) — attaches a callback that fires the moment an entry is evicted (by expiry or manual removal); used here to dispose the evicted rate limiter's internal timer instead of leaking it forever. _(T013, `RateLimitPartitionRegistry.cs`)_
+
 ## SQL Server / T-SQL
 
 - **`V{version}__{description}.sql`** (Flyway naming convention) — two underscores between version and description; Flyway checksums the file after its first run and refuses to start if the bytes ever change, so a migration can't silently re-run or drift. _(T006, `V001__discovery_service_initial_schema.sql`)_

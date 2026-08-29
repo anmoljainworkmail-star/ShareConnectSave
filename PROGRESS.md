@@ -29,7 +29,7 @@
 
 - [x] T011 — YARP Gateway Project Setup
 - [x] T012 — JWT Validation Middleware _(Google JWKS, header injection)_
-- [ ] T013 — Rate Limiting Middleware _(100/min global, 10/min connections)_
+- [x] T013 — Rate Limiting Middleware _(100/min global, 10/min connections)_
 - [ ] T014 — Gateway Docker Image
 
 ---
@@ -182,6 +182,15 @@ _Note: T073–T080 reserved — not currently assigned._
   container, visualize in Grafana — same "off-the-shelf, not custom-built" approach
   already used for Jaeger in T089. Deliberately deferred until the full 96-task list
   is done rather than bolted on mid-phase.
+
+- **Distributed rate limiting + volumetric flood protection.** The gateway's
+  RateLimitPartitionRegistry (T013) is in-memory, correct only for a single instance.
+  Scaling to N gateway replicas silently multiplies every per-IP/per-user/per-phone
+  ceiling by N (no shared counter store). Separately, app-level rate limiting runs
+  inside Kestrel's pipeline, so it cannot stop a raw connection/volumetric flood —
+  that needs a cloud LB/WAF or reverse proxy in front of the gateway. Candidate
+  future ticket: Redis-backed distributed limiter + note on upstream L4/L7 protection
+  once the gateway is deployed behind a real load balancer.
 
 ---
 

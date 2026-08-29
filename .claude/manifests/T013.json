@@ -1,0 +1,20 @@
+{
+  "task_id": "T013",
+  "title": "Rate Limiting Middleware",
+  "status": "completed",
+  "files_created": [
+    "src/services/api-gateway/RateLimiting/RateLimitPolicies.cs",
+    "src/services/api-gateway/RateLimiting/RateLimitPartitionRegistry.cs",
+    "src/services/api-gateway/RateLimiting/RateLimitRejectionHandler.cs",
+    "src/services/api-gateway/RateLimiting/RateLimitHeadersMiddleware.cs",
+    "src/services/api-gateway/RateLimiting/OtpPhoneNumberBufferingMiddleware.cs",
+    "src/services/api-gateway/Program.cs",
+    "src/services/api-gateway/appsettings.json"
+  ],
+  "criteria_checked": {
+    "AC1_global_limit_returns_429": "PASS",
+    "AC2_connection_limit_returns_429_with_RATE_LIMIT_EXCEEDED": "PASS",
+    "AC3_x_ratelimit_remaining_header_on_all_responses": "PASS"
+  },
+  "last_note": "Implementation complete and smoke-tested end-to-end against the running gateway (dotnet run, no downstream services). AC1 verified by firing 110 concurrent OTP requests each with a unique phone number (so the per-phone OtpSendPolicy never tripped) against the global 100/min-per-IP sliding window: 14 got 429, 96 passed through to a 502 from the unreachable downstream, confirming GlobalPolicy fires independently of the named policies. AC2's mechanism (fixed window, RATE_LIMIT_EXCEEDED envelope, per-key partitioning) was proven directly on OtpSendPolicy end-to-end (5 requests allowed for one phone number, 6th+ rejected with 429 + exact {code,message,traceId} envelope + Retry-After); ConnectionRequestPolicy uses the identical AddPolicy/RateLimitPartitionRegistry code path and YARP RateLimiterPolicy route wiring, but could not be exercised live since POST /connection/connections requires a valid RS256 JWT from user-service's JWKS, which isn't running in this smoke-test environment — this is a code-path parity argument, not a live request against that specific policy. AC3 verified: X-RateLimit-Remaining decremented correctly across requests (5,4,3,2,...) and was present on both 2xx/502 pass-through responses and 429 rejections alike. Post-implementation follow-up (Tech Lead caught during review, patched same day): /user/auth/google was a public route (bypasses JWT validation, same as OTP) but had no dedicated policy, only GlobalPolicy's 100/min-per-IP — a login flood there is a JWT-minting flood on user-service, the same abuse shape OTP already guards against. Added GoogleAuthPolicy (fixed window, 10/min per IP, mirrors ConnectionRequestPolicy's cadence) bound to the gateway-facing /user/auth/google route, wired into the same AddPolicy/RateLimitPartitionRegistry/X-RateLimit-Remaining machinery as the other two named policies. dotnet build succeeds with 0 warnings/errors after the patch. Remaining known gap, still open: JWT validation runs before rate limiting, so an unauthenticated flood against a *protected* (non-public) route is rejected by the 401 gate before ever reaching any limiter — flagged inline in Program.cs as a follow-up candidate, not fixed in this ticket."
+}

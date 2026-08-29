@@ -32,3 +32,36 @@ entry names the downstream task(s) whose implementation or ticket should address
    helper at the same time.
    Affects: T014 (Gateway Docker Image — no code change needed, just something for
    whoever next touches this file to be aware of before extending it).
+
+## From T015 (User Service Project + EF Core Setup)
+
+1. The connection-string guards in `Program.cs:15-16` and
+   `AppDbContextFactory.cs:38-41` only check for `null` (`?? throw`), not an empty or
+   whitespace string. `docker-compose.yml`'s `user-service` block (the file used alone
+   in production/CI, per the override file's own header comment) sets
+   `ConnectionStrings__UserDb=${USER_DB_CONNECTION}` with no Compose-level `:?` required
+   guard — unlike `docker-compose.override.yml`, which does have one. If
+   `USER_DB_CONNECTION` is ever unset in a prod/CI environment that uses the base compose
+   file alone, the container starts with an empty connection string, the `??` guard
+   never fires (empty string is not null), and the failure surfaces later as a much less
+   legible EF Core/ADO.NET exception instead of the intended clean
+   `InvalidOperationException`. Fix: switch both guards to
+   `string.IsNullOrWhiteSpace(connectionString)`, and consider adding the same `:?`
+   syntax to `docker-compose.yml:266` itself.
+   Affects: T016 (Google OAuth + JWT Issuance — next ticket to touch
+   `user-service/Program.cs`; tighten the guard while adding the `/auth/google`
+   endpoint).
+
+2. No global exception-handling middleware exists yet in `user-service`. Once T016 wires
+   a real endpoint (`POST /auth/google`) on top of `UserRepository`/`AppDbContext`, an
+   unhandled EF Core/ADO.NET exception in Development mode can render ASP.NET Core's
+   default developer exception page, which can include the connection string (and
+   therefore the SQL password) in the stack trace if the exception originates from
+   `SqlConnection.Open()`. Also relevant: `AppDbContext`'s unique index on `GoogleId`
+   means two concurrent `POST /auth/google` calls for a brand-new user can both pass a
+   "does this user exist" check and then race on `AddAsync`, producing an unhandled
+   `DbUpdateException` (unique-constraint violation) instead of a clean "account already
+   exists" response.
+   Affects: T016 (Google OAuth + JWT Issuance — add `UseExceptionHandler`/the shared
+   error-envelope middleware before the endpoint goes live, and catch
+   `DbUpdateException` around the upsert path specifically).

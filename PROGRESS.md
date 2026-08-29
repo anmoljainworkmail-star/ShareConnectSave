@@ -36,7 +36,7 @@
 
 ## Phase 3 — User Service (.NET)
 
-- [ ] T015 — User Service Project + EF Core Setup
+- [x] T015 — User Service Project + EF Core Setup
 - [ ] T016 — Google OAuth + JWT Issuance
 - [ ] T017 — Phone OTP Verification _(Twilio, lockout after 5 attempts)_
 - [ ] T018 — Profile CRUD _(GET/PATCH /users/me, photo upload)_

@@ -89,6 +89,28 @@ Every service must follow these. When writing code, name the principle in a comm
 | **API Gateway** | Single entry point — handle cross-cutting concerns once | YARP gateway validates JWT, injects identity headers, applies rate limiting. No service does this itself. |
 | **Strangler Fig (future)** | Gradually replace parts of the system without big rewrites | Angular PWA → add Capacitor → native app. Same codebase, incremental transformation. |
 
+## Classic Design Patterns — Name Them When Used
+
+Beyond SOLID and system-design principles, name a classic (Gang of Four) design pattern
+in a code comment whenever one is genuinely the right shape for the problem — don't force
+one in just to check a box. When you do use one, the comment must teach it the same way
+every other concept in this project is taught: plain English first (as if the reader has
+never heard the term), a real-world analogy, then the concrete reason it's needed here.
+
+| Pattern | Plain English | Where in this project |
+|---|---|---|
+| **Factory Method** | A dedicated method/class whose only job is constructing an object, so callers don't need to know the construction details | `AppDbContextFactory` (`IDesignTimeDbContextFactory<AppDbContext>`) — `dotnet ef` CLI commands need to build an `AppDbContext` outside the app's normal DI startup, so this factory is the one place that knows how. |
+| **Repository** | An object that hides "where the data actually lives" behind a simple collection-like interface | `IUserRepository`, `IOtpRepository`, `IIdentityVerificationRepository` — callers ask for a `User` by id/GoogleId, never write a `DbSet` query themselves. |
+| **Strategy** | Swap an algorithm's implementation at runtime by depending on an interface, not a concrete class | Rating tags / trust score weighting (Rating Service) — the scoring approach can change without touching the code that calls it, same shape as the Open/Closed example above. |
+| **Singleton (via DI container)** | Exactly one shared instance for the life of the app, instead of a new one every time | `AddSingleton` registrations (e.g. a shared Redis connection multiplexer) — one connection pool reused by every request, not reopened per request. Prefer the DI container's `AddSingleton` over a hand-rolled `private static readonly instance` — same guarantee, but testable and swappable. |
+| **Decorator** | Wrap an existing implementation to add behavior, without changing its interface or the original class | Resilience4j Circuit Breaker around Discovery Service's calls to User Service — same `IUserServiceClient`-shaped call, transparently wrapped with retry/fallback logic. |
+| **Observer (via events)** | Interested parties react to something happening, without the thing that happened needing to know who's listening | Kafka topics themselves — `connection.accepted` is published once; Chat Service, Notification Service, and any future subscriber all react independently. |
+| **Builder** | Assemble a complex object step by step instead of one enormous constructor | `WebApplication.CreateBuilder(args)` in every `Program.cs` — `builder.Services.Add...`, `builder.Configuration...`, then `builder.Build()` — already in use in every service's composition root. |
+
+If a pattern doesn't clearly fit the code being written, don't name one — a forced pattern
+comment (e.g. calling a plain `if/else` a "Strategy pattern") teaches a wrong lesson, which
+is worse than teaching none.
+
 ## Key Domain Rules
 
 - Chat opens **only** after mutual acceptance of a connection request.

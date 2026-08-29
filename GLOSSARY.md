@@ -88,6 +88,12 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`save ""`** — disables RDB snapshotting entirely, so the dataset does not survive a container restart. Combined with `appendonly` left at its default (`no`), no persistence mechanism is active at all. _(T008, `redis.conf`)_
 - **Logical database index (`databases 16`, selected via `SELECT n` or a client's connection options)** — a single Redis server process can host up to 16 independent numbered keyspaces; picking different indices for unrelated data lets them share one server without their keys ever colliding, with no enforcement beyond every client agreeing to use the right number. _(T008, `redis.conf`)_
 
+## Dependency Injection & EF Core Wiring (.NET)
+
+- **`AddDbContext<TContext>(options => ...)`** — registers a `DbContext` type in the DI container with a Scoped lifetime by default (one instance built per HTTP request, then discarded); the `options` delegate picks the database provider (`UseSqlServer`) and how to connect. _(T015, `Program.cs`)_
+- **`builder.Configuration.GetConnectionString("Name")`** — shorthand for reading configuration key `ConnectionStrings:Name`; ASP.NET Core's environment-variable configuration provider populates that key from an env var literally named `ConnectionStrings__Name` (double underscore is the provider's documented separator for nested keys). _(T015, `Program.cs`)_
+- **`AddScoped<TInterface, TImplementation>()`** — registers a DI mapping with per-request lifetime: a fresh instance is built the first time a request asks for `TInterface`, and every later resolution within that same request gets the same instance back. Contrast with `AddSingleton` (one instance for the app's entire lifetime) and `AddTransient` (a brand-new instance on every single resolution, even twice in one request). _(T015, `Program.cs`)_
+
 ## YARP / ASP.NET Core Reverse Proxy
 
 - **`AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))`** — registers YARP's proxy services and builds its entire route/cluster table once at startup from a config section, instead of routes being defined in C# code. _(T011, `Program.cs`)_

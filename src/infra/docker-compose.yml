@@ -258,6 +258,12 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      # No Hardcoded Config: USER_DB_CONNECTION is the one human-edited value
+      # in .env (T004); ConnectionStrings__UserDb is the ASP.NET Core-native
+      # key name Program.cs and AppDbContextFactory both bind against (T015).
+      # Re-pointing this container at a different SQL Server never requires a
+      # rebuild — only a different .env value.
+      - ConnectionStrings__UserDb=${USER_DB_CONNECTION}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

@@ -12,10 +12,13 @@ services/<service-name>/
   Domain/
     <Entity>.cs                     ← EF Core entity + C# record DTOs in same file
   Repositories/
-    I<Feature>Repository.cs         ← interface (Dependency Inversion)
+    Interfaces/
+      I<Feature>Repository.cs       ← interface (Dependency Inversion) — kept separate so the
+                                       repo's contract can be reviewed as one small folder
     <Feature>Repository.cs          ← EF Core implementation
   Services/
-    I<Feature>Service.cs            ← interface
+    Interfaces/
+      I<Feature>Service.cs          ← same separation as Repositories/Interfaces
     <Feature>Service.cs
   Kafka/
     <Topic>Consumer.cs              ← IHostedService or BackgroundService
@@ -63,7 +66,14 @@ app.MapGroup("/users").MapProfileEndpoints().RequireAuthorization();
 
 ## EF Core + dependency inversion
 
+Interface and implementation live in separate folders — `Repositories/Interfaces/` holds
+only contracts, `Repositories/` holds only EF Core classes — so a reviewer can read every
+repository's public surface in one folder without wading through query implementations.
+
 ```csharp
+// Repositories/Interfaces/IUserRepository.cs
+namespace user_service.Repositories.Interfaces;
+
 // Pattern: Dependency Inversion (SOLID D)
 // Reason: swapping SQLite in tests doesn't require changing service code
 public interface IUserRepository
@@ -72,6 +82,13 @@ public interface IUserRepository
   Task<User?> FindByGoogleIdAsync(string googleId);
   Task AddAsync(User user);
 }
+```
+
+```csharp
+// Repositories/UserRepository.cs
+namespace user_service.Repositories;
+
+using user_service.Repositories.Interfaces;
 
 public class UserRepository(AppDbContext db) : IUserRepository
 {

@@ -134,4 +134,14 @@ app.UseRateLimiter();
 // YARP (or the framework) gets to return that 404.
 app.MapReverseProxy();
 
+// Healthcheck as a Dependency Gate (T014): Docker Compose's healthcheck on this
+// container polls this route to decide when the gateway is "up," the same way
+// it already gates sqlserver/mongodb/kafka/redis before any dependent service
+// is allowed to start. Deliberately shallow — liveness only ("is the process
+// accepting HTTP"), not readiness of the 8 downstream services it proxies to.
+// A deep check here would make the gateway's own health flap whenever any one
+// downstream service is briefly unhealthy, which is a problem for that
+// service's own healthcheck to own, not this one's.
+app.MapGet("/health", () => Results.Ok());
+
 app.Run();

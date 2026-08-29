@@ -101,6 +101,12 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`2>&1`** — merges a command's stderr stream into stdout so both can be captured together; needed here because `java -version` writes its version banner to stderr by long-standing JVM convention, not stdout. _(T010, `dev-setup.ps1`)_
 - **`-ErrorAction SilentlyContinue`** — turns a cmdlet's non-terminating error into a silent no-op (still returns `$null`/empty) instead of printing red error text, used for existence checks where "not found" is an expected, normal outcome rather than a failure. _(T010, `dev-setup.ps1`)_
 
+## Docker / Dockerfile (multi-stage builds)
+
+- **`dotnet publish` vs `dotnet build`** — `build` compiles for the inner dev loop and assumes the rest of the project/solution stays nearby (output isn't self-contained). `publish` assembles a self-sufficient deployable folder: every referenced DLL actually copied in (not just path-referenced), plus `*.deps.json` (dependency manifest) and `*.runtimeconfig.json` (which .NET version/settings to launch with) — and defaults to `Release`, not `Debug`. The runtime stage of a multi-stage Dockerfile has no `.csproj`, no solution structure, nothing else nearby — only `publish`'s output is guaranteed to run in that kind of isolation, so it's what gets copied across the stage boundary, never `build`'s output. _(T014, `Dockerfile`)_
+- **`FROM <image> AS <stage-name>`** — names a build stage so a later stage can reference it by name (e.g. `COPY --from=build`) instead of by numeric index; a Dockerfile can define multiple `FROM` stages, only the last one becomes the final tagged image. _(T014, `Dockerfile`)_
+- **`COPY --from=build /app/publish .`** — copies files from a *previous build stage's filesystem*, not from the host machine; this is the one line that crosses the boundary between the SDK stage and the runtime stage, and it's the only thing from the `build` stage that survives into the final image. _(T014, `Dockerfile`)_
+
 ---
 
 _Add new entries only for concepts that actually appear in committed code — not everything mentioned in a skill file. If a concept reappears in a later task using the same mechanism, don't duplicate the entry._

@@ -1,0 +1,19 @@
+{
+  "task_id": "T014",
+  "title": "Gateway Docker Image",
+  "status": "completed",
+  "files_created": [
+    "src/services/api-gateway/Dockerfile",
+    "src/services/api-gateway/.dockerignore",
+    "src/services/api-gateway/Program.cs"
+  ],
+  "files_changed": [
+    "src/services/api-gateway/Middleware/JwtValidationMiddleware.cs"
+  ],
+  "criteria_checked": {
+    "docker compose up api-gateway starts without error": "PASS",
+    "Healthcheck passes": "PASS",
+    "Image size under 200 MB": "PASS"
+  },
+  "last_note": "Docker daemon confirmed responsive this run. `docker compose build api-gateway` succeeded cleanly (no changes needed to Dockerfile/.dockerignore, both matched spec). Local-only src/infra/.env created (gitignored via *.env, dev-placeholder values) since Compose interpolates the whole file's variables even when building/starting a single service. First `docker compose up -d api-gateway` run went healthy->unhealthy: `docker inspect` healthcheck log showed the in-container `curl -f http://localhost:8080/health` getting HTTP 401. Root cause: JwtValidationMiddleware (T012) only allowlists three POST auth routes in PublicRoutePaths; GET /health wasn't exempt, so the gateway's own JWT middleware rejected Compose's unauthenticated healthcheck probe before it ever reached the /health endpoint. Since this middleware is a plain app.Use() component (not endpoint-routing-aware), it always runs ahead of MapGet(\"/health\") regardless of textual order in Program.cs, so the fix had to live in the middleware itself, not by reordering Program.cs. Added an explicit GET+/health bypass in JwtValidationMiddleware.InvokeAsync (kept separate from the POST-only PublicRoutePaths set, since a liveness probe and a pre-auth route are different reasons to skip validation). Rebuilt, restarted: container went straight to (healthy) on first poll. `curl -sS -o /dev/null -w \"%{http_code}\"` from host returned 200; `curl -f` exited 0. Image size measured via `docker image inspect shareconnectsave/api-gateway:dev --format=\"{{.Size}}\"` = 95,654,906 bytes (~91.2 MB), well under the 200MB budget. Container stopped via `docker compose stop api-gateway` after verification (other infra services, if any, left untouched)."
+}

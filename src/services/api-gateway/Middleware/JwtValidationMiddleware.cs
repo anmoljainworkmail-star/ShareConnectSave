@@ -61,6 +61,24 @@ public class JwtValidationMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Healthcheck as a Dependency Gate (T014), continued from Program.cs:
+        // this middleware is a plain `app.Use()` component, not an endpoint-routing
+        // filter — it runs in front of EVERY request dispatched to an endpoint,
+        // including MapGet("/health"), regardless of the textual order the two
+        // are registered in. Docker Compose's healthcheck curls this route with
+        // no Authorization header at all (it has no identity — it's asking "is
+        // the process alive," not "who is calling"), so without this bypass the
+        // container would sit at "unhealthy" forever, 401'd by its own gateway.
+        // Kept separate from PublicRoutePaths below: that set is strictly
+        // POST-only pre-auth routes; conflating a GET liveness probe into the
+        // same list would blur two different reasons a route skips validation.
+        if (HttpMethods.IsGet(context.Request.Method) &&
+            context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         // Guard Clause (project convention): the public-route check is a single
         // early return, not the main validation logic wrapped in
         // `if (!isPublicRoute) { ... }`. Public routes skip straight to the

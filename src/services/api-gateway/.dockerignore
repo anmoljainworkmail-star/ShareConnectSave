@@ -1,0 +1,8 @@
+# Build-context hygiene for the Docker build (T014).
+# Without this, the local dev tree's own bin/obj output gets copied into the
+# build context and can shadow/collide with what `dotnet publish` produces
+# inside the container — the container should compile from source only, never
+# from artifacts a host machine happened to leave lying around.
+bin/
+obj/
+.vs/

@@ -30,7 +30,7 @@
 - [x] T011 — YARP Gateway Project Setup
 - [x] T012 — JWT Validation Middleware _(Google JWKS, header injection)_
 - [x] T013 — Rate Limiting Middleware _(100/min global, 10/min connections)_
-- [ ] T014 — Gateway Docker Image
+- [x] T014 — Gateway Docker Image
 
 ---
 

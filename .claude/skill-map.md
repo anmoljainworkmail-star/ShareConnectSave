@@ -7,14 +7,14 @@ Skill files live in `.claude/skills/`. Empty = no special skill needed (use CLAU
 ```
 T001:
 T002: kafka-outbox
-T003: java-spring-boot dotnet-minimal-api
+T003: java-spring-boot dotnet-mvc-controllers
 T004:
 T005:
 ```
 
 ## Phase 1 — Infrastructure
 ```
-T006: java-spring-boot dotnet-minimal-api
+T006: java-spring-boot dotnet-mvc-controllers
 T007:
 T008:
 T009: kafka-outbox
@@ -23,20 +23,20 @@ T010:
 
 ## Phase 2 — API Gateway (.NET)
 ```
-T011: dotnet-minimal-api
-T012: dotnet-minimal-api
-T013: dotnet-minimal-api
+T011: dotnet-mvc-controllers
+T012: dotnet-mvc-controllers
+T013: dotnet-mvc-controllers
 T014:
 ```
 
 ## Phase 3 — User Service (.NET)
 ```
-T015: dotnet-minimal-api
-T016: dotnet-minimal-api
-T017: dotnet-minimal-api
-T018: dotnet-minimal-api
-T019: dotnet-minimal-api
-T020: dotnet-minimal-api kafka-outbox
+T015: dotnet-mvc-controllers
+T016: dotnet-mvc-controllers
+T017: dotnet-mvc-controllers
+T018: dotnet-mvc-controllers
+T019: dotnet-mvc-controllers
+T020: dotnet-mvc-controllers kafka-outbox
 ```
 
 ## Phase 4 — Discovery Service (Java)
@@ -63,11 +63,11 @@ T034:
 
 ## Phase 6 — Chat Service (.NET)
 ```
-T035: dotnet-minimal-api
-T036: dotnet-minimal-api
-T037: dotnet-minimal-api
-T038: dotnet-minimal-api kafka-outbox
-T039: dotnet-minimal-api kafka-outbox
+T035: dotnet-mvc-controllers
+T036: dotnet-mvc-controllers
+T037: dotnet-mvc-controllers
+T038: dotnet-mvc-controllers kafka-outbox
+T039: dotnet-mvc-controllers kafka-outbox
 T040:
 ```
 
@@ -83,9 +83,9 @@ T046:
 
 ## Phase 8 — Notification Service (.NET)
 ```
-T047: dotnet-minimal-api
-T048: dotnet-minimal-api
-T049: dotnet-minimal-api kafka-outbox
+T047: dotnet-mvc-controllers
+T048: dotnet-mvc-controllers
+T049: dotnet-mvc-controllers kafka-outbox
 T050:
 ```
 
@@ -126,9 +126,9 @@ T072: angular-pwa
 ## Phase 12 — Testing
 ```
 T081: java-spring-boot
-T082: dotnet-minimal-api
+T082: dotnet-mvc-controllers
 T083: java-spring-boot
-T084: dotnet-minimal-api
+T084: dotnet-mvc-controllers
 T085: angular-pwa
 T086:
 ```
@@ -136,17 +136,17 @@ T086:
 ## Phase 13 — Observability
 ```
 T087: java-spring-boot
-T088: dotnet-minimal-api
+T088: dotnet-mvc-controllers
 T089:
-T090: java-spring-boot dotnet-minimal-api
+T090: java-spring-boot dotnet-mvc-controllers
 ```
 
 ## Phase 14 — Saga + Outbox
 ```
 T091: java-spring-boot kafka-outbox saga
-T092: dotnet-minimal-api kafka-outbox
+T092: dotnet-mvc-controllers kafka-outbox
 T093: java-spring-boot kafka-outbox saga
-T094: dotnet-minimal-api kafka-outbox
+T094: dotnet-mvc-controllers kafka-outbox
 T095: java-spring-boot kafka-outbox
-T096: java-spring-boot dotnet-minimal-api kafka-outbox saga
+T096: java-spring-boot dotnet-mvc-controllers kafka-outbox saga
 ```

@@ -6,10 +6,10 @@
 | ID | Title | Skills |
 |----|-------|--------|
 | T091 | Outbox Module: shared-java-lib | java-spring-boot kafka-outbox saga |
-| T092 | Outbox Middleware: .NET | dotnet-minimal-api kafka-outbox |
+| T092 | Outbox Middleware: .NET | dotnet-mvc-controllers kafka-outbox |
 | T093 | Apply Outbox to All Java Services | java-spring-boot kafka-outbox saga |
-| T094 | Apply Outbox to All .NET Services | dotnet-minimal-api kafka-outbox |
+| T094 | Apply Outbox to All .NET Services | dotnet-mvc-controllers kafka-outbox |
 | T095 | Consumer Idempotency (Java) | java-spring-boot kafka-outbox |
-| T096 | ConnectionLifecycleSaga State Tracking | java-spring-boot dotnet-minimal-api kafka-outbox saga |
+| T096 | ConnectionLifecycleSaga State Tracking | java-spring-boot dotnet-mvc-controllers kafka-outbox saga |
 
 **Phase complete when:** No Java service calls KafkaTemplate directly, no .NET service calls IProducer directly, all consumers are idempotent (duplicate event = no-op), saga_state table tracks connection lifecycle, compensating revert fires on chat-open failure.

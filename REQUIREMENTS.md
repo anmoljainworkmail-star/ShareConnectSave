@@ -4,7 +4,7 @@
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Backend | .NET 9 Minimal APIs (microservices) | Team familiarity, SignalR is first-class, high perf |
+| Backend | .NET 9 MVC Controllers (microservices) | Controllers map directly onto the same team's Spring Boot `@RestController` experience, SignalR is first-class, high perf |
 | Frontend | Angular (PWA) — **module-based, no standalone components** | Structured, service-worker + Web Bluetooth API support |
 | Native App (Phase 2) | Capacitor.js (wraps same Angular codebase) | Web-first, native app via Capacitor — no rewrite |
 | API Gateway | YARP (Yet Another Reverse Proxy) | Native .NET, JWT validation + routing |
@@ -22,7 +22,7 @@
 
 ## Architecture — Microservices
 
-Each service is an independent .NET 9 Minimal API with its own database schema. Services communicate:
+Each service is an independent .NET 9 Web API (MVC Controllers) with its own database schema. Services communicate:
 - **Async** via Kafka for cross-domain events (e.g., rating submitted → trust score recalculated)
 - **Sync** via HTTP through the API Gateway for client-facing request/response
 

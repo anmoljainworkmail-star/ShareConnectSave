@@ -85,7 +85,7 @@ to manual review.
 
 Frontend: - Angular
 
-Backend: - .NET 9 Minimal APIs
+Backend: - .NET 9 MVC Controllers
 
 Realtime: - SignalR
 

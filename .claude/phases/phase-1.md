@@ -5,7 +5,7 @@
 **Tasks in order:**
 | ID | Title | Skills |
 |----|-------|--------|
-| T006 | SQL Server Database Schemas | java-spring-boot dotnet-minimal-api |
+| T006 | SQL Server Database Schemas | java-spring-boot dotnet-mvc-controllers |
 | T007 | MongoDB Setup | — |
 | T008 | Redis Setup | — |
 | T009 | Kafka Topics Init | kafka-outbox |

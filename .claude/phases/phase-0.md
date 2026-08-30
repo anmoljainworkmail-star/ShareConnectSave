@@ -7,7 +7,7 @@
 |----|-------|--------|
 | T001 | Monorepo Scaffold | — |
 | T002 | Kafka Topic + Contract Definitions | kafka-outbox |
-| T003 | Shared Error Envelope Contract | java-spring-boot dotnet-minimal-api |
+| T003 | Shared Error Envelope Contract | java-spring-boot dotnet-mvc-controllers |
 | T004 | Docker Compose Infrastructure Services | — |
 | T005 | OpenAPI Specs (All Services) | — |
 

@@ -22,7 +22,7 @@ This project exists primarily to learn. Every implementation decision should be 
 | Frontend | Angular (PWA, **module-based — no standalone components**) |
 | Native App (later) | Capacitor.js wrapping the same Angular codebase |
 | API Gateway | YARP (.NET 9) |
-| Backend | .NET 9 Minimal APIs — microservices |
+| Backend | .NET 9 MVC Controllers — microservices |
 | Realtime | SignalR (Redis backplane for scale) |
 | Auth | Google Sign-In + JWT (validated at gateway) |
 | Relational DB | SQL Server (per-service schemas) |

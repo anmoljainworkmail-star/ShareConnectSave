@@ -1,14 +1,21 @@
-# .NET 9 Minimal API Skill — ShareConnectSave Backend Services
+# .NET 9 MVC Controllers Skill — ShareConnectSave Backend Services
 
-You are implementing a .NET 9 Minimal API microservice for ShareConnectSave. This is a learning project — add short comments naming the pattern when it is non-obvious.
+You are implementing a .NET 9 Web API microservice for ShareConnectSave using MVC
+Controllers (`[ApiController]`), not Minimal API endpoint-mapping. This project uses
+Controllers specifically because its Java services use Spring Boot's `@RestController` —
+attribute routing + constructor injection maps far more directly onto that model than
+Minimal API's static-class-plus-`IEndpointRouteBuilder` style does, which matters since
+this is a learning project and .NET + Spring Boot are being learned side by side. This is
+a learning project generally — add short comments naming the pattern when it is
+non-obvious.
 
 ## Project structure
 
 ```
 services/<service-name>/
-  Program.cs                        ← composition root — all DI and pipeline config here
-  Endpoints/
-    <Feature>Endpoints.cs           ← static class with MapGroup extension method
+  Program.cs                        ← composition root — AddControllers()/MapControllers(), DI, pipeline config
+  Controllers/
+    <Feature>Controller.cs          ← [ApiController] class, one per feature slice, DTOs co-located
   Domain/
     <Entity>.cs                     ← EF Core entity + C# record DTOs in same file
   Repositories/
@@ -32,43 +39,51 @@ services/<service-name>/
   Dockerfile
 ```
 
-## Minimal API endpoint pattern
+## MVC Controller pattern
 
 ```csharp
-// Pattern: Endpoint grouping — feature slice owns its routes
-// Reason: keeps Program.cs thin and each feature independently testable
-public static class ProfileEndpoints
+// Pattern: Controller as feature slice owner — same intent as Minimal API's
+// endpoint grouping (keep Program.cs thin, each feature independently
+// testable), just expressed as a class ASP.NET Core instantiates per
+// request via DI instead of a static class + extension method.
+// Spring Boot equivalent: @RestController class + @Autowired constructor
+// injection — same shape, different annotations.
+[ApiController]
+public class ProfileController(IUserRepository repo) : ControllerBase
 {
-  public static RouteGroupBuilder MapProfileEndpoints(this RouteGroupBuilder group)
-  {
-    group.MapGet("/me", GetCurrentUser);
-    group.MapPatch("/me", UpdateProfile);
-    group.MapPost("/me/photo", UploadPhoto);
-    return group;
-  }
-
-  private static async Task<IResult> GetCurrentUser(
-    HttpContext ctx,
-    IUserRepository repo)
+  [HttpGet("/users/me")]
+  public async Task<IActionResult> GetCurrentUser()
   {
     // Identity from gateway-injected header — never re-validate JWT here
-    var userId = Guid.Parse(ctx.Request.Headers["X-User-Id"]!);
+    var userId = long.Parse(HttpContext.Request.Headers["X-User-Id"]!);
     var user = await repo.FindByIdAsync(userId);
-    return user is null ? Results.NotFound() : Results.Ok(user.ToResponse());
+    return user is null ? NotFound() : Ok(user.ToResponse());
   }
+
+  [HttpPatch("/users/me")]
+  public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request) { /* ... */ return Ok(); }
 }
 ```
 
 Registration in Program.cs:
 ```csharp
-app.MapGroup("/users").MapProfileEndpoints().RequireAuthorization();
+builder.Services.AddControllers();   // composition-root equivalent of Spring's component scan
+// ...
+app.MapControllers();
+app.MapGroup("/users") is not used with Controllers — [HttpGet("/users/me")] on the
+attribute IS the routing; there is no separate group-registration step to forget.
 ```
+
+If a controller's every action should require auth, prefer `[Authorize]` on the class
+over repeating it per action — same idea as Minimal API's `.RequireAuthorization()` on a
+route group, just an attribute instead of a fluent call.
 
 ## EF Core + dependency inversion
 
 Interface and implementation live in separate folders — `Repositories/Interfaces/` holds
 only contracts, `Repositories/` holds only EF Core classes — so a reviewer can read every
 repository's public surface in one folder without wading through query implementations.
+Unchanged by the Controllers-vs-Minimal-API switch — this lives below the HTTP layer.
 
 ```csharp
 // Repositories/Interfaces/IUserRepository.cs
@@ -78,7 +93,7 @@ namespace user_service.Repositories.Interfaces;
 // Reason: swapping SQLite in tests doesn't require changing service code
 public interface IUserRepository
 {
-  Task<User?> FindByIdAsync(Guid id);
+  Task<User?> FindByIdAsync(long id);
   Task<User?> FindByGoogleIdAsync(string googleId);
   Task AddAsync(User user);
 }
@@ -92,7 +107,7 @@ using user_service.Repositories.Interfaces;
 
 public class UserRepository(AppDbContext db) : IUserRepository
 {
-  public Task<User?> FindByIdAsync(Guid id) =>
+  public Task<User?> FindByIdAsync(long id) =>
     db.Users.FirstOrDefaultAsync(u => u.Id == id);
 }
 ```
@@ -102,7 +117,7 @@ public class UserRepository(AppDbContext db) : IUserRepository
 ```csharp
 public class User
 {
-  public Guid Id { get; init; } = Guid.NewGuid();
+  public long Id { get; set; }
   public string GoogleId { get; set; } = string.Empty;
   public string Phone { get; set; } = string.Empty;
   public string Name { get; set; } = string.Empty;
@@ -130,7 +145,7 @@ builder.Services.AddProblemDetails(opt =>
   };
 });
 
-// Usage: throw a typed exception, middleware maps it
+// Usage inside a controller action: throw a typed exception, middleware maps it
 throw new DomainException("NO_BASE_PHOTO", "Upload a profile photo before starting identity verification.");
 ```
 
@@ -140,7 +155,15 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 ```
 
+For a single explicit error response inside an action (not an unexpected exception),
+return a shaped result directly rather than throwing — see `AuthController.InvalidGoogleToken()`
+for the pattern: `StatusCode(401, new ErrorResponse("CODE", "message", HttpContext.TraceIdentifier))`.
+
 ## SignalR hub
+
+SignalR hubs are unaffected by the Controllers-vs-Minimal-API choice — a `Hub` subclass
+is its own ASP.NET Core primitive, mapped via `app.MapHub<T>("/path")` regardless of how
+your HTTP controllers are structured.
 
 ```csharp
 // Pattern: Hub as thin coordinator — no business logic in hub methods
@@ -155,7 +178,7 @@ public class ChatHub(IChatService chatService) : Hub
 
   public async Task SendMessage(string chatId, string content)
   {
-    var userId = Guid.Parse(Context.User!.FindFirst("X-User-Id")!.Value);
+    var userId = long.Parse(Context.User!.FindFirst("X-User-Id")!.Value);
     var message = await chatService.SaveMessageAsync(chatId, userId, content);
     // Broadcast to the group — SignalR handles fan-out to all connections in the room
     await Clients.Group(chatId).SendAsync("ReceiveMessage", message);
@@ -198,7 +221,7 @@ public class OutboxRelayService(IServiceScopeFactory scopeFactory) : BackgroundS
 // Always go through IOutboxService so the event is written in the same DB transaction
 public class UserService(IUserRepository repo, IOutboxService outbox, AppDbContext db)
 {
-  public async Task VerifyUserAsync(Guid userId)
+  public async Task VerifyUserAsync(long userId)
   {
     var user = await repo.FindByIdAsync(userId) ?? throw new NotFoundException();
     user.IsVerified = true;
@@ -257,11 +280,12 @@ var jwtSecret = builder.Configuration["JWT_SECRET"];        // Only used at gate
 ## Identity headers (read, never validate)
 
 ```csharp
-// Extension method — centralizes header extraction in one place
+// Extension method — centralizes header extraction in one place, usable from
+// any controller action via `HttpContext.GetUserId()` etc.
 public static class HttpContextExtensions
 {
-  public static Guid GetUserId(this HttpContext ctx) =>
-    Guid.Parse(ctx.Request.Headers["X-User-Id"]!);
+  public static long GetUserId(this HttpContext ctx) =>
+    long.Parse(ctx.Request.Headers["X-User-Id"]!);
 
   public static string GetUserRole(this HttpContext ctx) =>
     ctx.Request.Headers["X-User-Role"]!;
@@ -287,19 +311,35 @@ The W3C `traceparent` header is propagated automatically via `HttpClientInstrume
 ## Testing conventions
 
 ```csharp
-// xUnit + Moq — no real infrastructure in unit tests
-public class UserServiceTests
+// xUnit + Moq — no real infrastructure in unit tests. Controllers instantiate
+// like any other class under test — construct one directly with mocked
+// dependencies, no ASP.NET Core test host required for a pure unit test.
+public class AuthControllerTests
 {
+  private readonly Mock<IGoogleTokenValidator> _validator = new();
   private readonly Mock<IUserRepository> _repo = new();
-  private readonly Mock<IOutboxService> _outbox = new();
+  private readonly Mock<IJwtIssuer> _jwtIssuer = new();
 
   [Fact]
-  public async Task VerifyUser_ShouldEnqueueUserVerifiedEvent()
+  public async Task GoogleSignIn_InvalidToken_Returns401WithErrorCode()
   {
-    _repo.Setup(r => r.FindByIdAsync(It.IsAny<Guid>())).ReturnsAsync(new User());
-    var sut = new UserService(_repo.Object, _outbox.Object, /* db mock */);
-    await sut.VerifyUserAsync(Guid.NewGuid());
-    _outbox.Verify(o => o.Enqueue("user.verified", It.IsAny<object>()), Times.Once);
+    _validator.Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync((GoogleTokenPayload?)null);
+    var sut = new AuthController(_validator.Object, _repo.Object, _jwtIssuer.Object)
+    {
+      ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+    };
+
+    var result = await sut.GoogleSignIn(new GoogleAuthRequest("bad-token"));
+
+    var objectResult = Assert.IsType<ObjectResult>(result);
+    Assert.Equal(401, objectResult.StatusCode);
   }
 }
 ```
+
+For an integration test that exercises real attribute routing/model binding, use
+`WebApplicationFactory<Program>` — this is where Controllers and Minimal API tests
+actually differ syntactically, since Minimal API integration tests hit the same
+`WebApplicationFactory` but there's no `[ApiController]` model-binding-inference
+behavior to account for.

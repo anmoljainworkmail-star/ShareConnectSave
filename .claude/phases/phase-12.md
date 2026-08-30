@@ -6,9 +6,9 @@
 | ID | Title | Skills |
 |----|-------|--------|
 | T081 | Unit Tests: Java Services | java-spring-boot |
-| T082 | Unit Tests: .NET Services | dotnet-minimal-api |
+| T082 | Unit Tests: .NET Services | dotnet-mvc-controllers |
 | T083 | Integration Tests: Java (Testcontainers) | java-spring-boot |
-| T084 | Integration Tests: .NET (Testcontainers) | dotnet-minimal-api |
+| T084 | Integration Tests: .NET (Testcontainers) | dotnet-mvc-controllers |
 | T085 | E2E Tests (Playwright) | angular-pwa |
 | T086 | Load Test: Discovery Query (k6) | — |
 

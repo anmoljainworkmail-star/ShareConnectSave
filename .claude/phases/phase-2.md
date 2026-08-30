@@ -5,9 +5,9 @@
 **Tasks in order:**
 | ID | Title | Skills |
 |----|-------|--------|
-| T011 | YARP Gateway Project Setup | dotnet-minimal-api |
-| T012 | JWT Validation Middleware | dotnet-minimal-api |
-| T013 | Rate Limiting Middleware | dotnet-minimal-api |
+| T011 | YARP Gateway Project Setup | dotnet-mvc-controllers |
+| T012 | JWT Validation Middleware | dotnet-mvc-controllers |
+| T013 | Rate Limiting Middleware | dotnet-mvc-controllers |
 | T014 | Gateway Docker Image | — |
 
 **Phase complete when:** Gateway starts, routes to stub services, validates a real Google JWT, and rejects over-limit requests.

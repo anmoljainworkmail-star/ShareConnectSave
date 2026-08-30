@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
             entity.Property(u => u.Id).UseIdentityColumn(1, 1);
 
             entity.Property(u => u.GoogleId).HasMaxLength(255).IsRequired();
+            entity.Property(u => u.Email).HasMaxLength(320);
             entity.Property(u => u.Phone).HasMaxLength(20);
             entity.Property(u => u.Name).HasMaxLength(200).IsRequired();
             entity.Property(u => u.PhotoUrl).HasMaxLength(1000);

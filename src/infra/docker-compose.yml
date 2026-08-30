@@ -24,7 +24,11 @@ services:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=${SA_PASSWORD:?SA_PASSWORD must be set — copy .env.example to .env and fill in values}
     ports:
-      - "1433:1433"
+      # Host port remapped off the default 1433 — this dev machine already has a
+      # native SQL Server Windows service bound there. Container-to-container
+      # traffic (other services reaching "sqlserver:1433") is unaffected since
+      # that's the container's internal port, not this host-side mapping.
+      - "14330:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:

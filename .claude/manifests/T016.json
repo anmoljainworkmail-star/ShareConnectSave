@@ -1,0 +1,27 @@
+{
+  "task_id": "T016",
+  "title": "Google OAuth + JWT Issuance",
+  "status": "completed",
+  "files_created": [
+    "src/services/user-service/Models/User.cs",
+    "src/services/user-service/Infrastructure/AppDbContext.cs",
+    "src/services/user-service/Configuration/JwtIssuerOptions.cs",
+    "src/services/user-service/Services/Interfaces/IGoogleTokenValidator.cs",
+    "src/services/user-service/Services/Interfaces/IJwtIssuer.cs",
+    "src/services/user-service/Services/GoogleTokenValidator.cs",
+    "src/services/user-service/Services/JwtIssuer.cs",
+    "src/services/user-service/Endpoints/AuthEndpoints.cs",
+    "src/services/user-service/Program.cs",
+    "src/services/user-service/user-service.csproj",
+    "src/services/user-service/appsettings.json",
+    "src/infra/docker-compose.override.yml",
+    ".env.example",
+    ".env"
+  ],
+  "criteria_checked": {
+    "AC1_valid_google_token_issues_jwt_and_upserts_user": "PASS - migration blocker resolved. Re-verified by (1) static code review: AppDbContext's Email mapping (HasMaxLength(320), nullable, no IsRequired) matches AddEmailToUsers.Up() exactly (nvarchar(320) nullable:true), and InitialSchema has no conflicting Email column; UserRepository.GetByGoogleIdAsync/AddAsync are plain EF Core calls with no column mismatch against User.cs's other properties (GoogleId/Name required+within maxlength, Gender/PreferredLanguage default to in-range values, CreatedAt defaults to UtcNow); GoogleTokenPayload.Email is nullable, matching the nullable column, so a Google account with no email cannot violate a NOT NULL constraint. (2) Live-DB verification (stronger than requested): queried the running sqlserver container directly (docker exec + sqlcmd against UserServiceDb) - INFORMATION_SCHEMA.COLUMNS confirms the actual 'users' table has Email nvarchar(320) NULL alongside all other expected columns, and __EFMigrationsHistory shows both 20260820070019_InitialSchema and 20260830113648_AddEmailToUsers applied. Also re-ran `dotnet build` (not a restricted codegen command) - 0 warnings/errors. No fake Google token or fabricated HTTP call was used to reach this conclusion.",
+    "AC2_invalid_google_token_401_INVALID_GOOGLE_TOKEN": "PASS - GoogleSignIn returns 401 + ErrorResponse(code: INVALID_GOOGLE_TOKEN) on empty id_token or IGoogleTokenValidator.ValidateAsync returning null; this path never touches the DB so it is not blocked by the pending migration",
+    "AC3_issued_jwt_validates_against_gateway_jwks": "PASS - JwtIssuer signs RS256 with issuer/audience matching api-gateway's Jwt:Issuer/Jwt:Audience (shareconnectsave-platform / shareconnectsave-api) exactly, claims are 'sub'/'role'/'gender' as plain string claim types (not ClaimTypes.*), GetJwks() emits standard { keys: [{kty,use,alg,kid,n,e}] } shape via Base64UrlEncoder.Encode on public-only RSA parameters - verified by code review against JwtValidationMiddleware.cs and JwksService.cs; not yet exercised end-to-end with a live gateway"
+  },
+  "last_note": "RESUMED: Tech Lead applied both migrations (InitialSchema, AddEmailToUsers) against the running sqlserver container (host port 14330). Re-verified AC1 by code review of AppDbContext/migrations/UserRepository plus a direct read-only query against the live UserServiceDb (INFORMATION_SCHEMA.COLUMNS + __EFMigrationsHistory via docker exec sqlcmd) confirming the Email nvarchar(320) NULL column and both migrations exist exactly as the code expects. Re-ran `dotnet build` - 0 warnings/errors. All three acceptance criteria now PASS. No restricted CLI command (dotnet ef, dotnet new, ng generate, etc.) was run this round - only `dotnet build` (a plain build, not codegen) and read-only docker exec/sqlcmd diagnostics against infra the Tech Lead already started. Task complete: GoogleTokenValidator, JwtIssuer (RS256; private key never leaves the class), AuthEndpoints (POST /auth/google, GET /.well-known/jwks.json), UserRepository upsert-by-GoogleId, Program.cs DI wiring all unchanged from last round and confirmed correct."
+}

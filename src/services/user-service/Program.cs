@@ -1,9 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using user_service.Configuration;
 using user_service.Infrastructure;
 using user_service.Repositories;
 using user_service.Repositories.Interfaces;
+using user_service.Services;
+using user_service.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// MVC Controllers (switched from Minimal API endpoint-mapping): AddControllers()
+// registers ASP.NET Core's controller discovery + action invocation pipeline -
+// this is the .NET equivalent of Spring Boot's component scan picking up
+// @RestController classes, just explicit instead of classpath scanning.
+builder.Services.AddControllers();
 
 // No Hardcoded Config: the connection string never appears as a literal here
 // or in appsettings.json. builder.Configuration.GetConnectionString("UserDb")
@@ -24,7 +33,31 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IOtpRepository, OtpRepository>();
 builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerificationRepository>();
 
+// Dependency Inversion (D in SOLID): bind the "Jwt" section once, here, into
+// a typed JwtIssuerOptions - JwtIssuer then depends on IOptions<JwtIssuerOptions>,
+// never on IConfiguration directly. Mirrors api-gateway's identical pattern
+// for its own JwtOptions (T012).
+builder.Services.Configure<JwtIssuerOptions>(builder.Configuration.GetSection(JwtIssuerOptions.SectionName));
+
+// Typed HttpClient (T016): lets the framework own HttpClient pooling/DNS-refresh
+// lifetime for calls to Google's tokeninfo endpoint, instead of GoogleTokenValidator
+// holding a single long-lived HttpClient itself - same reasoning as api-gateway's
+// AddHttpClient<IJwksService, JwksService>() in T012.
+builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
+
+// Singleton (via DI container, classic pattern from CLAUDE.md's pattern table):
+// exactly one RSA keypair for this process's lifetime - see JwtIssuer's own
+// comment for why Scoped/Transient here would silently break gateway-side
+// JWKS caching.
+builder.Services.AddSingleton<IJwtIssuer, JwtIssuer>();
+
 var app = builder.Build();
+
+// MapControllers() wires up attribute-routed controllers (AuthController's
+// [HttpPost("/auth/google")] etc.) - Program.cs stays a list of
+// pipeline/DI registrations, not a place individual routes get mapped inline,
+// same intent as the Minimal API version's app.MapAuthEndpoints() before it.
+app.MapControllers();
 
 // Health Endpoint as a Dependency Gate: liveness only, same shape as the API
 // Gateway's /health from T014. Docker Compose's healthcheck for this service

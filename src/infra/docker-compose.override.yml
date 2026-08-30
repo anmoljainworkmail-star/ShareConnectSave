@@ -22,6 +22,12 @@ services:
       # This prevents silent use of a hardcoded credential; the developer must supply a real value via .env.
       - ConnectionStrings__UserDb=${USER_DB_CONNECTION:?USER_DB_CONNECTION must be set — copy .env.example to .env and fill in values}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      # T016: RS256 private key material for user-service's own JWT issuance.
+      # Defaults to empty — JwtIssuer falls back to an ephemeral in-memory
+      # keypair when this is unset (see JwtIssuer.cs and .env.example). Never
+      # required for local dev to boot; only set this for anything that must
+      # survive a container restart.
+      - Jwt__RsaPrivateKeyPem=${JWT__RSAPRIVATEKEYPEM:-}
 
   discovery-service:
     environment:

@@ -65,3 +65,24 @@ entry names the downstream task(s) whose implementation or ticket should address
    Affects: T016 (Google OAuth + JWT Issuance — add `UseExceptionHandler`/the shared
    error-envelope middleware before the endpoint goes live, and catch
    `DbUpdateException` around the upsert path specifically).
+
+## From T016 (Google OAuth + JWT Issuance)
+
+1. Still no global exception-handling middleware in `user-service` — this repeats the
+   gap flagged in T015's follow-up #2 above, which named T016 as the task to fix it, but
+   it shipped again unaddressed. Concretely: two near-simultaneous `POST /auth/google`
+   calls for the same brand-new Google account can both pass the "does this user exist"
+   check (`UserRepository.GetByGoogleIdAsync` returns `null` for both, a classic
+   check-then-act/TOCTOU race), then both call `AddAsync`. The DB-level unique index on
+   `GoogleId` (`AppDbContext.cs:40`) correctly prevents a duplicate row, but the losing
+   request's `DbUpdateException` is unhandled — `Program.cs` has no
+   `app.UseExceptionHandler()`/`AddProblemDetails` wiring at all — so it bubbles up as a
+   raw unhandled exception instead of the project's standard `ErrorResponse` envelope. In
+   `ASPNETCORE_ENVIRONMENT=Development` (how `docker-compose.override.yml` runs this
+   service) this can surface exception type/message/stack trace to the caller.
+   Affects: T017 (next ticket to touch `user-service/Program.cs` — wire
+   `UseExceptionHandler`/`AddProblemDetails` per the `dotnet-mvc-controllers` skill before
+   adding new endpoints, and add a `catch (DbUpdateException)` — or re-fetch-and-treat-as-
+   existing-user — around the upsert path in `AuthController.GoogleSignIn`), T087–T090
+   (Observability — same middleware gap means unhandled exceptions across user-service
+   aren't normalized for logging/tracing either).

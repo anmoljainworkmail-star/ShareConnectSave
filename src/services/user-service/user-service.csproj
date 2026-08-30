@@ -17,6 +17,19 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+
+    <!-- T016 (Google OAuth + JWT Issuance): same package family, same
+         versions, as api-gateway's T012 (Microsoft.IdentityModel.Tokens,
+         System.IdentityModel.Tokens.Jwt) - this is the producer half of that
+         contract, so the token shape (SecurityAlgorithms.RsaSha256,
+         JwtSecurityToken, RsaSecurityKey) must line up exactly with what the
+         gateway's JwtSecurityTokenHandler validates. Unlike the gateway,
+         this project does NOT need Microsoft.IdentityModel.Protocols - that
+         package's ConfigurationManager<T> caching is only for a CONSUMER of
+         someone else's JWKS; this service is the producer and never fetches
+         a JWKS from anywhere. -->
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.2.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
   </ItemGroup>
 
 </Project>

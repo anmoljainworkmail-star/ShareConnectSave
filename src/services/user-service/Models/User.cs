@@ -17,6 +17,13 @@ public class User
 
     public string GoogleId { get; set; } = string.Empty;
 
+    // Added in T016: Google's tokeninfo response hands this back on every
+    // sign-in, but it is never re-validated or re-used for identity - only
+    // GoogleId (Google's "sub") is the lookup key. Email is stored purely as
+    // profile data (e.g. future notification/support use), matching the
+    // ticket's "extract sub, email, name, picture" requirement.
+    public string? Email { get; set; }
+
     public string? Phone { get; set; }
 
     public string Name { get; set; } = string.Empty;

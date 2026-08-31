@@ -25,10 +25,8 @@ public class JwtValidationMiddleware
     // make every real token fail claim extraction post-validation.
     private readonly JwtSecurityTokenHandler _tokenHandler = new() { MapInboundClaims = false };
 
-    // Public auth routes are the only endpoints that ever handle Google's raw
-    // Sign-In token, and that happens entirely inside user-service — the
-    // gateway must let these three through untouched, before any app-JWT
-    // exists to validate.
+    // Public auth routes are endpoints reachable with no app-JWT to present
+    // yet at all — the gateway must let these through untouched.
     //
     // Path correction: this middleware runs BEFORE app.MapReverseProxy(), so it
     // sees the request exactly as the client sent it to the gateway — with the
@@ -40,11 +38,24 @@ public class JwtValidationMiddleware
     // not what the gateway receives. Comparing against the un-prefixed path here
     // would never match, silently forcing every login attempt through JWT
     // validation with no token yet to present — a chicken-and-egg lockout.
+    //
+    // T017 correction: /user/auth/otp/send and /user/auth/otp/verify were
+    // originally added here alongside /user/auth/google (T013), on the same
+    // "no JWT exists yet" reasoning — but that reasoning doesn't actually
+    // hold for OTP. Per T063's frontend flow, Google sign-in completes FIRST
+    // (LoginComponent gets a JWT and stores it) and only THEN does
+    // OtpVerifyComponent call these two endpoints, with AuthInterceptor
+    // already attaching that JWT to every request. Unlike POST /auth/google,
+    // there is no chicken-and-egg gap here — a caller always already holds a
+    // token. Leaving these public would leave user-service's OtpController
+    // with no trustworthy way to know WHICH user's phone/status to update
+    // without decoding a JWT itself, which the project's non-negotiable JWT
+    // Identity rule (read X-User-Id/Role/Gender from headers only) forbids.
+    // Requiring a valid JWT here — like every other authenticated route —
+    // is what lets X-User-Id reach OtpController the normal way.
     private static readonly HashSet<string> PublicRoutePaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/user/auth/google",
-        "/user/auth/otp/send",
-        "/user/auth/otp/verify",
     };
 
     public JwtValidationMiddleware(

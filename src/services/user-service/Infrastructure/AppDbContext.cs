@@ -33,6 +33,10 @@ public class AppDbContext : DbContext
             entity.Property(u => u.Status).HasMaxLength(30).IsRequired();
             entity.Property(u => u.CreatedAt).HasColumnType("datetime2").IsRequired();
 
+            // T017: nullable — "never verified" is a real, common state
+            // (every new user, until they pass OTP), not an absence of data.
+            entity.Property(u => u.PhoneVerifiedAt).HasColumnType("datetime2");
+
             // Constraints: google_id is the identity anchor for Google Sign-In —
             // one Google account maps to exactly one user row, enforced at the
             // DB layer so a race between two concurrent sign-in requests can't
@@ -41,7 +45,20 @@ public class AppDbContext : DbContext
 
             // Index on phone: OTP verification looks users up by phone, not by
             // primary key, so that's the access pattern the index must serve.
-            entity.HasIndex(u => u.Phone);
+            //
+            // Filtered Unique Index (fix): a phone number identifies one real
+            // person — once VERIFIED on one account it must never also be
+            // verified on a second, different account. OtpService.VerifyOtpAsync
+            // already runs an application-level SELECT-then-check for this
+            // (a fast-path that avoids a DB round trip in the common case),
+            // but a check-then-act check alone is not race-safe — two
+            // concurrent successful verifications for the same phone can both
+            // pass the SELECT before either commits. The filter
+            // (PhoneVerifiedAt IS NOT NULL) is what makes this a REAL
+            // guarantee instead of an optimization: unverified rows (Phone
+            // set to null/pending, or never verified) are explicitly allowed
+            // to collide, only two VERIFIED rows for the same phone collide.
+            entity.HasIndex(u => u.Phone).IsUnique().HasFilter("[PhoneVerifiedAt] IS NOT NULL");
             entity.HasIndex(u => u.Status);
             entity.HasIndex(u => u.CreatedAt);
         });
@@ -55,6 +72,23 @@ public class AppDbContext : DbContext
             entity.Property(o => o.Phone).HasMaxLength(20).IsRequired();
             entity.Property(o => o.AttemptCount).IsRequired().HasDefaultValue(0);
             entity.Property(o => o.LockedUntil).HasColumnType("datetime2");
+
+            // T017: WindowStartedAt anchors the "5 failures within 10
+            // minutes" rule; CodeHash/CodeCreatedAt/CodeExpiresAt hold the
+            // currently outstanding code (see OtpAttempt's class comment for
+            // why hash-only, never plaintext).
+            entity.Property(o => o.WindowStartedAt).HasColumnType("datetime2");
+            entity.Property(o => o.CodeHash).HasMaxLength(64);
+            entity.Property(o => o.CodeCreatedAt).HasColumnType("datetime2");
+            entity.Property(o => o.CodeExpiresAt).HasColumnType("datetime2");
+
+            // Optimistic Concurrency Token (see OtpAttempt.RowVersion's class
+            // comment for the full "why"): IsRowVersion() tells EF Core this
+            // column is a SQL Server `rowversion` — include it in every
+            // UPDATE's WHERE clause and throw DbUpdateConcurrencyException
+            // when the row changed since it was read, instead of the update
+            // silently applying anyway.
+            entity.Property(o => o.RowVersion).IsRowVersion();
 
             // Every OTP request looks up "attempts for this phone" first —
             // the index makes that lockout check O(log n) instead of a scan.

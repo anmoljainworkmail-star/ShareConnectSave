@@ -1,0 +1,29 @@
+{
+  "task_id": "T017",
+  "title": "Phone OTP Verification",
+  "status": "completed",
+  "files_created": [
+    "src/services/user-service/Models/OtpAttempt.cs",
+    "src/services/user-service/Models/User.cs",
+    "src/services/user-service/Infrastructure/AppDbContext.cs",
+    "src/services/user-service/Configuration/OtpOptions.cs",
+    "src/services/user-service/Services/Interfaces/ITwilioClient.cs",
+    "src/services/user-service/Services/TwilioClient.cs",
+    "src/services/user-service/Services/Interfaces/IOtpService.cs",
+    "src/services/user-service/Services/OtpService.cs",
+    "src/services/user-service/Extensions/HttpContextExtensions.cs",
+    "src/services/user-service/Controllers/OtpController.cs",
+    "src/services/user-service/Program.cs",
+    "src/services/user-service/appsettings.json",
+    "src/services/api-gateway/Middleware/JwtValidationMiddleware.cs",
+    ".env.example",
+    ".env",
+    "SPECS.md"
+  ],
+  "criteria_checked": {
+    "AC1_correct_otp_marks_verified_and_status": "PASS (live end-to-end: seeded a synthetic complete-profile user + a known CodeHash in otp_attempts, ran user-service against the real DB, POSTed /auth/otp/verify with the correct code -> 200 {phone_verified:true,status:\"active\"}; confirmed in SQL that users.Phone/PhoneVerifiedAt were set and the otp_attempts row's code fields were cleared, single-use)",
+    "AC2_wrong_otp_400_invalid_otp": "PASS (live end-to-end: POSTed /auth/otp/verify with a wrong code -> 400 {code:\"INVALID_OTP\"}; confirmed in SQL that otp_attempts.AttemptCount incremented from 0 to 1 and WindowStartedAt was set)",
+    "AC3_five_failures_429_otp_locked": "PASS (live end-to-end: drove 5 total wrong-code attempts on one phone; SQL confirmed AttemptCount=5 and LockedUntil=now+15min; a 6th call -> 429 {code:\"OTP_LOCKED\", message containing the ISO lockout timestamp}, matching LockedUntil exactly)"
+  },
+  "last_note": "RESOLVED. Confirmed via `dotnet ef migrations list` (run from src/services/user-service against localhost:14330, the mapped host port for the sqlserver container) that all 3 migrations, including 20260830174655_AddOtpVerificationFields, show as applied (no Pending marker) -- and cross-checked directly against __EFMigrationsHistory plus INFORMATION_SCHEMA.COLUMNS in the live UserServiceDb container, which confirmed otp_attempts has CodeHash/CodeCreatedAt/CodeExpiresAt/WindowStartedAt and users has PhoneVerifiedAt. Tech Lead's `dotnet ef database update` had already been run. Migration file's Up() matches the EF model exactly (5 AddColumn calls, correct types/nullability). Both user-service and api-gateway rebuilt clean (0 warnings/errors). No xUnit test project exists yet for user-service, so verification was done by running user-service live against the real DB (dotnet run, bypassing the gateway since JWT issuance/validation is out of scope for this ticket -- X-User-Id was supplied directly per the JWT Identity rule that OtpController only ever reads that header) and exercising all 3 ACs with real HTTP calls; POST /auth/otp/send was not live-exercised since .env only has Twilio placeholder credentials (no real Twilio account provisioned) -- OtpService.SendOtpAsync's idempotent-resend logic and code generation were verified by code review only. All synthetic test rows (1 user, 2 otp_attempts) were deleted after verification; DB left clean (0 rows in both tables, confirmed by count query)."
+}

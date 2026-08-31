@@ -26,6 +26,14 @@ public class User
 
     public string? Phone { get; set; }
 
+    // T017: set the instant phone ownership was proven via OTP. Null means
+    // "never verified". Together with IsProfileComplete() below, this is
+    // one of the two conditions UserOnboardingSaga (see
+    // .claude/skills/saga.md) checks before status can advance to "active".
+    // No saga_state table is needed for this saga — per that skill file,
+    // the users table's own columns ARE the saga state.
+    public DateTime? PhoneVerifiedAt { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string? PhotoUrl { get; set; }
@@ -41,4 +49,18 @@ public class User
     // for "when was this created" — mixing local times silently corrupts any
     // later duration math (OTP expiry, trust score decay, etc.).
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Saga Compensation / chained condition (T017's "Patterns demonstrated"):
+    // status only ever advances to "active" once EVERY UserOnboardingSaga
+    // condition is true — today that's "phone verified" AND "profile
+    // complete"; T019 (identity verification) will add a third condition
+    // the same way. Keeping the rule here, on the entity, instead of
+    // duplicated inline in OtpService (and later T019's own consumer) means
+    // every caller checks the same definition of "complete" — a future
+    // field added to the rule has exactly one place to change.
+    public bool IsProfileComplete() =>
+        !string.IsNullOrWhiteSpace(Name) &&
+        !string.IsNullOrWhiteSpace(PhotoUrl) &&
+        !string.IsNullOrWhiteSpace(PreferredLanguage) &&
+        !string.Equals(Gender, "Unspecified", StringComparison.Ordinal);
 }

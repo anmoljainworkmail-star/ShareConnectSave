@@ -393,11 +393,15 @@ X-User-Gender: <gender>
 
 Strip the `Authorization` header before forwarding downstream (services must not receive the raw JWT).
 
-Public routes (no JWT required): `POST /user/auth/google`, `POST /user/auth/otp/send`,
-`POST /user/auth/otp/verify` — gateway-facing paths (with the `/user` prefix YARP's route
-table requires), not the un-prefixed paths `user-service`'s own OpenAPI spec documents.
-These are the only calls that ever involve Google's raw token, and that handling happens
-inside `user-service` (T016), never at the gateway.
+Public routes (no JWT required): `POST /user/auth/google` — gateway-facing path (with the
+`/user` prefix YARP's route table requires), not the un-prefixed path `user-service`'s own
+OpenAPI spec documents. This is the only call that ever involves Google's raw token, and
+that handling happens inside `user-service` (T016), never at the gateway.
+
+`POST /user/auth/otp/send` and `POST /user/auth/otp/verify` (T017) are **not** public —
+unlike Google sign-in, a caller always already holds a JWT by the time it verifies a phone
+(Google sign-in completes first per T063's flow), so both routes require the normal
+validated JWT / injected `X-User-*` headers like any other authenticated route.
 
 **Acceptance criteria:**
 - [ ] Request with valid JWT → headers injected, Authorization stripped, proxied

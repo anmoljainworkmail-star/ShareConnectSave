@@ -23,6 +23,9 @@ public class UserRepository : IUserRepository
     public Task<User?> GetByGoogleIdAsync(string googleId) =>
         _context.Users.FirstOrDefaultAsync(u => u.GoogleId == googleId);
 
+    public Task<User?> GetByVerifiedPhoneAsync(string phone) =>
+        _context.Users.FirstOrDefaultAsync(u => u.Phone == phone && u.PhoneVerifiedAt != null);
+
     public async Task<User> AddAsync(User user)
     {
         _context.Users.Add(user);

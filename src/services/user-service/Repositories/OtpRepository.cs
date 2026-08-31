@@ -20,13 +20,40 @@ public class OtpRepository : IOtpRepository
     public async Task<OtpAttempt> AddAsync(OtpAttempt attempt)
     {
         _context.OtpAttempts.Add(attempt);
-        await _context.SaveChangesAsync();
-        return attempt;
+        try
+        {
+            await _context.SaveChangesAsync();
+            return attempt;
+        }
+        catch (DbUpdateException)
+        {
+            // EF Core does not auto-detach an entity when SaveChanges throws, so the
+            // failed entry stays tracked as "Added". OtpService's retry paths re-fetch
+            // via GetByPhoneAsync and call AddAsync/UpdateAsync again on a fresh entity —
+            // without detaching here, the ghost entity re-attempts its failed INSERT
+            // alongside the retry's write, producing a second, uncaught DbUpdateException.
+            // Detaching lets the retry proceed against a clean change tracker while the
+            // original exception still propagates unchanged for OtpService to catch.
+            _context.Entry(attempt).State = EntityState.Detached;
+            throw;
+        }
     }
 
     public async Task UpdateAsync(OtpAttempt attempt)
     {
         _context.OtpAttempts.Update(attempt);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Same reasoning as AddAsync: detach so a subsequent GetByPhoneAsync in a
+            // retry path re-hydrates a fresh instance (with the current RowVersion)
+            // instead of EF Core's identity resolution handing back this same stale,
+            // still-tracked instance.
+            _context.Entry(attempt).State = EntityState.Detached;
+            throw;
+        }
     }
 }

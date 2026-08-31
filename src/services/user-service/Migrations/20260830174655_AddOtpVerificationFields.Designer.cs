@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using user_service.Infrastructure;
 
@@ -11,9 +12,11 @@ using user_service.Infrastructure;
 namespace user_service.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830174655_AddOtpVerificationFields")]
+    partial class AddOtpVerificationFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -82,11 +85,6 @@ namespace user_service.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<DateTime?>("WindowStartedAt")
                         .HasColumnType("datetime2");
@@ -159,9 +157,7 @@ namespace user_service.Migrations
                     b.HasIndex("GoogleId")
                         .IsUnique();
 
-                    b.HasIndex("Phone")
-                        .IsUnique()
-                        .HasFilter("[PhoneVerifiedAt] IS NOT NULL");
+                    b.HasIndex("Phone");
 
                     b.HasIndex("Status");
 

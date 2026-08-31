@@ -14,6 +14,13 @@ public interface IUserRepository
 
     Task<User?> GetByGoogleIdAsync(string googleId);
 
+    // T017 fix: a phone number identifies one real person — once any account
+    // has proven ownership of it (PhoneVerifiedAt set), a second, different
+    // account must never be allowed to claim it too. OtpService.VerifyOtpAsync
+    // calls this immediately before assigning a phone to the caller's account
+    // to check whether some OTHER user already holds it.
+    Task<User?> GetByVerifiedPhoneAsync(string phone);
+
     Task<User> AddAsync(User user);
 
     Task UpdateAsync(User user);

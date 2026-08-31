@@ -14,6 +14,20 @@ var builder = WebApplication.CreateBuilder(args);
 // @RestController classes, just explicit instead of classpath scanning.
 builder.Services.AddControllers();
 
+// Global Exception Handling (fix): every controller action already returns
+// the project's {code, message, traceId} error envelope explicitly for
+// EXPECTED failures (bad input, wrong OTP, lockout). GlobalExceptionHandler
+// (Infrastructure/GlobalExceptionHandler.cs) is the catch-all for UNEXPECTED
+// ones — an unhandled exception anywhere in the pipeline. Without it,
+// ASP.NET Core's default behaviour is either the developer-exception-page
+// (which can leak internals like SQL parameter values — e.g. a phone
+// number — straight into the response in Development) or a bare empty 500
+// in Production, neither of which matches the shape every other error
+// response in this service already promises. IExceptionHandler (rather than
+// AddProblemDetails' RFC 7807 shape) is what lets this handler write the
+// SAME ErrorResponse record every other error path already uses.
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 // No Hardcoded Config: the connection string never appears as a literal here
 // or in appsettings.json. builder.Configuration.GetConnectionString("UserDb")
 // resolves to configuration key "ConnectionStrings:UserDb", which ASP.NET
@@ -39,11 +53,25 @@ builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerification
 // for its own JwtOptions (T012).
 builder.Services.Configure<JwtIssuerOptions>(builder.Configuration.GetSection(JwtIssuerOptions.SectionName));
 
+// T017: same Dependency Inversion pattern as JwtIssuerOptions above -
+// OtpService depends on IOptions<OtpOptions>, never on IConfiguration or a
+// literal lockout-minutes constant.
+builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection(OtpOptions.SectionName));
+
 // Typed HttpClient (T016): lets the framework own HttpClient pooling/DNS-refresh
 // lifetime for calls to Google's tokeninfo endpoint, instead of GoogleTokenValidator
 // holding a single long-lived HttpClient itself - same reasoning as api-gateway's
 // AddHttpClient<IJwksService, JwksService>() in T012.
 builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
+
+// Typed HttpClient (T017): same pooling/DNS-refresh reasoning as
+// IGoogleTokenValidator above - a single call to Twilio's REST API, no SDK
+// package added (see TwilioClient's class comment for why).
+builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
+
+// Dependency Inversion (D in SOLID): OtpController asks the DI container for
+// IOtpService, never for the concrete OtpService class.
+builder.Services.AddScoped<IOtpService, OtpService>();
 
 // Singleton (via DI container, classic pattern from CLAUDE.md's pattern table):
 // exactly one RSA keypair for this process's lifetime - see JwtIssuer's own
@@ -52,6 +80,15 @@ builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
 builder.Services.AddSingleton<IJwtIssuer, JwtIssuer>();
 
 var app = builder.Build();
+
+// Registered as early as possible in the pipeline so it wraps every
+// downstream middleware/controller action — see the AddExceptionHandler
+// registration above for why this exists. No options object here: passing
+// one (e.g. UseExceptionHandler(new ExceptionHandlerOptions { ... })) is what
+// wires in the framework's ProblemDetails fallback path — the whole point of
+// GlobalExceptionHandler is that it is the one and only thing that runs.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // MapControllers() wires up attribute-routed controllers (AuthController's
 // [HttpPost("/auth/google")] etc.) - Program.cs stays a list of

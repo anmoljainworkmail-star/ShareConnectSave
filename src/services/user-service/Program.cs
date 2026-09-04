@@ -41,6 +41,18 @@ builder.Services.AddControllers()
 // SAME ErrorResponse record every other error path already uses.
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+// Framework requirement (not a behavior change): ASP.NET Core's
+// UseExceptionHandler() middleware validates at startup that SOMETHING can
+// handle an unhandled exception - either an explicit ExceptionHandlingPath/
+// ExceptionHandler, an IProblemDetailsService, or a registered
+// IExceptionHandler. AddProblemDetails() registers IProblemDetailsService,
+// satisfying that startup check - but GlobalExceptionHandler.TryHandleAsync
+// always returns true (it fully writes the response itself and never falls
+// through), so IProblemDetailsService's RFC 7807 shape is never actually
+// produced by this service. This line exists purely to satisfy the
+// middleware's constructor validation, not to change what a client receives.
+builder.Services.AddProblemDetails();
+
 // No Hardcoded Config: the connection string never appears as a literal here
 // or in appsettings.json. builder.Configuration.GetConnectionString("UserDb")
 // resolves to configuration key "ConnectionStrings:UserDb", which ASP.NET
@@ -75,6 +87,13 @@ builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection(OtpOptio
 // depends on IOptions<ProfilePhotoOptions>, never a literal storage path.
 builder.Services.Configure<ProfilePhotoOptions>(builder.Configuration.GetSection(ProfilePhotoOptions.SectionName));
 
+// T019: same Dependency Inversion pattern again - AzureFaceMatchService
+// depends on IOptions<AzureFaceOptions>, never reads config keys ad hoc.
+// Harmless to bind even in stub mode (IDENTITY_VERIFY_STUB=true) - the
+// values are simply never read, since StubFaceMatchService is what gets
+// registered as IFaceMatchService below in that case.
+builder.Services.Configure<AzureFaceOptions>(builder.Configuration.GetSection(AzureFaceOptions.SectionName));
+
 // Typed HttpClient (T016): lets the framework own HttpClient pooling/DNS-refresh
 // lifetime for calls to Google's tokeninfo endpoint, instead of GoogleTokenValidator
 // holding a single long-lived HttpClient itself - same reasoning as api-gateway's
@@ -85,6 +104,36 @@ builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
 // IGoogleTokenValidator above - a single call to Twilio's REST API, no SDK
 // package added (see TwilioClient's class comment for why).
 builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
+
+// Typed HttpClient (T019): same pooling/DNS-refresh reasoning as
+// IGoogleTokenValidator/ITwilioClient above - IdentityVerificationService
+// never touches HttpClient directly, only IBasePhotoDownloadService, to
+// fetch whatever photo_url already points at.
+builder.Services.AddHttpClient<IBasePhotoDownloadService, BasePhotoDownloadService>();
+
+// Strategy (classic pattern, per CLAUDE.md's pattern table) + Dependency
+// Inversion (SOLID D) + Open/Closed (SOLID O): this is the ONE place that
+// decides which IFaceMatchService implementation is wired in, selected once
+// at startup by the IDENTITY_VERIFY_STUB env flag - never an "if (isDev)"
+// branch inside IdentityVerificationService or the controller. Reading a
+// flat env var directly here (rather than via an IOptions<T> section) is a
+// composition-root concern only, same category as the ProfilePhotoOptions/
+// AzureFaceOptions binding above it, not the "ad hoc Environment.GetEnvironmentVariable
+// inside a service" pattern this project's config rule warns against - the
+// flag never leaves this one line.
+var identityVerifyStub = string.Equals(
+    builder.Configuration["IDENTITY_VERIFY_STUB"],
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
+if (identityVerifyStub)
+{
+    builder.Services.AddScoped<IFaceMatchService, StubFaceMatchService>();
+}
+else
+{
+    builder.Services.AddHttpClient<IFaceMatchService, AzureFaceMatchService>();
+}
 
 // Dependency Inversion (D in SOLID): OtpController asks the DI container for
 // IOtpService, never for the concrete OtpService class.
@@ -102,6 +151,14 @@ builder.Services.AddScoped<IProfilePhotoStorageService, ProfilePhotoStorageServi
 // change decision, photo constraints) lives behind this one interface, the
 // same shape IOtpService already gave OtpController.
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+
+// T019: Dependency Inversion (D in SOLID) - IdentityVerificationController
+// asks for IIdentityVerificationService, never AppDbContext/IUserRepository/
+// IFaceMatchService directly. Every identity-verification business rule
+// (the photo_url precondition, the audit-row write, the badge flip) lives
+// behind this one interface, the same shape IUserProfileService/IOtpService
+// already gave their controllers.
+builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationService>();
 
 // Singleton (via DI container, classic pattern from CLAUDE.md's pattern table):
 // exactly one RSA keypair for this process's lifetime - see JwtIssuer's own

@@ -40,7 +40,7 @@
 - [x] T016 — Google OAuth + JWT Issuance
 - [x] T017 — Phone OTP Verification _(Twilio, lockout after 5 attempts)_
 - [x] T018 — Profile CRUD _(GET/PATCH /users/me, photo upload)_
-- [ ] T019 — Identity Verification Badge _(Azure Face API, NO_BASE_PHOTO guard)_
+- [x] T019 — Identity Verification Badge _(Azure Face API, NO_BASE_PHOTO guard)_
 - [ ] T020 — Kafka Producer: user.verified
 
 ---

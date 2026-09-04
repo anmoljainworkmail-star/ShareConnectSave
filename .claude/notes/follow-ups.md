@@ -86,3 +86,29 @@ entry names the downstream task(s) whose implementation or ticket should address
    existing-user — around the upsert path in `AuthController.GoogleSignIn`), T087–T090
    (Observability — same middleware gap means unhandled exceptions across user-service
    aren't normalized for logging/tracing either).
+
+## From T019 (Identity Verification Badge)
+
+1. `IdentityVerificationService.VerifyIdentityAsync` (`Services/IdentityVerificationService.cs:43`)
+   only checks that the uploaded `selfie` is non-null/non-empty — it has no `MaxSizeBytes`
+   cap and no `image/*` content-type check, unlike the sibling `UserProfileService.UploadPhotoAsync`
+   (T018), which enforces a 5 MB limit and rejects non-image content types (including
+   `image/svg+xml` specifically). In real-Azure mode this mostly self-corrects (a
+   non-image file just fails Azure's face-detect step and comes back as a mismatch), but
+   in stub mode (`IDENTITY_VERIFY_STUB=true`) any file of any type/size up to the ASP.NET
+   Core multipart form default is accepted and unconditionally marked verified.
+   Affects: T082 (Unit Tests: .NET — add coverage asserting the selfie upload path
+   rejects oversized/non-image files the same way `UploadPhotoAsync` does, and tighten
+   `VerifyIdentityAsync` to match T018's validation pattern while writing those tests).
+
+2. `IdentityVerification.cs:20` defaults `Status = "Pending"` (PascalCase) but
+   `IdentityVerificationService.cs:92` writes `"verified"`/`"failed"` (lowercase) on every
+   actual insert. Not a live bug today — the default is never persisted since every
+   insert here explicitly sets `Status` — but it's a casing landmine: any future query or
+   filter written against one casing convention (e.g. `WHERE Status = 'Pending'`) will
+   silently miss rows written under the other.
+   Affects: T082 (Unit Tests: .NET — assert the actual persisted casing convention so a
+   future change to either the default or the write path is caught by a test instead of
+   discovered in a query), T057 (Admin Service Review Queue Endpoints — if a future
+   `GET /admin/users/:id` view is extended to surface identity verification history, make
+   the status comparison case-consistent with what T019 actually writes to the DB).

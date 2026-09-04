@@ -20,6 +20,8 @@ public record UserProfileDto(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("phone_verified")] bool PhoneVerified,
     [property: JsonPropertyName("onboarding_complete")] bool OnboardingComplete,
+    // T019: the "Verified" badge - see User.IdentityBadge's class comment.
+    [property: JsonPropertyName("identity_badge")] bool IdentityBadge,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt)
 {
     // Explicit field-by-field projection, not "serialize the entity as-is":
@@ -40,5 +42,6 @@ public record UserProfileDto(
         user.Status,
         user.PhoneVerifiedAt is not null,
         user.IsOnboardingComplete,
+        user.IdentityBadge,
         user.CreatedAt);
 }

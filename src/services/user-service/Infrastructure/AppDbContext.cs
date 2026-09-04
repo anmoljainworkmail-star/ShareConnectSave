@@ -40,6 +40,12 @@ public class AppDbContext : DbContext
             // default to "onboarding already complete".
             entity.Property(u => u.IsOnboardingComplete).IsRequired().HasDefaultValue(false);
 
+            // T019: same reasoning as IsOnboardingComplete immediately above -
+            // required + defaults to false at the DB level too, so a row
+            // inserted by anything other than EF Core can't accidentally
+            // default to "already verified".
+            entity.Property(u => u.IdentityBadge).IsRequired().HasDefaultValue(false);
+
             // T017: nullable — "never verified" is a real, common state
             // (every new user, until they pass OTP), not an absence of data.
             entity.Property(u => u.PhoneVerifiedAt).HasColumnType("datetime2");
@@ -82,6 +88,13 @@ public class AppDbContext : DbContext
             // exactly the query IsOnboardingComplete now answers, since
             // Status no longer carries that signal.
             entity.HasIndex(u => u.IsOnboardingComplete);
+
+            // T019: same reasoning as the IsOnboardingComplete index above -
+            // Discovery Service (T020+) and any future "Trusted"-badge
+            // filter/ranking need "who is identity-verified" to be an
+            // efficient lookup, not a table scan, the moment they start
+            // reading this column.
+            entity.HasIndex(u => u.IdentityBadge);
         });
 
         modelBuilder.Entity<OtpAttempt>(entity =>

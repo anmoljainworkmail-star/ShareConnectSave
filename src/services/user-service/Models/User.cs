@@ -81,6 +81,21 @@ public class User
     // GoogleSignIn relies on for a first-time sign-in.
     public bool IsOnboardingComplete { get; set; }
 
+    // T019: flips to true only once IdentityVerificationService records a
+    // face-match confidence above AzureFaceMatchService.MatchConfidenceThreshold
+    // for this user. This is the ONE piece of trust signal every other part
+    // of the platform (matching, discovery, trust scoring) reads to show the
+    // "Verified" badge - it is a NEW, separate condition from
+    // IsOnboardingComplete above, not folded into it: onboarding answers
+    // "can this account use the app at all" (phone verified + profile
+    // complete), while IdentityBadge answers a narrower, opt-in question
+    // ("has a human proven their selfie matches their profile photo") that a
+    // fully onboarded user may still never attempt. Defaults false at both
+    // the entity and DB level (see AppDbContext's HasDefaultValue(false)) so
+    // a brand-new user, or a row inserted by anything other than
+    // IdentityVerificationService, can never start out looking verified.
+    public bool IdentityBadge { get; set; }
+
     // Optimistic Concurrency Token: two concurrent writes to the same user row
     // (e.g. PATCH /users/me racing POST /users/me/photo, or a double-submitted
     // PATCH) can both read this row before either writes it back. Without a

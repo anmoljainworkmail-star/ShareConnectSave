@@ -33,9 +33,24 @@ public class AppDbContext : DbContext
             entity.Property(u => u.Status).HasMaxLength(30).IsRequired();
             entity.Property(u => u.CreatedAt).HasColumnType("datetime2").IsRequired();
 
+            // Post-T018 fix: split out of Status — see User.IsOnboardingComplete's
+            // class comment. Defaults false at the DB level too, matching the
+            // entity default, so a row inserted by anything other than EF Core
+            // (a manual script, a future data migration) can't accidentally
+            // default to "onboarding already complete".
+            entity.Property(u => u.IsOnboardingComplete).IsRequired().HasDefaultValue(false);
+
             // T017: nullable — "never verified" is a real, common state
             // (every new user, until they pass OTP), not an absence of data.
             entity.Property(u => u.PhoneVerifiedAt).HasColumnType("datetime2");
+
+            // Optimistic Concurrency Token (see User.RowVersion's class
+            // comment for the full "why"): IsRowVersion() tells EF Core this
+            // column is a SQL Server `rowversion` — include it in every
+            // UPDATE's WHERE clause and throw DbUpdateConcurrencyException
+            // when the row changed since it was read, instead of the update
+            // silently applying anyway.
+            entity.Property(u => u.RowVersion).IsRowVersion();
 
             // Constraints: google_id is the identity anchor for Google Sign-In —
             // one Google account maps to exactly one user row, enforced at the
@@ -61,6 +76,12 @@ public class AppDbContext : DbContext
             entity.HasIndex(u => u.Phone).IsUnique().HasFilter("[PhoneVerifiedAt] IS NOT NULL");
             entity.HasIndex(u => u.Status);
             entity.HasIndex(u => u.CreatedAt);
+
+            // Post-T018 fix: Discovery Service (later phases) needs "who is
+            // eligible to appear in a scan" to be an efficient lookup —
+            // exactly the query IsOnboardingComplete now answers, since
+            // Status no longer carries that signal.
+            entity.HasIndex(u => u.IsOnboardingComplete);
         });
 
         modelBuilder.Entity<OtpAttempt>(entity =>

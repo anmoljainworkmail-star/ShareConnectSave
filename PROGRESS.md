@@ -39,7 +39,7 @@
 - [x] T015 — User Service Project + EF Core Setup
 - [x] T016 — Google OAuth + JWT Issuance
 - [x] T017 — Phone OTP Verification _(Twilio, lockout after 5 attempts)_
-- [ ] T018 — Profile CRUD _(GET/PATCH /users/me, photo upload)_
+- [x] T018 — Profile CRUD _(GET/PATCH /users/me, photo upload)_
 - [ ] T019 — Identity Verification Badge _(Azure Face API, NO_BASE_PHOTO guard)_
 - [ ] T020 — Kafka Producer: user.verified
 
@@ -169,6 +169,57 @@ _Note: T073–T080 reserved — not currently assigned._
 - [ ] T096 — ConnectionLifecycleSaga State Tracking _(saga_state table, 5-min timeout, compensating revert, connection.chat-failed topic)_
 
 ---
+
+## Post-ship fixes — not part of the original 96-task list
+
+- **[Fixed 2026-09-04] Stale JWT `status` claim on automatic onboarding transition.**
+  T018 (Profile CRUD) introduced the rule that `PATCH /users/me` reissues a
+  fresh access token whenever `gender`/`status` changes, because both are
+  baked into the JWT as claims. T017 (Phone OTP Verification) shipped
+  *before* that rule existed: `OtpService.VerifyOtpAsync` also flips `Status`
+  from `incomplete` to `active` (via `IsProfileComplete()`) but never
+  reissued a token, leaving the caller's existing token claiming
+  `status=incomplete` for up to `Jwt:AccessTokenMinutes` after their status
+  actually changed. Fixed by giving `OtpService` the same previous/new
+  comparison + conditional `IJwtIssuer.IssueAccessToken(user)` reissue
+  `UserProfileController` already had, surfaced as a new optional
+  `access_token` field on `POST /auth/otp/verify`'s response (same
+  present-only-when-changed contract as `PATCH /users/me`). Not folded into
+  T017's ticket file (shipped tickets are historical record, not edited
+  retroactively) — tracked here instead, discovered during T018 review.
+
+- **[Fixed 2026-09-04] Profile photo URL had no matching api-gateway route.**
+  `POST /users/me/photo` builds its returned `photo_url` from the caller's
+  own request host plus `ProfilePhotoOptions.BaseUrl` ("/uploads/photos").
+  That resolves fine hitting `user-service` directly (local dev's exposed
+  port, and this ticket's own QA checklist), but api-gateway's YARP config
+  only proxies specific prefixes (`/user/{**catch-all}`, `/discovery/...`,
+  etc.) — a bare `/uploads/photos/...` path matches none of them, so a real
+  client going through the gateway (the only path that's public in a real
+  deployment) would 404 fetching its own photo. Fixed by changing
+  `BaseUrl` to `/user/uploads/photos` — no route or static-file-serving
+  change needed, since every other endpoint in this service is already
+  defined un-prefixed internally and only reachable externally via the
+  gateway's `PathRemovePrefix: /user` transform on its existing
+  `/user/{**catch-all}` route.
+
+- **[Fixed 2026-09-04] `Status` silently double-booked as onboarding state
+  AND availability toggle.** `OtpService` (T017) auto-advances `Status` from
+  `incomplete` to `active` once onboarding's conditions hold; `PATCH
+  /users/me` (T018) also writes to that exact same column with a completely
+  different value set (`looking`/`unavailable`). Because both writers shared
+  one column, the first time any onboarded user touched their availability
+  toggle, that PATCH silently overwrote and permanently destroyed the
+  `active` signal — nothing in the codebase would ever restore it, and no
+  acceptance test caught it since every test exercises one writer at a time,
+  never the interaction between them. Fixed by splitting the concerns: a new
+  `IsOnboardingComplete` boolean (own EF Core migration), written only by
+  `OtpService`, carries the onboarding-saga signal — this is also what T020's
+  `user.verified` Kafka producer and Discovery Service's scan-eligibility
+  check will key off of; `Status` now means only the user-owned availability
+  toggle. `POST /auth/otp/verify`'s response field and the JWT's
+  informational claim both renamed from `status`/`"active"` to
+  `onboarding_complete`/`true` to match.
 
 ## Backlog — not ticketed, revisit after all 96 tasks are done
 

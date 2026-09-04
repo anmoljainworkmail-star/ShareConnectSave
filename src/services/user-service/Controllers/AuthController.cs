@@ -63,12 +63,11 @@ public class AuthController(
                 Name = payload.Name ?? string.Empty,
                 PhotoUrl = payload.Picture,
 
-                // status = incomplete until phone verification (T017) AND
-                // gender (T018) are both set - Discovery Service (later
-                // phases) uses this flag to decide who is even eligible to
-                // appear in a scan. A brand-new user must never default to
-                // anything that looks "ready".
-                Status = "incomplete",
+                // Post-T018 fix: onboarding-complete state lives on
+                // IsOnboardingComplete (see User.cs's comment), not Status -
+                // both default via the entity itself (false / "Unavailable")
+                // so a brand-new user never needs this constructor to set
+                // them explicitly, same as Gender/PreferredLanguage below.
             };
             user = await userRepository.AddAsync(user);
         }

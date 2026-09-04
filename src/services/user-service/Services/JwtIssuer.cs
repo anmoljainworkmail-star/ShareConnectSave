@@ -113,6 +113,28 @@ public class JwtIssuer : IJwtIssuer
             // required-claims guard on every single request that user makes
             // before completing their profile.
             claims.Add(new Claim("gender", user.Gender));
+
+            // T018: "status" is added as a claim here for the same reason
+            // "gender" is - it is one of the fields UserProfileService's
+            // PATCH /users/me reissues a token for when it changes (see that
+            // class's Stale JWT Claim comment). Unlike gender/role/sub,
+            // api-gateway's JwtValidationMiddleware does not (yet) require or
+            // forward this claim as an X-User-Status header - no service
+            // reads it today. It rides along informationally so a decoded
+            // token is a complete, self-consistent snapshot of the user at
+            // issuance time, and so it is already present the moment some
+            // future ticket DOES need to branch on it at the gateway.
+            claims.Add(new Claim("status", user.Status));
+
+            // Post-T018 fix: "onboarding_complete" used to be folded into
+            // "status" ("incomplete"/"active") until PATCH /users/me writing
+            // "looking"/"unavailable" into that SAME field was found to
+            // silently overwrite it — see User.IsOnboardingComplete's class
+            // comment. Same "rides along informationally" reasoning as
+            // "status" above: no service reads this claim yet, but a decoded
+            // token should still be a complete, self-consistent snapshot at
+            // issuance time.
+            claims.Add(new Claim("onboarding_complete", user.IsOnboardingComplete ? "true" : "false"));
         }
         else
         {

@@ -97,6 +97,7 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`CancellationToken cancellationToken = default`** (trailing parameter convention) — lets an async method cooperatively stop early if the caller's own operation is abandoned (e.g. `HttpContext.RequestAborted` firing when a client disconnects); the `= default` value (`CancellationToken.None`) means the token can be omitted entirely when there's no real request lifecycle behind the call, such as in a unit test. _(T016, `IGoogleTokenValidator.cs`, `GoogleTokenValidator.cs`)_
 - **`entity.Property(x => x.RowVersion).IsRowVersion()`** (EF Core fluent API) — maps a `byte[]` property to SQL Server's `rowversion` column type and tells EF Core to include it in every generated `UPDATE`'s `WHERE` clause; see README's "Optimistic Concurrency" entry for the full mechanism this enables. _(T017, `AppDbContext.cs`)_
 - **`_context.Entry(entity).State = EntityState.Detached`** — removes one entity from the `DbContext`'s change tracker without touching the database; needed after a caught `DbUpdateException` because a failed `SaveChangesAsync` does not auto-clear the tracker — the failed entity stays marked `Added`/`Modified` and would otherwise be resubmitted (and fail again) on the tracker's next flush, alongside whatever the retry logic legitimately meant to save. _(T017, `OtpRepository.cs`)_
+- **`[property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`** — omits a record property from the serialized JSON entirely when its value is `null`, instead of emitting `"field": null`; used for response fields (like a reissued `access_token`) that should be present only when something actually happened, not always sent as an empty placeholder. _(T018, `UpdateProfileRequest.cs`)_
 
 ## MVC Controllers (.NET)
 
@@ -104,6 +105,13 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`ControllerBase`** — the base class for an API-only controller (JSON in, JSON out); contrast with `Controller`, which adds Razor view-rendering support this project never needs since there's no server-rendered HTML anywhere. _(T016, `AuthController.cs`)_
 - **`[HttpPost("/route")]` / `[HttpGet("/route")]`** (attribute routing) — the route match lives directly on the action method as an attribute, instead of a separate `app.MapPost(...)` call elsewhere; ASP.NET Core discovers every attribute-routed action automatically once `app.MapControllers()` runs. _(T016, `AuthController.cs`)_
 - **Primary constructor on a class** (`public class Foo(IBar bar) : Base`) — C# 12 syntax that turns constructor parameters directly into the class's dependency-injection surface, with no explicit `private readonly` field or hand-written constructor body needed to just stash a value. _(T016, `AuthController.cs`)_
+- **`ConfigureApiBehaviorOptions(opt => ...)` + `InvalidModelStateResponseFactory`** — overrides `[ApiController]`'s automatic response when a request body fails model binding/validation; without it, that one failure path returns the framework's own `ValidationProblemDetails` shape instead of whatever error envelope the rest of the app already promises. _(T018, `Program.cs`)_
+
+## File Uploads & Static Files (.NET)
+
+- **`IFormFile`** (action parameter) — ASP.NET Core's model-bound representation of one uploaded file from a `multipart/form-data` request; exposes `Length`, `ContentType`, `FileName`, and `CopyToAsync(stream)` without the action needing to parse the multipart body itself. _(T018, `UserProfileController.cs`)_
+- **`app.UseStaticFiles()`** (no-argument overload) — serves files straight from disk for any request path matching the physical `wwwroot` folder's structure, with no controller/route involved at all; a file at `wwwroot/uploads/photos/x.jpg` becomes reachable at `/uploads/photos/x.jpg` purely by folder-name convention. _(T018, `Program.cs`)_
+- **`IWebHostEnvironment.ContentRootPath`** — the app's own root folder on disk (where the compiled app and `wwwroot` live), independent of whatever the current request's URL looks like; used to resolve a configured relative storage path into a real, absolute filesystem path. _(T018, `ProfilePhotoStorageService.cs`)_
 
 ## Cryptography / JWT Issuance (.NET)
 

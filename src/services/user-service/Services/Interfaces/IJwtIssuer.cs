@@ -13,7 +13,11 @@ public interface IJwtIssuer
 {
     // sub = user.Id (this service's own bigint id), role = "user",
     // gender = user.Gender - the exact three claims api-gateway's
-    // JwtValidationMiddleware requires (see T012).
+    // JwtValidationMiddleware requires (see T012). T018 adds a fourth,
+    // "status" = user.Status, informationally (not yet required or
+    // forwarded by the gateway - see JwtIssuer.Issue's comment) so a PATCH
+    // /users/me that changes status can reissue a token that actually
+    // reflects it, the same way a gender change already could.
     string IssueAccessToken(User user);
 
     // A longer-lived, narrower-claim companion token. No refresh-exchange

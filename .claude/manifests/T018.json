@@ -1,0 +1,27 @@
+{
+  "task_id": "T018",
+  "title": "Profile CRUD",
+  "status": "completed",
+  "files_created": [
+    "src/services/user-service/Controllers/UserProfileController.cs",
+    "src/services/user-service/Dtos/UserProfileDto.cs",
+    "src/services/user-service/Dtos/PublicUserProfileDto.cs",
+    "src/services/user-service/Dtos/UpdateProfileRequest.cs",
+    "src/services/user-service/Configuration/ProfilePhotoOptions.cs",
+    "src/services/user-service/Services/Interfaces/IProfilePhotoStorageService.cs",
+    "src/services/user-service/Services/ProfilePhotoStorageService.cs",
+    "src/services/user-service/appsettings.json",
+    "src/services/user-service/Program.cs",
+    "src/services/user-service/Services/JwtIssuer.cs",
+    "src/services/user-service/Services/Interfaces/IJwtIssuer.cs"
+  ],
+  "criteria_checked": {
+    "PATCH validates gender is one of female | male | unspecified": "PASS",
+    "GET /users/:id never returns gender or phone fields": "PASS",
+    "PATCH with invalid status value returns 400": "PASS",
+    "POST /users/me/photo sets photo_url, overwrites any Google-provided photo": "PASS",
+    "After POST /users/me/photo, GET /users/me reflects the new photo_url": "PASS",
+    "PATCH /users/me that changes gender and/or status returns a new access_token reflecting the updated claim(s)": "PASS"
+  },
+  "last_note": "Implementation complete. Reused existing IUserRepository unchanged (GetByIdAsync/UpdateAsync already sufficient). Added a 'status' claim to JwtIssuer.IssueAccessToken (previously only sub/role/gender existed) because the ticket's reissue-on-status-change AC is only verifiable if status is actually a JWT claim - this was the one necessary edit to a prior ticket's file, done because T018's own AC requires it, not a retroactive doc/convention backfill. No DB migration needed - no new columns required. dotnet build succeeds with 0 warnings/errors. No dotnet ef / codegen commands were needed for this ticket."
+}

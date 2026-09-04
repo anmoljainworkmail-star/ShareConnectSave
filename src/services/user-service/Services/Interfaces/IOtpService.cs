@@ -30,7 +30,19 @@ public enum OtpVerificationResult
 
 // Result Object: an expected "wrong code" or "locked" outcome is routine
 // control flow the controller must branch on to pick a status code — not an
-// exceptional condition, so it is returned, not thrown. LockedUntil/UserStatus
+// exceptional condition, so it is returned, not thrown. LockedUntil/OnboardingComplete
 // are only populated for the outcome that needs them (Locked / Verified
 // respectively); null in the other cases.
-public record OtpVerificationOutcome(OtpVerificationResult Result, DateTime? LockedUntil, string? UserStatus);
+//
+// Post-T018 fix: NewAccessToken closes the same stale-claim gap
+// UserProfileController.UpdateMyProfile already handles for PATCH /users/me
+// (see that method's comment) — it was missed here because T017 shipped
+// before "onboarding_complete" existed as a JWT claim at all.
+// IsProfileComplete() flipping IsOnboardingComplete to true mid-verification
+// changes a claim baked into the caller's token exactly the same way a PATCH
+// does, so this needed the identical reissue treatment. Populated only on
+// Verified AND only when the value actually changed — see
+// OtpService.VerifyOtpAsync. (OnboardingComplete itself, separately, used to
+// be surfaced by overloading Status with "incomplete"/"active" — see
+// User.IsOnboardingComplete's comment for why that was split out.)
+public record OtpVerificationOutcome(OtpVerificationResult Result, DateTime? LockedUntil, bool? OnboardingComplete, string? NewAccessToken = null);

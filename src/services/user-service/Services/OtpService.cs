@@ -21,6 +21,7 @@ public class OtpService : IOtpService
     private readonly IOtpRepository _otpRepository;
     private readonly IUserRepository _userRepository;
     private readonly ITwilioClient _twilioClient;
+    private readonly IJwtIssuer _jwtIssuer;
     private readonly OtpOptions _options;
     private readonly ILogger<OtpService> _logger;
 
@@ -28,12 +29,14 @@ public class OtpService : IOtpService
         IOtpRepository otpRepository,
         IUserRepository userRepository,
         ITwilioClient twilioClient,
+        IJwtIssuer jwtIssuer,
         IOptions<OtpOptions> options,
         ILogger<OtpService> logger)
     {
         _otpRepository = otpRepository;
         _userRepository = userRepository;
         _twilioClient = twilioClient;
+        _jwtIssuer = jwtIssuer;
         _options = options.Value;
         _logger = logger;
     }
@@ -233,17 +236,24 @@ public class OtpService : IOtpService
         user.Phone = phoneNumber;
         user.PhoneVerifiedAt = now;
 
-        // Saga Compensation (T017's "Patterns demonstrated"): status only
-        // advances past its current value once EVERY UserOnboardingSaga
-        // condition is true (see .claude/skills/saga.md). Phone verification
+        // Stale JWT Claim (fix, same concept as UserProfileController.UpdateMyProfile —
+        // see IOtpService.OtpVerificationOutcome's comment): captured BEFORE the
+        // mutation below so we can tell, after saving, whether "onboarding_complete" —
+        // a claim baked into the caller's access token — actually changed value.
+        var previousOnboardingComplete = user.IsOnboardingComplete;
+
+        // Saga Compensation (T017's "Patterns demonstrated"): IsOnboardingComplete
+        // only advances to true once EVERY UserOnboardingSaga condition is true
+        // (see .claude/skills/saga.md and User.IsOnboardingComplete's comment
+        // for why this is a separate field from Status). Phone verification
         // succeeding is necessary but not sufficient — if the profile isn't
-        // complete yet, status is left untouched here; T019's identity
+        // complete yet, it is left untouched here; T019's identity
         // verification will add a third condition the same way, chaining
         // conditions across async steps instead of any single step deciding
         // the outcome alone.
         if (user.IsProfileComplete())
         {
-            user.Status = "active";
+            user.IsOnboardingComplete = true;
         }
 
         try
@@ -263,7 +273,16 @@ public class OtpService : IOtpService
             return new OtpVerificationOutcome(OtpVerificationResult.PhoneAlreadyInUse, null, null);
         }
 
-        return new OtpVerificationOutcome(OtpVerificationResult.Verified, null, user.Status);
+        // Reissue only when "onboarding_complete" actually changed (matching
+        // UserProfileController's same check) — called AFTER SaveChangesAsync
+        // (via UpdateAsync above), against the freshly-saved `user`, for the
+        // same reason UserProfileController does: a token issued from a
+        // pre-save copy could describe a value a concurrent write raced out
+        // from under this one.
+        var onboardingCompleteChanged = previousOnboardingComplete != user.IsOnboardingComplete;
+        var newAccessToken = onboardingCompleteChanged ? _jwtIssuer.IssueAccessToken(user) : null;
+
+        return new OtpVerificationOutcome(OtpVerificationResult.Verified, null, user.IsOnboardingComplete, newAccessToken);
     }
 
     // Returns the persisted attempt row (with AttemptCount/LockedUntil as

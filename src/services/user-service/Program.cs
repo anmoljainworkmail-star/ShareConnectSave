@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using user_service.Configuration;
+using user_service.Contracts;
 using user_service.Infrastructure;
 using user_service.Repositories;
 using user_service.Repositories.Interfaces;
@@ -12,7 +14,18 @@ var builder = WebApplication.CreateBuilder(args);
 // registers ASP.NET Core's controller discovery + action invocation pipeline -
 // this is the .NET equivalent of Spring Boot's component scan picking up
 // @RestController classes, just explicit instead of classpath scanning.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(opt =>
+    {
+        // Model Validation Error Envelope (fix): [ApiController] automatically
+        // returns ValidationProblemDetails on model binding/validation failure
+        // (e.g. malformed JSON). This factory replaces that with this service's
+        // standard {code, message, traceId} ErrorResponse shape — AuthController,
+        // OtpController, UserProfileController all depend on it for consistent
+        // error handling.
+        opt.InvalidModelStateResponseFactory = ctx => new BadRequestObjectResult(
+            new ErrorResponse("INVALID_REQUEST", "Request body is malformed or missing required fields.", ctx.HttpContext.TraceIdentifier));
+    });
 
 // Global Exception Handling (fix): every controller action already returns
 // the project's {code, message, traceId} error envelope explicitly for
@@ -58,6 +71,10 @@ builder.Services.Configure<JwtIssuerOptions>(builder.Configuration.GetSection(Jw
 // literal lockout-minutes constant.
 builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection(OtpOptions.SectionName));
 
+// T018: same Dependency Inversion pattern again - ProfilePhotoStorageService
+// depends on IOptions<ProfilePhotoOptions>, never a literal storage path.
+builder.Services.Configure<ProfilePhotoOptions>(builder.Configuration.GetSection(ProfilePhotoOptions.SectionName));
+
 // Typed HttpClient (T016): lets the framework own HttpClient pooling/DNS-refresh
 // lifetime for calls to Google's tokeninfo endpoint, instead of GoogleTokenValidator
 // holding a single long-lived HttpClient itself - same reasoning as api-gateway's
@@ -72,6 +89,19 @@ builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
 // Dependency Inversion (D in SOLID): OtpController asks the DI container for
 // IOtpService, never for the concrete OtpService class.
 builder.Services.AddScoped<IOtpService, OtpService>();
+
+// T018: Dependency Inversion (D in SOLID) + Strategy - UserProfileService
+// asks for IProfilePhotoStorageService, never for the concrete local-disk
+// class. This is the one line that would change to swap in a real object
+// store later (see ProfilePhotoStorageService's class comment).
+builder.Services.AddScoped<IProfilePhotoStorageService, ProfilePhotoStorageService>();
+
+// Fix: Dependency Inversion (D in SOLID) - UserProfileController asks for
+// IUserProfileService, never AppDbContext/IUserRepository/IJwtIssuer
+// directly. Every profile business rule (validation, the reissue-on-claim-
+// change decision, photo constraints) lives behind this one interface, the
+// same shape IOtpService already gave OtpController.
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
 // Singleton (via DI container, classic pattern from CLAUDE.md's pattern table):
 // exactly one RSA keypair for this process's lifetime - see JwtIssuer's own
@@ -89,6 +119,21 @@ var app = builder.Build();
 // GlobalExceptionHandler is that it is the one and only thing that runs.
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+// T018: serves whatever ProfilePhotoStorageService writes under wwwroot
+// (StoragePath "wwwroot/uploads/photos") back out over HTTP at the
+// un-prefixed request path "/uploads/photos" - the no-argument overload maps
+// a physical folder to a URL path of the same name automatically. This is
+// DELIBERATELY un-prefixed even though ProfilePhotoOptions.BaseUrl (the
+// PUBLIC photo_url returned to clients) is "/user/uploads/photos" - every
+// route in this service is internally un-prefixed the same way (see
+// AuthController's "/auth/google"), because api-gateway's YARP "user-route"
+// strips the "/user" segment (PathRemovePrefix) before a request ever
+// reaches this container. If StoragePath is ever reconfigured to a
+// different physical folder, this call needs a custom
+// StaticFileOptions/PhysicalFileProvider to keep pointing at it - only
+// BaseUrl's "/user" prefix is exempt from needing to match, by design.
+app.UseStaticFiles();
 
 // MapControllers() wires up attribute-routed controllers (AuthController's
 // [HttpPost("/auth/google")] etc.) - Program.cs stays a list of

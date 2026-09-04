@@ -76,7 +76,7 @@ public class OtpController(IOtpService otpService) : ControllerBase
 
         return outcome.Result switch
         {
-            OtpVerificationResult.Verified => Ok(new OtpVerifyResponse(PhoneVerified: true, Status: outcome.UserStatus!)),
+            OtpVerificationResult.Verified => Ok(new OtpVerifyResponse(PhoneVerified: true, OnboardingComplete: outcome.OnboardingComplete!.Value, AccessToken: outcome.NewAccessToken)),
             OtpVerificationResult.Locked => OtpLocked(outcome.LockedUntil!.Value),
             OtpVerificationResult.InvalidCode => InvalidOtp(),
             OtpVerificationResult.PhoneAlreadyInUse => PhoneAlreadyInUse(),
@@ -139,6 +139,14 @@ public record OtpVerifyRequest(
     [property: JsonPropertyName("phone_number")] string PhoneNumber,
     [property: JsonPropertyName("code")] string Code);
 
+// AccessToken fix (see IOtpService.OtpVerificationOutcome's comment):
+// same [JsonIgnore]-on-null contract as UserProfileController's
+// UpdateProfileResponse — present only when this verification is the one
+// that flipped the caller's onboarding-complete state (and therefore their
+// token's "onboarding_complete" claim), absent entirely otherwise.
 public record OtpVerifyResponse(
     [property: JsonPropertyName("phone_verified")] bool PhoneVerified,
-    [property: JsonPropertyName("status")] string Status);
+    [property: JsonPropertyName("onboarding_complete")] bool OnboardingComplete,
+    [property: JsonPropertyName("access_token")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? AccessToken = null);

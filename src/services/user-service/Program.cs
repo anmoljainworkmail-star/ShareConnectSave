@@ -1,7 +1,9 @@
+using Confluent.Kafka;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using user_service.Configuration;
 using user_service.Contracts;
+using user_service.Events;
 using user_service.Infrastructure;
 using user_service.Repositories;
 using user_service.Repositories.Interfaces;
@@ -165,6 +167,31 @@ builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationSer
 // comment for why Scoped/Transient here would silently break gateway-side
 // JWKS caching.
 builder.Services.AddSingleton<IJwtIssuer, JwtIssuer>();
+
+// T020: No Hardcoded Config - a single external-system bootstrap address is
+// read as a flat key (same category as TwilioClient's TWILIO_ACCOUNT_SID
+// reads), not a structured IOptions<T> section like JwtIssuerOptions/
+// OtpOptions above - there is only one value here, not a group of related
+// settings that benefit from a typed options class. Fails fast at startup,
+// not on the first publish attempt, if misconfigured.
+var kafkaBootstrapServers = builder.Configuration["KAFKA_BOOTSTRAP"]
+    ?? throw new InvalidOperationException("KAFKA_BOOTSTRAP is not set");
+
+// Singleton (via DI container, classic pattern from CLAUDE.md's pattern
+// table): Confluent.Kafka's IProducer<> is explicitly designed to be built
+// ONCE and reused for the lifetime of the process - it owns a connection
+// pool and internal batching buffer that a new instance per request/publish
+// would defeat entirely, the same "one shared instance" reasoning as
+// JwtIssuer's RSA keypair above. The DI container disposes this instance
+// (and flushes any buffered messages) at shutdown.
+builder.Services.AddSingleton<IProducer<string, string>>(_ =>
+    new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = kafkaBootstrapServers }).Build());
+
+// Dependency Inversion (SOLID D): OtpService asks the DI container for
+// IUserVerifiedEventPublisher, never for Confluent.Kafka's IProducer<>
+// directly - see that interface's own comment for why. Singleton to match
+// the one-producer-per-process IProducer<> it wraps.
+builder.Services.AddSingleton<IUserVerifiedEventPublisher, KafkaUserVerifiedEventPublisher>();
 
 var app = builder.Build();
 

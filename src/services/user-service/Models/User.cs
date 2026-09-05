@@ -73,6 +73,46 @@ public class User
         !string.IsNullOrWhiteSpace(PreferredLanguage) &&
         !string.Equals(Gender, "Unspecified", StringComparison.Ordinal);
 
+    // Chained Condition Across Async Steps (bug fix — this used to be
+    // inlined only in OtpService.VerifyOtpAsync, which silently assumed OTP
+    // verification would always be the LAST onboarding step to finish. In
+    // reality phone verification and profile completion (PATCH /users/me,
+    // POST /users/me/photo) happen as separate HTTP calls, and nothing
+    // enforces the order the client makes them in — if profile completion
+    // finishes second, nothing ever re-checked IsProfileComplete() again, so
+    // IsOnboardingComplete (and therefore the user.verified publish) never
+    // fired at all. Moving the flip onto the entity, with one method every
+    // mutation call site calls after touching its own fields, is what makes
+    // it order-independent: the LAST of {phone verified, profile complete}
+    // to become true is always the one that flips it, no matter which one
+    // that is.
+    //
+    // PhoneVerifiedAt is checked HERE, explicitly — not left implicit the way
+    // it was when this logic lived only inside OtpService.VerifyOtpAsync
+    // (where it was trivially true, since that method had just set it a few
+    // lines above). Now that UserProfileService.UpdateProfileAsync/
+    // UploadPhotoAsync call this same method, that assumption no longer
+    // holds: without this check here, a user could PATCH gender/name/photo
+    // before ever verifying their phone and get published to Discovery with
+    // an unverified number — exactly the saga guarantee
+    // ("Google auth → phone verified → profile complete → user.verified
+    // published", REQUIREMENTS.md) this method exists to enforce.
+    //
+    // Idempotent by construction: returns false (no-op) once already true, so
+    // a caller can call this unconditionally on every mutation without ever
+    // re-publishing user.verified for a fact the rest of the system already
+    // reacted to once.
+    public bool TryCompleteOnboarding()
+    {
+        if (IsOnboardingComplete || PhoneVerifiedAt is null || !IsProfileComplete())
+        {
+            return false;
+        }
+
+        IsOnboardingComplete = true;
+        return true;
+    }
+
     // Post-T018 fix: the UserOnboardingSaga's own state, split out of Status
     // (see that property's comment for why). OtpService.VerifyOtpAsync is
     // the only writer that ever flips this to true, and only once

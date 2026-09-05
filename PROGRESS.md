@@ -41,7 +41,7 @@
 - [x] T017 — Phone OTP Verification _(Twilio, lockout after 5 attempts)_
 - [x] T018 — Profile CRUD _(GET/PATCH /users/me, photo upload)_
 - [x] T019 — Identity Verification Badge _(Azure Face API, NO_BASE_PHOTO guard)_
-- [ ] T020 — Kafka Producer: user.verified
+- [x] T020 — Kafka Producer: user.verified
 
 ---
 
@@ -247,8 +247,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 0 / 96  
+**Done:** 20 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 96 / 96  
+**Pending:** 76 / 96  
 
 _Update this section manually or via `/status` after each task completes._

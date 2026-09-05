@@ -257,6 +257,12 @@ services:
         condition: service_healthy
       sqlserver-init:
         condition: service_completed_successfully
+      # T020: user-service now produces the user.verified event on
+      # onboarding completion - same dependency gate every other Kafka
+      # producer/consumer in this file already uses, so the container never
+      # starts trying to connect before the broker can accept connections.
+      kafka:
+        condition: service_healthy
     ports:
       - "8081:8080"
     environment:
@@ -268,6 +274,13 @@ services:
       # Re-pointing this container at a different SQL Server never requires a
       # rebuild — only a different .env value.
       - ConnectionStrings__UserDb=${USER_DB_CONNECTION}
+      # T020: kafka:29092 (the INTERNAL listener), never kafka:9092
+      # (PLAINTEXT, meant for host tools only) - user-service is itself a
+      # container, so it needs the address the kafka service actually
+      # ADVERTISES for container-to-container traffic. See the kafka
+      # service's own KAFKA_CFG_ADVERTISED_LISTENERS comment above for why a
+      # single address can't serve both a host tool and a container client.
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:29092}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

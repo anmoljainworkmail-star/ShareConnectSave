@@ -80,7 +80,7 @@ public class UserProfileController(IUserProfileService userProfileService) : Con
 
         return outcome.Result switch
         {
-            PhotoUploadResult.Success => Ok(outcome.Profile),
+            PhotoUploadResult.Success => Ok(new PhotoUploadResponse(outcome.Profile!, outcome.NewAccessToken)),
             PhotoUploadResult.InvalidRequest => InvalidRequest(outcome.ErrorMessage!),
             PhotoUploadResult.NotFound => UserNotFound(),
             PhotoUploadResult.Conflict => UpdateConflict(outcome.ErrorMessage!),

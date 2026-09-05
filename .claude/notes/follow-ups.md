@@ -112,3 +112,52 @@ entry names the downstream task(s) whose implementation or ticket should address
    discovered in a query), T057 (Admin Service Review Queue Endpoints — if a future
    `GET /admin/users/:id` view is extended to surface identity verification history, make
    the status comparison case-consistent with what T019 actually writes to the DB).
+
+## From T020 (Kafka Producer: user.verified event on activation)
+
+1. `contracts/kafka/user.verified.schema.json`'s human-readable `description` field says
+   this event is "Published by User Service when a user completes identity verification."
+   That wording is stale/wrong — cross-checked against `REQUIREMENTS.md`'s
+   `UserOnboardingSaga` (`Google auth -> phone verified -> profile complete ->
+   user.verified published`), the actual trigger is onboarding completion
+   (`User.IsOnboardingComplete` flipping to true in `OtpService.VerifyOtpAsync`), not
+   `User.IdentityBadge` (T019's separate, optional, later signal). Not fixed as part of
+   this ticket since no consumer exists yet to be affected by the mismatch either way.
+   Affects: whichever future ticket next touches this schema file (or Discovery Service's
+   own T025 consumer, Phase 4) — correct the `description` text to match the real trigger
+   before anyone reads it as documentation of current behavior.
+
+2. The same schema declares `user_id` as `"type": "string", "format": "uuid"`, but
+   `User.Id` in this codebase is actually a `long` (BIGINT IDENTITY — see `User.cs`'s own
+   comment on why UUID was deliberately rejected for primary keys). The producer
+   (`KafkaUserVerifiedEventPublisher`) satisfies the schema's `"type": "string"` by
+   serializing `user.Id.ToString()`, but that string will never actually be a UUID —
+   informational only, no ID type or schema change intended.
+   Affects: Discovery Service's T025 consumer (Phase 4) — deserialize `user_id` as a
+   plain string, not a UUID type, on the Java side.
+
+3a. `KafkaUserVerifiedEventPublisher.PublishUserVerified` (`Events/KafkaUserVerifiedEventPublisher.cs:71`)
+   has no `try/catch` around the `_producer.Produce(...)` call itself. `Produce()` normally
+   only enqueues locally and returns immediately (network failures surface later via the
+   delivery-report callback, which does log), but it can throw synchronously if librdkafka's
+   internal send buffer fills (default `queue.buffering.max.messages` = 100,000) — which would
+   require ~100,000 queued verification events during one continuous Kafka outage to trigger.
+   Not realistic at this app's current traffic, so not a blocker, but it's the one path where
+   AC3's "never fail the HTTP request" promise could theoretically break, and it's a one-line fix.
+   Affects: T094 (Apply Outbox to All .NET Services — Phase 14, when this direct producer is
+   replaced by an outbox-backed one, carry the same try/catch discipline into the relay's own
+   send path), T082 (Unit Tests: .NET — add a test asserting a synchronous `Produce()` throw
+   never propagates out of `PublishUserVerified`).
+
+3b. `docker-compose.override.yml`'s per-service `${KAFKA_BOOTSTRAP:-kafka:9092}` inline
+   fallback defaults (discovery-service, connection-service, chat-service, rating-service,
+   report-service, admin-service) are the same wrong PLAINTEXT-listener value fixed for
+   user-service in this ticket (`.env.example` and `docker-compose.yml`'s `user-service`
+   block both now default to `kafka:29092`, the INTERNAL listener — see the `kafka`
+   service's `KAFKA_CFG_ADVERTISED_LISTENERS` comment for why a container-to-container
+   client needs that address, not `kafka:9092`). Left untouched here since none of those
+   services exist yet as real Kafka clients — flagging on purpose so each is fixed when
+   its own ticket actually wires up a producer/consumer, rather than silently carried
+   forward and only caught live one service at a time.
+   Affects: T0xx (Discovery Service Kafka wiring), and the equivalent first-Kafka-client
+   ticket for Connection/Chat/Rating/Report/Admin Service, whichever lands first for each.

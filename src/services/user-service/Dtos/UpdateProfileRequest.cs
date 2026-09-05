@@ -25,3 +25,15 @@ public record UpdateProfileResponse(
     [property: JsonPropertyName("access_token")]
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? AccessToken);
+
+// Response envelope for POST /users/me/photo — same {profile, access_token}
+// shape as UpdateProfileResponse above, for the same reason: uploading the
+// photo that completes onboarding (see User.TryCompleteOnboarding) changes
+// the "onboarding_complete" claim baked into the caller's JWT, so this
+// response needs the same "field present = swap your token" contract PATCH
+// already gives the frontend.
+public record PhotoUploadResponse(
+    [property: JsonPropertyName("profile")] UserProfileDto Profile,
+    [property: JsonPropertyName("access_token")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? AccessToken);

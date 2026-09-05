@@ -50,4 +50,8 @@ public enum PhotoUploadResult
     Conflict,
 }
 
-public record PhotoUploadOutcome(PhotoUploadResult Result, string? ErrorMessage, UserProfileDto? Profile);
+// NewAccessToken mirrors UpdateProfileOutcome's field above — populated only
+// on Success, and only when uploading this photo was the step that flipped
+// IsOnboardingComplete (see User.TryCompleteOnboarding), since
+// "onboarding_complete" is a JWT claim (JwtIssuer.cs) too.
+public record PhotoUploadOutcome(PhotoUploadResult Result, string? ErrorMessage, UserProfileDto? Profile, string? NewAccessToken);

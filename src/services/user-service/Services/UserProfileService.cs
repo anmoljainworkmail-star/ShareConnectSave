@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using user_service.Configuration;
 using user_service.Dtos;
+using user_service.Events;
 using user_service.Repositories.Interfaces;
 using user_service.Services.Interfaces;
 
@@ -48,17 +49,20 @@ public class UserProfileService : IUserProfileService
     private readonly IUserRepository _userRepository;
     private readonly IJwtIssuer _jwtIssuer;
     private readonly IProfilePhotoStorageService _photoStorageService;
+    private readonly IUserVerifiedEventPublisher _userVerifiedEventPublisher;
     private readonly ProfilePhotoOptions _photoOptions;
 
     public UserProfileService(
         IUserRepository userRepository,
         IJwtIssuer jwtIssuer,
         IProfilePhotoStorageService photoStorageService,
+        IUserVerifiedEventPublisher userVerifiedEventPublisher,
         IOptions<ProfilePhotoOptions> photoOptions)
     {
         _userRepository = userRepository;
         _jwtIssuer = jwtIssuer;
         _photoStorageService = photoStorageService;
+        _userVerifiedEventPublisher = userVerifiedEventPublisher;
         _photoOptions = photoOptions.Value;
     }
 
@@ -145,6 +149,16 @@ public class UserProfileService : IUserProfileService
             user.Status = request.Status.ToLowerInvariant();
         }
 
+        // Chained Condition Across Async Steps (bug fix — see User.
+        // TryCompleteOnboarding's comment): a PATCH that sets the LAST
+        // missing profile field (commonly gender, since Name/PreferredLanguage
+        // are usually filled at sign-in and PhotoUrl by a separate photo
+        // upload) is exactly as likely to be the step that completes
+        // onboarding as OTP verification is — this call must make the same
+        // check OtpService.VerifyOtpAsync makes, not assume phone
+        // verification always finishes last.
+        var justActivated = user.TryCompleteOnboarding();
+
         try
         {
             await _userRepository.UpdateAsync(user);
@@ -164,16 +178,28 @@ public class UserProfileService : IUserProfileService
                 null);
         }
 
+        // Event-Driven Architecture (T020, same rule as OtpService.
+        // VerifyOtpAsync): publish only on the call that actually flipped
+        // IsOnboardingComplete false -> true, and only after the save above
+        // succeeded — a retried/concurrent PATCH that finds it already true
+        // must never re-announce a fact Discovery Service already reacted to.
+        if (justActivated)
+        {
+            _userVerifiedEventPublisher.PublishUserVerified(user, DateTime.UtcNow);
+        }
+
         // Reissue only when a claim actually baked into the access token
         // changed — see IJwtIssuer.IssueAccessToken's "sub"/"role"/"gender"/
-        // "status" claim set. Called AFTER SaveChangesAsync (via
+        // "status" claim set, plus "onboarding_complete" (same claim
+        // OtpService.VerifyOtpAsync reissues for, now that either call can be
+        // the one that flips it). Called AFTER SaveChangesAsync (via
         // UpdateAsync above), against the freshly-saved `user`: issuing from
         // a pre-save copy would risk claims that don't match what's
         // actually persisted if a concurrent write raced this one.
         string? newAccessToken = null;
         var genderChanged = !string.Equals(previousGender, user.Gender, StringComparison.Ordinal);
         var statusChanged = !string.Equals(previousStatus, user.Status, StringComparison.Ordinal);
-        if (genderChanged || statusChanged)
+        if (genderChanged || statusChanged || justActivated)
         {
             newAccessToken = _jwtIssuer.IssueAccessToken(user);
         }
@@ -209,7 +235,7 @@ public class UserProfileService : IUserProfileService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user is null)
         {
-            return new PhotoUploadOutcome(PhotoUploadResult.NotFound, null, null);
+            return new PhotoUploadOutcome(PhotoUploadResult.NotFound, null, null, null);
         }
 
         var photoUrl = await _photoStorageService.SavePhotoAsync(userId, photo, requestBaseUrl, cancellationToken);
@@ -219,6 +245,14 @@ public class UserProfileService : IUserProfileService
         // trustworthy than whatever Google handed back at sign-in, since the
         // user chose it deliberately just now.
         user.PhotoUrl = photoUrl;
+
+        // Chained Condition Across Async Steps (bug fix — see User.
+        // TryCompleteOnboarding's comment): PhotoUrl is one of the four
+        // fields IsProfileComplete() requires, so this upload — not just a
+        // PATCH or OTP verification — can just as easily be the step that
+        // completes onboarding, depending on the order the client calls
+        // these three endpoints in.
+        var justActivated = user.TryCompleteOnboarding();
 
         try
         {
@@ -231,10 +265,26 @@ public class UserProfileService : IUserProfileService
             return new PhotoUploadOutcome(
                 PhotoUploadResult.Conflict,
                 "User profile was modified concurrently. Please fetch the latest version and retry.",
+                null,
                 null);
         }
 
-        return new PhotoUploadOutcome(PhotoUploadResult.Success, null, UserProfileDto.FromUser(user));
+        // Event-Driven Architecture (T020) — same rule as OtpService.
+        // VerifyOtpAsync/UpdateProfileAsync above: publish only on the call
+        // that actually flipped IsOnboardingComplete, and only after the save
+        // succeeded.
+        if (justActivated)
+        {
+            _userVerifiedEventPublisher.PublishUserVerified(user, DateTime.UtcNow);
+        }
+
+        // Stale JWT Claim (same reasoning as UpdateProfileAsync's reissue
+        // check): "onboarding_complete" is baked into the access token
+        // (JwtIssuer.cs) same as gender/status — a photo upload that just
+        // flipped it must refresh the caller's token too, not just PATCH.
+        var newAccessToken = justActivated ? _jwtIssuer.IssueAccessToken(user) : null;
+
+        return new PhotoUploadOutcome(PhotoUploadResult.Success, null, UserProfileDto.FromUser(user), newAccessToken);
     }
 
     public async Task<PublicUserProfileDto?> GetPublicProfileAsync(long id)
@@ -251,5 +301,5 @@ public class UserProfileService : IUserProfileService
         new(ProfileUpdateResult.InvalidRequest, message, null, null);
 
     private static PhotoUploadOutcome InvalidPhoto(string message) =>
-        new(PhotoUploadResult.InvalidRequest, message, null);
+        new(PhotoUploadResult.InvalidRequest, message, null, null);
 }

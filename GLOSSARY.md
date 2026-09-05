@@ -77,6 +77,13 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`kafka-topics.sh --create --if-not-exists`** — the `--if-not-exists` flag makes topic creation a no-op instead of an error when the topic is already there, so the script can be re-run safely on every `docker compose up`. _(T009, `kafka-init.sh`)_
 - **`set -euo pipefail`** — exits immediately on any command failure (`-e`), treats an unset variable as an error (`-u`), and makes a pipeline fail if any stage of it fails, not just the last one (`-o pipefail`). Without it, a failed step could be silently swallowed and the script would still exit 0. _(T009, `kafka-init.sh`)_
 
+## Kafka Producer (Confluent.Kafka, .NET)
+
+- **`IProducer<TKey,TValue>`** (`Confluent.Kafka`) — the client library's producer interface; not a .NET built-in. Wraps the native `librdkafka` library so app code calls one method, `Produce(topic, message, deliveryReportCallback)`, without touching broker connections, batching, or retries directly. _(T020, `KafkaUserVerifiedEventPublisher.cs`)_
+- **`ProducerBuilder<TKey,TValue>(config).Build()`** — constructs the real `IProducer<>`; done exactly once, at startup, and registered as a singleton, because building one opens broker connections and spins up an internal batching thread — repeating that per-publish would pay connection setup on every message and defeat batching entirely. _(T020, `Program.cs`)_
+- **`ProducerConfig.BootstrapServers`** — a seed broker address (or comma-separated list) used only for the client's *first* connection; that initial handshake returns the full cluster metadata (all brokers, all partition leaders), which the client then caches and uses directly — the bootstrap address itself is never touched again per message. _(T020, `Program.cs`)_
+- **`Message<TKey,TValue>.Key`** — the partition key. Kafka hashes this value to pick a partition, so every message with the same key always lands on the same partition — the mechanism that gives per-user event ordering (not the producer instance, which is shared across all users). _(T020, `KafkaUserVerifiedEventPublisher.cs`)_
+
 ## Git / .gitattributes
 
 - **`*.sh text eol=lf`** — forces any `.sh` file to always be stored and checked out with LF line endings, overriding a repo's `core.autocrlf` setting for that file type. Needed here because a CRLF-terminated shebang line breaks bash when the script is bind-mounted from a Windows working tree into a Linux container. _(T009, `.gitattributes`)_

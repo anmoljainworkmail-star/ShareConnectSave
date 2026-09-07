@@ -1,11 +1,30 @@
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
 using api_gateway.Configuration;
+using api_gateway.Infrastructure;
 using api_gateway.Middleware;
 using api_gateway.RateLimiting;
 using api_gateway.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Global Exception Handling (fix, found during integration testing — same
+// shape as user-service's identical registration, T017): every expected
+// error path already returns this project's { code, message, traceId }
+// envelope explicitly (JwtValidationMiddleware's 401s, RateLimitRejectionHandler's
+// 429s). GlobalExceptionHandler is the catch-all for an UNEXPECTED one — an
+// unhandled exception anywhere in the pipeline, which previously reached the
+// caller as a raw stack trace via ASP.NET Core's built-in exception page.
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// Framework requirement (not a behavior change) — same reasoning as
+// user-service's identical line: UseExceptionHandler() validates at startup
+// that SOMETHING can handle an unhandled exception. AddProblemDetails()
+// registers IProblemDetailsService to satisfy that check, but
+// GlobalExceptionHandler.TryHandleAsync always returns true (it fully writes
+// the response itself), so ProblemDetails' RFC 7807 shape is never actually
+// produced by this gateway.
+builder.Services.AddProblemDetails();
 
 // No Hardcoded Config: builder.Configuration already reads appsettings.json,
 // appsettings.{Environment}.json and environment variables in that order, so
@@ -106,6 +125,14 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+// Registered as early as possible in the pipeline so it wraps every
+// downstream middleware/proxy call — see the AddExceptionHandler
+// registration above for why this exists. No options object here, same
+// reasoning as user-service's identical call: passing one is what wires in
+// the framework's ProblemDetails fallback path, and GlobalExceptionHandler
+// is meant to be the one and only thing that runs.
+app.UseExceptionHandler();
 
 // X-RateLimit-Remaining headers must register their Response.OnStarting callback
 // BEFORE any middleware that writes a response (including JwtValidationMiddleware's

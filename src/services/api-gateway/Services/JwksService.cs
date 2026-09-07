@@ -13,6 +13,22 @@ namespace api_gateway.Services;
 public interface IJwksService
 {
     Task<IReadOnlyList<SecurityKey>> GetSigningKeysAsync(CancellationToken cancellationToken = default);
+
+    // Fix (found during integration testing — see
+    // .claude/notes/integration-testing-bugs.md #3): forces the NEXT
+    // GetSigningKeysAsync call to bypass the cached 24h interval and fetch a
+    // genuinely fresh JWKS document, instead of waiting out the full
+    // AutomaticRefreshInterval. JwtValidationMiddleware calls this — and
+    // only this — when a token's `kid` doesn't match anything currently
+    // cached, which is the standard "unknown key -> force one refetch ->
+    // retry once" pattern for ConfigurationManager<T>-backed JWT validation.
+    // Deliberately NOT an event/pub-sub mechanism triggered by user-service
+    // whenever its signing key rotates: that would add a new coupling
+    // (another channel that can lag or drop a message) for a problem this
+    // reactive, request-triggered approach already solves without any extra
+    // moving parts — the very next token signed with a new key IS the
+    // signal, no push notification required.
+    void RequestRefresh();
 }
 
 // Caching for Resilience: user-service's JWKS endpoint hands back the RSA
@@ -55,11 +71,14 @@ public class JwksService : IJwksService
     public async Task<IReadOnlyList<SecurityKey>> GetSigningKeysAsync(CancellationToken cancellationToken = default)
     {
         // GetConfigurationAsync serves the cached copy when it's still fresh,
-        // and only awaits a real HTTP call to user-service on the first call
-        // or once AutomaticRefreshInterval has elapsed.
+        // and only awaits a real HTTP call to user-service on the first call,
+        // once AutomaticRefreshInterval has elapsed, or right after
+        // RequestRefresh() below has been called.
         var jwks = await _configManager.GetConfigurationAsync(cancellationToken);
         return jwks.Keys.Cast<SecurityKey>().ToList();
     }
+
+    public void RequestRefresh() => _configManager.RequestRefresh();
 
     // Liskov Substitution (L in SOLID): this only has to honor
     // IConfigurationRetriever<JsonWebKeySet>'s contract — "given an address

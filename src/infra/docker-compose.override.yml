@@ -28,6 +28,34 @@ services:
       # required for local dev to boot; only set this for anything that must
       # survive a container restart.
       - Jwt__RsaPrivateKeyPem=${JWT__RSAPRIVATEKEYPEM:-}
+      # Fix (found during full-stack integration testing, not caught by any
+      # per-ticket QA pass — those all ran user-service via `dotnet run` with
+      # these exported by hand, never through this compose file):
+      # TwilioClient.cs reads these three directly and throws at first use if
+      # any are missing — without this passthrough, POST /auth/otp/send 500s
+      # the instant it's called through the container, even though a real
+      # value exists in .env.
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      # Fix (found during integration testing — see .env.example's matching
+      # comment): Twilio trial accounts reject free-form SMS to +91 numbers
+      # outright (error 572006, an India TRAI/DLT compliance restriction).
+      # Defaults to true here, same as IDENTITY_VERIFY_STUB below, so local
+      # dev never depends on a live, regulation-constrained SMS carrier.
+      - TWILIO_STUB=${TWILIO_STUB:-true}
+      # T019: Program.cs reads IDENTITY_VERIFY_STUB at STARTUP (not lazily) to
+      # decide which IFaceMatchService gets registered — without this
+      # passthrough it always reads as unset/false inside the container,
+      # silently wiring in the real Azure-backed implementation regardless of
+      # what .env says, and POST /users/me/verify-identity would then fail on
+      # missing AzureFace__Endpoint/Key instead of running in stub mode.
+      # Defaults to true here specifically (unlike the empty defaults above)
+      # because stub mode is the correct default for local dev/CI per
+      # .env.example's own guidance.
+      - IDENTITY_VERIFY_STUB=${IDENTITY_VERIFY_STUB:-true}
+      - AzureFace__Endpoint=${AzureFace__Endpoint:-}
+      - AzureFace__Key=${AzureFace__Key:-}
 
   discovery-service:
     environment:

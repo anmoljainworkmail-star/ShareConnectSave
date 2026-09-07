@@ -106,6 +106,17 @@ logs/
 *.swo
 
 # =============================================================================
+# Local-only working files — never pushed, per-developer scratch space
+# =============================================================================
+# Postman collections/environments live here instead of contracts/ (T020-era
+# integration testing): a Postman environment file can carry live secrets
+# (access tokens, phone numbers) once populated, and the collection itself is
+# a personal testing tool, not a versioned API contract like contracts/openapi
+# or contracts/kafka — those describe what a service DOES, this is how one
+# person happens to be poking at it.
+.local/
+
+# =============================================================================
 # Certificates and secrets (belt-and-suspenders — .env above catches most cases)
 # =============================================================================
 *.pfx

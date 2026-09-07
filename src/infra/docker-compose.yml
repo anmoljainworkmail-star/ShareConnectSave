@@ -281,6 +281,20 @@ services:
       # service's own KAFKA_CFG_ADVERTISED_LISTENERS comment above for why a
       # single address can't serve both a host tool and a container client.
       - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:29092}
+    volumes:
+      # Fix (found live during integration testing): uploaded profile photos
+      # (ProfilePhotoStorageService, T018) live under wwwroot/uploads/photos
+      # inside this container's own writable layer by default — which is
+      # NOT persisted across `docker compose up --build`/container recreation,
+      # unlike sqlserver-data below. Every rebuild was silently deleting every
+      # previously-uploaded photo while the database's Users.PhotoUrl row
+      # (on the persisted sqlserver-data volume) kept confidently pointing at
+      # a file that no longer existed — a real data-consistency risk in any
+      # real deployment too, not just a local dev annoyance: redeploying this
+      # service would delete every user's photo. /app matches the Dockerfile's
+      # WORKDIR; wwwroot/uploads/photos matches ProfilePhotoOptions.StoragePath's
+      # default (relative to the app's content root, which IS /app).
+      - user-photos-data:/app/wwwroot/uploads/photos
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -475,6 +489,7 @@ services:
 volumes:
   sqlserver-data:
   mongodb-data:
+  user-photos-data:
 
 # Named network: every service resolves every other by container name (e.g. "kafka:9092")
 # because they all land on this one network — pinning its name (instead of letting Compose

@@ -45,10 +45,24 @@ public class OtpService : IOtpService
         _logger = logger;
     }
 
-    public async Task SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    public async Task<OtpSendOutcome> SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var attempt = await _otpRepository.GetByPhoneAsync(phoneNumber);
+
+        // Guard Clause (fix, found during integration testing): mirrors
+        // VerifyOtpAsync's own lockout check. A locked phone must not
+        // receive a fresh code it can never redeem anyway — VerifyOtpAsync
+        // rejects every attempt (right or wrong) while locked regardless, so
+        // this doesn't change what a caller can ultimately achieve, it just
+        // stops burning a real Twilio SMS send on a code with no possible
+        // use. Checked BEFORE the resend-cooldown logic below, same
+        // ordering VerifyOtpAsync uses (lockout is the more fundamental
+        // gate).
+        if (attempt?.LockedUntil is { } lockedUntil && lockedUntil > now)
+        {
+            return new OtpSendOutcome(OtpSendResult.Locked, lockedUntil);
+        }
 
         // Idempotency (T017's headline pattern) vs. a genuine resend: these
         // are two different requests that look identical on the wire, so
@@ -73,7 +87,7 @@ public class OtpService : IOtpService
             lastSentAt.AddSeconds(_options.ResendCooldownSeconds) > now)
         {
             _logger.LogInformation("OTP send is an idempotent no-op — a code was already sent within the resend cooldown window.");
-            return;
+            return new OtpSendOutcome(OtpSendResult.Sent, null);
         }
 
         var code = GenerateCode();
@@ -145,6 +159,8 @@ public class OtpService : IOtpService
             phoneNumber,
             $"Your ShareConnectSave verification code is {code}. It expires in {_options.CodeExpiryMinutes} minutes.",
             cancellationToken);
+
+        return new OtpSendOutcome(OtpSendResult.Sent, null);
     }
 
     public async Task<OtpVerificationOutcome> VerifyOtpAsync(

@@ -102,10 +102,32 @@ builder.Services.Configure<AzureFaceOptions>(builder.Configuration.GetSection(Az
 // AddHttpClient<IJwksService, JwksService>() in T012.
 builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
 
-// Typed HttpClient (T017): same pooling/DNS-refresh reasoning as
-// IGoogleTokenValidator above - a single call to Twilio's REST API, no SDK
-// package added (see TwilioClient's class comment for why).
-builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
+// Strategy (classic pattern) + Dependency Inversion (SOLID D) + Open/Closed
+// (SOLID O) — fix, same shape as IDENTITY_VERIFY_STUB below: the ONE place
+// that decides which ITwilioClient implementation is wired in, selected once
+// at startup by the TWILIO_STUB env flag, never an "if (isDev)" branch inside
+// OtpService or the controller. Found necessary during integration testing —
+// Twilio trial accounts reject free-form SMS bodies to +91 numbers outright
+// (error 572006, an India TRAI/DLT compliance restriction, not a code bug) —
+// see StubTwilioClient's class comment for the full story. Reading a flat env
+// var directly here (not via an IOptions<T> section) is a composition-root
+// concern only, same category as IDENTITY_VERIFY_STUB just below.
+var twilioStub = string.Equals(
+    builder.Configuration["TWILIO_STUB"],
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
+if (twilioStub)
+{
+    builder.Services.AddScoped<ITwilioClient, StubTwilioClient>();
+}
+else
+{
+    // Typed HttpClient (T017): same pooling/DNS-refresh reasoning as
+    // IGoogleTokenValidator above - a single call to Twilio's REST API, no SDK
+    // package added (see TwilioClient's class comment for why).
+    builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
+}
 
 // Typed HttpClient (T019): same pooling/DNS-refresh reasoning as
 // IGoogleTokenValidator/ITwilioClient above - IdentityVerificationService

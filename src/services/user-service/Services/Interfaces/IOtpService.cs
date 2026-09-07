@@ -6,7 +6,7 @@ namespace user_service.Services.Interfaces;
 // in-memory fake for tests) never touches the controller.
 public interface IOtpService
 {
-    Task SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default);
+    Task<OtpSendOutcome> SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default);
 
     Task<OtpVerificationOutcome> VerifyOtpAsync(
         long userId,
@@ -14,6 +14,23 @@ public interface IOtpService
         string code,
         CancellationToken cancellationToken = default);
 }
+
+// Fix (found during integration testing): SendOtpAsync used to return a bare
+// Task, silently sending a fresh code even to a phone that's currently
+// LockedUntil — not exploitable (VerifyOtpAsync's own guard clause still
+// rejects every attempt, right or wrong, while locked), but wasteful (a real
+// Twilio SMS send for a code that can never be redeemed) and confusing (a
+// "locked" phone that keeps happily receiving new codes). Same Result
+// Object shape as OtpVerificationOutcome below — an expected "currently
+// locked" outcome is routine control flow the controller branches on, not
+// an exceptional condition.
+public enum OtpSendResult
+{
+    Sent,
+    Locked,
+}
+
+public record OtpSendOutcome(OtpSendResult Result, DateTime? LockedUntil);
 
 // The outcomes VerifyOtp can produce, each mapping to a different HTTP
 // status in the controller.

@@ -46,12 +46,21 @@ public class OtpController(IOtpService otpService) : ControllerBase
             return InvalidRequest("Phone number must be a valid Indian mobile number, e.g. +919876543210.");
         }
 
-        await otpService.SendOtpAsync(request.PhoneNumber, HttpContext.RequestAborted);
+        var outcome = await otpService.SendOtpAsync(request.PhoneNumber, HttpContext.RequestAborted);
 
         // What NOT to do (ticket-explicit): the response never carries the
         // OTP code itself — only Twilio, and OtpService transiently at
         // generation time, ever see the plaintext.
-        return Ok(new OtpSendResponse(Sent: true));
+        return outcome.Result switch
+        {
+            OtpSendResult.Sent => Ok(new OtpSendResponse(Sent: true)),
+            // Fix (found during integration testing): same 429 OTP_LOCKED
+            // shape VerifyOtp already returns — a locked phone gets a clean
+            // rejection here too now, instead of silently accepting a send
+            // it can never redeem.
+            OtpSendResult.Locked => OtpLocked(outcome.LockedUntil!.Value),
+            _ => throw new InvalidOperationException($"Unhandled {nameof(OtpSendResult)}: {outcome.Result}"),
+        };
     }
 
     [HttpPost("/auth/otp/verify")]

@@ -1453,14 +1453,20 @@ Two screens: `LoginComponent`, `OtpVerifyComponent`.
 - Discovered users appear as animated dots, positioned by approximate bearing and distance
 - Tap a dot → opens `UserCardComponent`
 
-`UserCardComponent` — shows: name, photo, rating stars, destination, "leaving in X min", route match %, preferred language, Send Request button.
+`UserCardComponent` — shows: name, photo, rating stars, destination, "leaving in X min", route match %, preferred language, Send Request button. Photo requires a valid JWT to fetch (REQUIREMENTS.md §2, decided during Phase 3 integration testing) — cannot be a plain `<img src="{{photo_url}}">`; fetch it via an authenticated call and bind the resulting blob URL instead. `T067`'s `InboundRequestComponent` reuses this component for the sender's card, so this applies there too, not just the Radar screen.
 
 Mode indicator badge: "GPS" (green) or "BLE" (orange, with range note).
+
+**Start Scan / exit status lifecycle** (REQUIREMENTS.md §3, decided during Phase 3 integration testing — status is not left to only the Settings toggle): tapping Start Scan calls `PATCH /user/users/me` with `{"status": "looking"}` before/alongside starting the scan itself; exiting or closing the scan calls `PATCH /user/users/me` with `{"status": "unavailable"}`. This is the SAME endpoint/field `SettingsComponent`'s status toggle (T070) writes — no separate API, just two different UI triggers for one field. The Settings toggle must remain fully usable independently (e.g. to go "unavailable" mid-scan without leaving the radar screen, or "looking" without ever starting a scan).
 
 **Acceptance criteria:**
 - [ ] Radar sweep animation runs continuously while scan is active
 - [ ] User card renders all required fields
+- [ ] User card's photo is fetched with an authenticated request (not a bare `<img src>`) and still renders correctly
 - [ ] Mode badge switches correctly
+- [ ] Tapping Start Scan sets `status: looking` via `PATCH /users/me`
+- [ ] Exiting/closing the scan sets `status: unavailable` via `PATCH /users/me`
+- [ ] Settings toggle (T070) still correctly reflects/overrides status when used independently of scanning
 
 ---
 
@@ -1562,7 +1568,7 @@ On `ChatClosed` event → navigate to rating screen.
 
 **Spec:**
 `RatingComponent` — shown after chat closes.
-- Shows the other user's name and photo
+- Shows the other user's name and photo (same authenticated-fetch requirement as `UserCardComponent`, REQUIREMENTS.md §2 — not a bare `<img src>`)
 - Tag grid (positive tags green, negative tags red)
 - Multi-select (can pick multiple tags)
 - Submit button → calls `POST /ratings`
@@ -1572,6 +1578,7 @@ On `ChatClosed` event → navigate to rating screen.
 - [ ] At least one tag required on Met Successfully path (submit disabled otherwise)
 - [ ] Skip available on timeout path
 - [ ] After submit → navigate to home/radar
+- [ ] Other user's photo is fetched with an authenticated request and still renders correctly
 
 ---
 
@@ -1582,13 +1589,15 @@ On `ChatClosed` event → navigate to rating screen.
 **Depends on:** T063, T018  
 
 **Spec:**
-`ProfileComponent` — edit name, photo (upload), preferred language, gender (one-time set, cannot change after first scan).  
-`SettingsComponent` — status toggle (Looking / Not available), women-only mode toggle (conditional on gender), account info.
+`ProfileComponent` — edit name, photo (upload), preferred language, gender (one-time set, cannot change after first scan). Displaying the CURRENT photo (before/after upload) needs the same authenticated-fetch treatment as `UserCardComponent` (REQUIREMENTS.md §2) — a bare `<img src="{{photo_url}}">` will 401.  
+`SettingsComponent` — status toggle (Looking / Not available), women-only mode toggle (conditional on gender), account info. This toggle is one of TWO places `status` gets written — see T064's Start Scan / exit lifecycle for the other. Toggling here must work correctly regardless of whether a scan is currently active (e.g. flipping to "unavailable" from Settings while radar is still open on another tab/screen).
 
 **Acceptance criteria:**
 - [ ] Gender field locked after first scan session
 - [ ] Women-only toggle only visible for female users
 - [ ] Profile photo upload works (multipart POST to User Service)
+- [ ] Current profile photo displays correctly via an authenticated fetch, not a bare `<img src>`
+- [ ] Status toggle reflects the current value correctly even when it was last changed by starting/exiting a scan (T064), not just by this component itself
 
 ---
 

@@ -68,13 +68,14 @@ Kafka topics:
 ### 2. User Profile
 
 - Fields: name, photo, gender, preferred language, rating (avg), trust badge, verification badge.
-- Users can set their status: **Looking for companion** (visible in discovery) or **Not available** (hidden).
+- **Photo URLs require a valid JWT to fetch** (decided during Phase 3 integration testing — every gateway route requires auth except `POST /auth/google`, and that includes the static photo files, deliberately, not by oversight). A plain `<img src="...">` cannot attach an `Authorization` header, so the Angular frontend must fetch each photo via an authenticated `fetch()`/XHR call and render it from the resulting blob URL, everywhere a photo is shown (`UserCardComponent`, `RatingComponent`, `ProfileComponent` — see their SPECS.md tickets). Normal browser HTTP image caching is lost as a result; acceptable tradeoff for keeping every photo behind the same auth boundary as the rest of the platform.
+- Users can set their status: **Looking for companion** (visible in discovery) or **Not available** (hidden). Set two ways: manually via the Settings screen's status toggle (`SettingsComponent`, SPECS.md), or automatically by starting/exiting a GPS scan — see §3 for the exact scan-lifecycle behavior.
 - Trust score is derived from ratings (not directly user-editable).
 
 ### 3. Discovery / Radar — GPS Mode (Online)
 
 - User enters destination and departure time before starting a scan.
-- Tapping **Start Scan** activates the radar UI.
+- Tapping **Start Scan** activates the radar UI **and sets status to "Looking for companion"** (`PATCH /users/me`, same field the Settings toggle writes — see §2). Exiting or closing the scan reverts status back to **"Not available"** automatically, symmetric with location tracking's own start/stop lifecycle below. The Settings toggle still works independently at any time (e.g. going "Not available" mid-scan, or "Looking" without an active scan).
 - Location is tracked continuously while scan is active (stops on exit or scan close).
 - Backend queries nearby users in real time using geospatial index.
 - Discovery filters applied server-side:

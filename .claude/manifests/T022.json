@@ -1,0 +1,25 @@
+{
+  "task_id": "T022",
+  "title": "Geospatial Schema + Scan Session",
+  "status": "completed",
+  "files_created": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/domain/ScanStartRequest.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/domain/ScanStartResponse.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/domain/ScanLocationRequest.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/domain/ScanLocation.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/domain/ScanSession.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanSessionRepository.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanSessionNotFoundException.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanSessionService.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanController.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/domain/BleToken.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleTokenRepository.java"
+  ],
+  "criteria_checked": {
+    "POST /scan/start creates DB record, returns session_id": "PASS",
+    "PUT /scan/location writes to Redis, not SQL": "PASS",
+    "After POST /scan/stop, Redis key is deleted": "PASS",
+    "Location key TTL is 30 seconds": "PASS"
+  },
+  "last_note": "Implementation complete. Flyway migration for scan_sessions/ble_tokens already existed (V001, from T006/T021) so no new migration was needed. Compiled clean under JDK 21 (Temurin, via scoop) with mvnw -o compile. Note for /review-task: /scan/location and /scan/stop resolve the caller's active session via a read-only SQL lookup (findFirstByUserIdAndEndedAtIsNullOrderByIdDesc) since the ticket's own request-body contract for those two endpoints carries no session_id — flagged as a deliberate interpretation, not an oversight."
+}

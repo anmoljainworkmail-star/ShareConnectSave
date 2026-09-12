@@ -162,6 +162,56 @@ entry names the downstream task(s) whose implementation or ticket should address
    Affects: T0xx (Discovery Service Kafka wiring), and the equivalent first-Kafka-client
    ticket for Connection/Chat/Rating/Report/Admin Service, whichever lands first for each.
 
+## From T022 (Geospatial Schema + Scan Session)
+
+1. `ScanSessionService.stopScan`/`updateLocation` hold a SQL Server pessimistic row lock
+   (`@Lock(LockModeType.PESSIMISTIC_WRITE)` on `ScanSessionRepository`'s active-session
+   finder) for the full duration of their `@Transactional` method body — including the
+   live network call to Redis. This is what closes the TOCTOU (check-then-act) race where
+   a `PUT /scan/location` in flight at the same moment as a `POST /scan/stop` could
+   resurrect a GPS coordinate in Redis after the user stopped scanning, but it means a
+   slow/stalled Redis call now also holds up the SQL row lock for that user's session,
+   which could increase lock-wait contention under load (e.g. a client double-firing
+   location updates rapidly). Not a correctness bug — a latency/throughput consideration
+   worth confirming under real load.
+   Affects: T086 (Load Test: Discovery Query — include a scenario with concurrent
+   `/scan/location`+`/scan/stop` calls per user, not just the nearby-search query, to
+   surface any lock-contention regression).
+
+2. No automated test exists exercising the concurrency fix itself (overlapping
+   `stopScan`/`updateLocation` calls for the same session) — the fix was verified by
+   manual trace during review (see `.claude/qa/T022.qa.md` step 8 for the equivalent
+   manual repro), not by a repeatable test.
+   Affects: T081 (Unit Tests: Java Services — add a `ScanSessionServiceTest` exercising
+   the lock/transaction interaction, e.g. via two threads or an integration-style test
+   against a real DB), T083 (Integration Tests: Java — Testcontainers, explicitly named
+   for Discovery Service — a Testcontainers-backed test can actually exercise real
+   SQL Server row-locking, which a pure-Mockito unit test cannot).
+
+3. `PUT /scan/location`'s Redis key has a 30-second TTL (`ScanSessionServiceImpl.LOCATION_TTL`),
+   refreshed only when a new location update arrives — there is no backend-side grace period.
+   `REQUIREMENTS.md` §3 says location is "tracked continuously while scan is active," but the
+   exact client polling/`watchPosition` cadence isn't decided yet (the Angular scan feature
+   doesn't exist in this repo — only the bare `ng new` scaffold). Whatever interval T064 picks
+   needs a safe margin under 30s (accounting for network latency/jitter), otherwise an actively
+   scanning user's live location can lapse from Redis mid-scan and briefly disappear from T023's
+   nearby-search results even though they never stopped scanning.
+   Affects: T064 (Radar UI Component — Start Scan lifecycle is where `PUT /scan/location` gets
+   wired up client-side; pick and document a polling/`watchPosition` debounce interval here with
+   the 30s TTL margin in mind).
+
+3. A missing `X-User-Id` header on any `/scan/*` endpoint throws `MissingRequestHeaderException`,
+   which `shared-java-lib`'s `GlobalExceptionHandler` has no handler for — it falls through
+   to the generic catch-all and returns `500 INTERNAL_ERROR` instead of a `400`-class error.
+   This is a gap in the shared handler itself (originally shipped in T003), not something
+   introduced by this ticket, but T022 is the first ticket to build real endpoints that
+   depend on `X-User-Id` being present and surfaced this concretely during review.
+   Affects: T029 (Connection Service Setup — the next Java service to read `X-User-Id`
+   headers will hit the same gap; fix `GlobalExceptionHandler` in `shared-java-lib` once,
+   before a second service ships against the same defect), T025 (Kafka Consumer:
+   user.verified + trust.score.updated — if this ticket adds any HTTP endpoints to
+   Discovery Service that also read identity headers).
+
 ## From T021 (Spring Boot Project Setup)
 
 1. `application.yml` defines only `dev` and `prod` Spring profile documents, but the

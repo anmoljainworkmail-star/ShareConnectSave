@@ -8,7 +8,8 @@ You are implementing a Java 21 / Spring Boot 3 microservice for ShareConnectSave
 src/main/java/com/shareconnectsave/<service>/
   <feature>/
     <Feature>Controller.java
-    <Feature>Service.java
+    <Feature>Service.java             ← interface — Controller depends on this, not the impl
+    <Feature>ServiceImpl.java         ← @Service, implements <Feature>Service
     <Feature>Repository.java          ← interface extends JpaRepository
     domain/
       <Entity>.java                   ← @Entity, Lombok @Getter @Builder @NoArgsConstructor
@@ -75,16 +76,59 @@ CREATE INDEX idx_connection_requests_recipient ON connection_requests (recipient
 
 ## Dependency Inversion — always inject interfaces
 
+Applies at every layer, not just repositories — **the Service class itself must
+sit behind an interface, and the Controller depends on that interface, never
+on the concrete `*ServiceImpl`.** Same shape as `ITwilioClient`/`TwilioClient`/
+`StubTwilioClient` in User Service: a controller/service depending on the
+interface never changes when the bean behind it does — swapping in a stub
+for a dev/test profile, or a different backing implementation later, is
+registration-only.
+
 ```java
 // Pattern: Dependency Inversion (SOLID D)
 // Reason: concrete class → can't swap implementation in tests or in Phase 14 outbox migration
+public interface ConnectionService {
+  ConnectionResponse createConnection(UUID requesterId, CreateConnectionDto dto);
+}
+
 @Service
 @RequiredArgsConstructor
-public class ConnectionService {
+public class ConnectionServiceImpl implements ConnectionService {
   private final IConnectionRepository connectionRepository; // interface, not SqlConnectionRepository
   private final IOutboxService outboxService;               // interface — implementations: SQL, in-memory test
+
+  @Override
+  public ConnectionResponse createConnection(UUID requesterId, CreateConnectionDto dto) { ... }
+}
+
+@RestController
+@RequiredArgsConstructor
+public class ConnectionController {
+  private final ConnectionService connectionService; // the interface, never ConnectionServiceImpl
 }
 ```
+
+To swap in a stub/alternate implementation for a dev or test profile —
+same mechanism as `Program.cs`'s `TWILIO_STUB`-gated registration, just
+expressed as Spring's own conditional-bean annotations instead of an
+`if` in a composition root:
+
+```java
+@Service
+@Profile("!stub-connections")   // or @ConditionalOnProperty(name = "connections.stub", havingValue = "false", matchIfMissing = true)
+@RequiredArgsConstructor
+public class ConnectionServiceImpl implements ConnectionService { ... }
+
+@Service
+@Profile("stub-connections")
+public class StubConnectionService implements ConnectionService { ... }
+```
+
+Don't add a stub implementation speculatively — only introduce one when a
+real dev/CI need exists (an external paid/rate-limited dependency, a slow
+integration you want to fake locally), the same reason `StubTwilioClient`
+exists but a plain in-DB service like `ScanSessionService` (Discovery
+Service) does not have one.
 
 ## Virtual Threads — freeing the request thread during outbound HTTP calls
 

@@ -47,7 +47,7 @@
 
 ## Phase 4 — Discovery Service (Java)
 
-- [ ] T021 — Spring Boot Project Setup
+- [x] T021 — Spring Boot Project Setup
 - [ ] T022 — Geospatial Schema + Scan Session _(location in Redis only, never SQL)_
 - [ ] T023 — GPS Discovery Query _(5 filters, women-only, WebClient to User Service)_
 - [ ] T024 — BLE Token Generation _(HMAC-SHA256, 5-min expiry, resolve endpoint)_
@@ -247,8 +247,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 20 / 96  
+**Done:** 21 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 76 / 96  
+**Pending:** 75 / 96  
 
 _Update this section manually or via `/status` after each task completes._

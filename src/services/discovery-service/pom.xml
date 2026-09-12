@@ -28,6 +28,17 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Pattern: pin third-party (non-Spring-managed) versions as properties,
+		     not inline literals, so the four sibling services (Connection, Rating,
+		     Report, Admin) that copy this pom.xml as their template only need to
+		     update version numbers in one place per artifact. mssql-jdbc,
+		     flyway-core and flyway-sqlserver are intentionally NOT listed here —
+		     spring-boot-starter-parent's own dependency-management BOM already
+		     pins those versions to ones known to work together; overriding them
+		     with our own property would just reintroduce the version-skew problem
+		     the parent BOM exists to prevent. -->
+		<mapstruct.version>1.6.3</mapstruct.version>
+		<resilience4j.version>2.2.0</resilience4j.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -49,6 +60,77 @@
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
+		<!-- Cache-Aside: Spring Data Redis client, wired to logical DB index 0
+		     (Discovery Service's reserved index per T008) in application.yml. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+
+		<!-- Flyway: version-controlled, one-way-forward schema migrations instead
+		     of Hibernate's ddl-auto=update. flyway-sqlserver is a SEPARATE artifact
+		     from flyway-core as of the Flyway major version Spring Boot 3.3.x
+		     manages — Flyway split each proprietary DB's dialect support out of
+		     flyway-core so core doesn't bundle every vendor driver quirk; without
+		     this second artifact on the classpath, Flyway throws
+		     "Unsupported Database: Microsoft SQL Server" at startup even though
+		     the JDBC driver itself connects fine. -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-sqlserver</artifactId>
+		</dependency>
+
+		<!-- JDBC driver for spring.datasource.url's jdbc:sqlserver: scheme. Spring
+		     Boot ships no driver by default for any vendor — scope=runtime because
+		     application code talks to Hibernate/JPA, never this driver class,
+		     directly. -->
+		<dependency>
+			<groupId>com.microsoft.sqlserver</groupId>
+			<artifactId>mssql-jdbc</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Circuit Breaker (Decorator pattern under the hood): wraps an
+		     interface-shaped call (e.g. the future WebClient call to User Service
+		     in T023/T027) with retry/fallback behaviour transparently. Added here,
+		     unused, so the ticket that actually wraps a call already has the
+		     dependency available - see T027. resilience4j-spring-boot3 auto-configures
+		     the AOP proxies its @CircuitBreaker annotation needs, which is why
+		     spring-boot-starter-aop is declared alongside it. -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>${resilience4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
+		<!-- DRY via shared library, not inheritance: pulls in ErrorResponse +
+		     GlobalExceptionHandler (T003) so this service's HTTP error envelope
+		     is byte-for-byte identical to every other Java service's, instead of
+		     five copy-pasted @ControllerAdvice classes drifting apart over time. -->
+		<dependency>
+			<groupId>com.shareconnectsave</groupId>
+			<artifactId>shared-java-lib</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+
+		<!-- MapStruct: compile-time-generated DTO mapping (T022+ feature packages
+		     use this for entity<->DTO translation). Declared now so the template
+		     the other four Java services copy already has the annotation
+		     processor wiring correct - see the compiler plugin config below. -->
+		<dependency>
+			<groupId>org.mapstruct</groupId>
+			<artifactId>mapstruct</artifactId>
+			<version>${mapstruct.version}</version>
 		</dependency>
 
 		<dependency>
@@ -85,6 +167,16 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<!-- Pattern: annotation processor ORDER matters here, not just
+				     presence. Lombok must run first and generate getters/builders
+				     onto the bytecode before MapStruct's processor inspects the
+				     entity's structure to generate mapper implementations - if
+				     MapStruct ran first it would see a bean with no accessors yet
+				     and generate empty/broken mapping methods. lombok-mapstruct-binding
+				     is a small shim (no runtime code of its own) that exists solely
+				     to make both processors agree on that ordering; without it, some
+				     Lombok/MapStruct/javac combinations silently pick a different
+				     order than the list below implies. -->
 				<executions>
 					<execution>
 						<id>default-compile</id>
@@ -97,6 +189,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>
@@ -112,6 +214,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>

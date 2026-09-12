@@ -1,0 +1,181 @@
+# application.yml — base (shared) config + dev/prod profile documents below,
+# separated by `---`. Everything environment-specific comes from an env var
+# placeholder (${VAR} or ${VAR:default}) per the java-spring-boot skill's
+# "always environment variables, never hardcoded" rule — this file has no
+# literal host, port, or credential anywhere.
+#
+# No Hardcoded Config: every ${VAR} below is read from the process
+# environment at startup, matching every other service in this platform and
+# the user's own process.env.*-for-config convention. `dev` gets sensible
+# localhost/port defaults (via the ${VAR:default} syntax) so a developer can
+# `mvn spring-boot:run` this service standalone against infra started by
+# docker-up without exporting anything by hand; `prod` intentionally has NO
+# defaults for anything security- or topology-sensitive, so a missing env var
+# fails startup loudly instead of silently connecting to the wrong place.
+#
+# Twelve-Factor config note: when this service runs inside docker-compose
+# (src/infra/docker-compose.override.yml), SPRING_DATASOURCE_URL,
+# SPRING_DATA_REDIS_HOST and SPRING_KAFKA_BOOTSTRAP_SERVERS are injected
+# directly as OS environment variables. Spring's own PropertySource ordering
+# ranks OS environment variables ABOVE any application.yml value for the same
+# property key — so those three env vars silently win over whatever this file
+# computes from DISCOVERY_DB_HOST/PORT/NAME/USERNAME/PASSWORD and REDIS_HOST,
+# with no conditional logic needed here. The two configuration paths (this
+# ticket's per-field env vars for bare `mvn spring-boot:run`, and compose's
+# single pre-built URL for the containerized stack) coexist for free because
+# of that precedence rule.
+spring:
+  application:
+    name: discovery-service
+
+  # Virtual Threads (Java 21 / Project Loom) — applies to BOTH profiles, so it
+  # sits in this shared section rather than inside dev: or prod:. Spring MVC's
+  # default thread-per-request model holds a Tomcat platform thread for a
+  # request's entire duration, including time spent idle while blocked on an
+  # outbound call (e.g. this service's future WebClient call to User Service
+  # in T023/T027). Virtual threads are cheap, JVM-managed threads that unmount
+  # from their carrier OS thread while blocked on I/O, so a burst of
+  # slow-but-live downstream calls can no longer exhaust a fixed-size platform
+  # thread pool. This complements, not replaces, the Resilience4j circuit
+  # breaker below: virtual threads absorb a SLOW dependency, the circuit
+  # breaker absorbs a DOWN one.
+  threads:
+    virtual:
+      enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+
+  data:
+    redis:
+      # Logical Database Separation (T008): index 0 is Discovery Service's
+      # reserved slot for scan-result caching; index 1 is reserved for the
+      # SignalR backplane used by Chat/Notification. Set explicitly here
+      # rather than relying on Redis's own default of 0 — the convention must
+      # be visible in this file, not only in T008's infra README, or the next
+      # engineer to add a Java service has no way to know index 0 is already
+      # spoken for.
+      port: ${REDIS_PORT:6379}
+      database: 0
+
+  flyway:
+    # Points Flyway at the already-existing V001__discovery_service_initial_schema.sql
+    # (written by T006). classpath:db/migration is Boot's own default location
+    # for this property — spelled out explicitly anyway so the convention is
+    # documented in code, not left implicit.
+    locations: classpath:db/migration
+
+  jpa:
+    hibernate:
+      # Flyway (not Hibernate) owns schema changes in this project — ddl-auto:
+      # validate makes Hibernate compare @Entity mappings against the schema
+      # Flyway already applied and fail fast on drift, instead of "update"
+      # silently altering tables out from under a migration history, or
+      # "create-drop" wiping data. No entities exist yet (T021 is
+      # infrastructure-only), so this has nothing to validate today — it is
+      # set now so the first entity added in T022+ is checked automatically.
+      ddl-auto: validate
+    # Prevents the Open Session In View anti-pattern: without this, Hibernate
+    # keeps a DB connection open for a request's entire lifetime (including
+    # view rendering), which quietly hides N+1 lazy-loading queries behind
+    # "it still works" until the connection pool runs out under load.
+    # Forcing it off makes any lazy-loading-outside-a-transaction bug fail
+    # immediately and visibly during development instead of in production.
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health (+ info) reachable over HTTP — never "*". An
+        # unauthenticated /actuator/env or /actuator/beans endpoint leaks
+        # connection strings and internal wiring to anyone who can reach this
+        # service, which is exactly the kind of surface a gateway-fronted
+        # microservice should not expose beyond its own liveness/readiness
+        # check.
+        include: health,info
+  # show-details is intentionally left at Boot's default ("never") in both
+  # profiles: GET /actuator/health must return exactly {"status":"UP"} per
+  # this ticket's acceptance criterion, not a nested breakdown of every
+  # HealthIndicator (SQL Server, Redis, disk space). Flipping it to "always"
+  # for local debugging would silently change the endpoint's contract.
+
+# Circuit Breaker (Decorator pattern under the hood): configured now, unused
+# until T027 wraps the WebClient call to User Service with
+# @CircuitBreaker(name = "userService"). failure-rate-threshold/sliding-window
+# define "how many of the last N calls have to fail before we stop calling
+# the real dependency and use a fallback instead"; wait-duration-in-open-state
+# is how long the breaker stays open (fast-failing) before it lets one trial
+# call through to check if the dependency has recovered.
+resilience4j:
+  circuitbreaker:
+    instances:
+      userService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+
+---
+# dev profile — sensible localhost defaults so a developer can run this
+# service directly against docker-up's infra without exporting env vars by
+# hand. Still no default for DISCOVERY_DB_PASSWORD: even in dev, a DB
+# credential is not something this file should be able to guess correctly by
+# accident.
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    # 14330, not SQL Server's default 1433: src/infra/docker-compose.yml remaps
+    # the container's host port off 1433 because local dev machines often
+    # already have a native SQL Server Windows service bound there (see that
+    # file's own comment on the sqlserver service). This default only needs to
+    # match docker-up's actual mapping, not SQL Server's factory default.
+    url: jdbc:sqlserver://${DISCOVERY_DB_HOST:localhost}:${DISCOVERY_DB_PORT:14330};databaseName=${DISCOVERY_DB_NAME:DiscoveryServiceDb};encrypt=true;trustServerCertificate=true
+    username: ${DISCOVERY_DB_USERNAME:sa}
+    password: ${DISCOVERY_DB_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.shareconnectsave.discovery: DEBUG
+
+---
+# prod profile — deliberately NO defaults for host/port/name/credentials.
+# A missing env var here must fail the container at startup (Spring throws
+# "Could not resolve placeholder") rather than fall back to a dev-shaped
+# guess like localhost — the fast, loud failure is far cheaper than a prod
+# instance silently trying to reach a SQL Server that doesn't exist there.
+# trustServerCertificate is also flipped to false: dev's SQL Server container
+# uses a self-signed cert (trustServerCertificate=true is the accepted
+# shortcut for local-only traffic), but a real prod SQL Server should present
+# a certificate this driver can actually verify against a trusted CA.
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    url: jdbc:sqlserver://${DISCOVERY_DB_HOST}:${DISCOVERY_DB_PORT};databaseName=${DISCOVERY_DB_NAME};encrypt=true;trustServerCertificate=false
+    username: ${DISCOVERY_DB_USERNAME}
+    password: ${DISCOVERY_DB_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.shareconnectsave.discovery: INFO

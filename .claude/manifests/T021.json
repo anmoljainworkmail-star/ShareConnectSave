@@ -1,0 +1,29 @@
+{
+  "task_id": "T021",
+  "title": "Spring Boot Project Setup",
+  "status": "completed",
+  "files_created": [
+    "src/services/discovery-service/pom.xml",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/DiscoveryServiceApplication.java",
+    "src/services/discovery-service/src/test/java/com/shareconnectsave/discovery/DiscoveryServiceApplicationTests.java",
+    "src/services/discovery-service/src/main/resources/application.yml",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/exception/ExceptionHandlingConfig.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/config/RedisConfig.java",
+    "src/services/shared-java-lib/mvnw",
+    "src/services/shared-java-lib/mvnw.cmd",
+    "src/services/shared-java-lib/.mvn/wrapper/maven-wrapper.properties"
+  ],
+  "files_removed": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery_service/DiscoveryServiceApplication.java",
+    "src/services/discovery-service/src/test/java/com/shareconnectsave/discovery_service/DiscoveryServiceApplicationTests.java",
+    "src/services/discovery-service/src/main/resources/application.properties"
+  ],
+  "criteria_checked": {
+    "Flyway migrations run on startup": "PASS — verified live: log shows 'Migrating schema [dbo] to version 001 - discovery service initial schema' then 'Successfully applied 1 migration'",
+    "application.yml has spring.threads.virtual.enabled: true": "PASS",
+    "Service starts and connects to SQL Server + Redis": "PASS — verified live: mvn spring-boot:run against docker-up infra completed context startup with no connection errors, app reached 'Started DiscoveryServiceApplication'",
+    "/actuator/health returns { \"status\": \"UP\" }": "PASS — verified live: curl http://localhost:8080/actuator/health returned exactly {\"status\":\"UP\"}, which aggregates the auto-configured DataSource and Redis health indicators"
+  },
+  "last_note": "Live verification complete. Fixed two bugs discovered during Tech Lead's manual boot: (1) application.yml dev profile's DISCOVERY_DB_PORT default was 1433, but docker-compose.yml remaps SQL Server's host port to 14330 — updated the default to 14330 with an explanatory comment. (2) shared-java-lib had no Maven Wrapper (only Spring-Initializr-generated services get one) — copied discovery-service's generic mvnw/mvnw.cmd/.mvn/wrapper files over so it could build without a system-wide Maven install. Root cause of the SQL login failure encountered mid-verification: sqlserver-data is a named Docker volume created 2026-08-30 during earlier T006 testing — MSSQL_SA_PASSWORD only applies on a volume's first init, so the live sa password was whatever .env held back then, not necessarily today's .env value. Resolved by the Tech Lead supplying the original password rather than recreating the volume. All four acceptance criteria now verified against a live run, not just config inspection.",
+  "waiting_on_manual_command": []
+}

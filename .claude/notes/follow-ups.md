@@ -161,3 +161,55 @@ entry names the downstream task(s) whose implementation or ticket should address
    forward and only caught live one service at a time.
    Affects: T0xx (Discovery Service Kafka wiring), and the equivalent first-Kafka-client
    ticket for Connection/Chat/Rating/Report/Admin Service, whichever lands first for each.
+
+## From T021 (Spring Boot Project Setup)
+
+1. `application.yml` defines only `dev` and `prod` Spring profile documents, but the
+   pre-existing `src/infra/docker-compose.yml`/`docker-compose.override.yml` (from
+   T004/T008/T009, already-established dependencies of this ticket) set
+   `SPRING_PROFILES_ACTIVE=docker` for this exact service. Neither YAML document's
+   `on-profile` matches `docker`, so once a Dockerfile exists and the container actually
+   runs, none of the `dev`/`prod`-only properties apply — including
+   `spring.datasource.username`/`password`/`driver-class-name`, which exist only inside
+   those two documents. `docker-compose.override.yml` injects a pre-built
+   `SPRING_DATASOURCE_URL` (which wins via env-var precedence), but no username/password,
+   so Hikari would attempt a null-credential login and fail. This ticket's own
+   `application.yml` is explicitly the template the four sibling "Spring Boot Setup"
+   tickets copy — if unfixed here, the same gap ships four more times before it's ever
+   exercised by an actual container run.
+   Affects: T028 (Discovery Service Docker Image — add a `docker` profile document to
+   `application.yml`, or repoint `docker-compose.yml`'s `SPRING_PROFILES_ACTIVE` to
+   `prod` and inject `DISCOVERY_DB_*` vars individually instead of a pre-built URL), T029,
+   T041, T051, T056 (Connection/Rating/Report/Admin Spring Boot Setup — don't copy the
+   dev/prod-only profile shape without also copying whichever fix T028 lands on).
+
+2. No default/fallback Spring profile is configured anywhere (no `spring.profiles.default`,
+   no `-Dspring-boot.run.profiles=dev` baked into `pom.xml`). A bare `mvn spring-boot:run`
+   with no `SPRING_PROFILES_ACTIVE` exported activates no profile at all, so the base
+   document (which has no `spring.datasource` section) is all Spring Boot sees — it fails
+   with a confusing "Failed to determine a suitable driver class" error rather than the
+   loud, intended "missing DISCOVERY_DB_PASSWORD" placeholder error the `prod` profile was
+   designed to produce. Required env var not documented anywhere a first-time reader would
+   see it (not in `application.yml`'s own comments, not in `HELP.md`, not in `.env.example`).
+   Affects: T029, T041, T051, T056 (same template-copy risk as item 1 — document the
+   required `SPRING_PROFILES_ACTIVE=dev` in each service's own setup, or give the template
+   a sane default before copying it forward).
+
+3. `DiscoveryServiceApplicationTests` (the Spring-Initializr-generated test class) is a
+   bare `@SpringBootTest` with no `@ActiveProfiles` and no test-specific `application.yml`,
+   and `pom.xml` has no Testcontainers dependency — contradicting the `java-spring-boot`
+   skill's own guidance ("Integration tests: Testcontainers for SQL Server + Kafka"). Running
+   `mvn test` (or `/test-service discovery-service`) on a machine with no live SQL
+   Server/Redis reachable and no env vars exported boots the full production context and
+   fails — not reproducible in CI as currently written.
+   Affects: T081 (Unit Tests: Java Services — establish the Mockito/no-Spring-context
+   pattern this test should have used instead), T083 (Integration Tests: Java —
+   Testcontainers, explicitly named for Discovery/Connection/Rating — replace this bare
+   `@SpringBootTest` with a Testcontainers-backed one here).
+
+4. `pom.xml` still carries empty Spring-Initializr boilerplate tags (`<description/>`,
+   `<url/>`, `<licenses><license/></licenses>`, `<developers><developer/></developers>`,
+   `<scm>...</scm>`) — harmless but will get copy-pasted into all four sibling services'
+   `pom.xml` files verbatim if not cleaned up first.
+   Affects: T029, T041, T051, T056 (quick cleanup pass when copying this file as a
+   template).

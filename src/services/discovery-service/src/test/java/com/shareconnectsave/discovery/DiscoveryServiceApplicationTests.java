@@ -1,4 +1,4 @@
-package com.shareconnectsave.discovery_service;
+package com.shareconnectsave.discovery;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

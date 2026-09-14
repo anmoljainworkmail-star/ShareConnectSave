@@ -1,0 +1,32 @@
+{
+  "id": "T024",
+  "status": "completed",
+  "files_created": [
+    "src/services/discovery-service/src/main/resources/db/migration/V002__ble_seeds.sql",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/domain/BleSeed.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleSeedRepository.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/domain/BleSeedResponse.java"
+  ],
+  "files_modified": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/config/BleProperties.java",
+    "src/services/discovery-service/src/main/resources/application.yml",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleTokenService.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleTokenServiceImpl.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleTokenController.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/task/BleTokenCleanupTask.java"
+  ],
+  "files_deleted": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/domain/BleToken.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/domain/BleTokenResponse.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleTokenRepository.java"
+  ],
+  "criteria_checked": {
+    "seed_registered_once_per_session": "PASS",
+    "client_can_derive_offline_pure_function_of_seed_and_window": "PASS",
+    "resolve_maps_broadcast_value_to_right_user_scoped_to_active_sessions": "PASS",
+    "blocked_blocking_candidates_silently_omitted": "PASS",
+    "unknown_nonmatching_values_silently_omitted": "PASS",
+    "seed_never_broadcast_logged_or_exposed_outside_seed_endpoint": "PASS"
+  },
+  "last_note": "v2 rework complete: /scan/ble/seed replaces /scan/ble/token, resolveTokens rewritten to scope candidates via scan:active_sessions + batch-fetch ble_seeds + HMAC-SHA256(seed, window|window-1) truncated to 16 bytes. V002 migration drops ble_tokens and creates ble_seeds. mvnw compile succeeded with JDK 21 override."
+}

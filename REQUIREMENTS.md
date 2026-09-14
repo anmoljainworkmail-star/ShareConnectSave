@@ -91,11 +91,21 @@ Kafka topics:
 
 Activates automatically when the device loses internet connectivity during an active scan.
 
+**Why this exists (the business case):** GPS discovery only ever answers "who is near me *right now*, at the exact moment I query it" — it has no memory. If two travelers spend a connectivity-dead stretch (a subway tunnel, an elevator, a parking garage) sitting next to each other, GPS discovery never runs during that window, and by the time signal returns, one or both may have already moved on — off the train, out of radius, gone. Querying GPS again once back online only shows who is nearby *then*, not who *was* nearby during the gap. Without BLE, every encounter that happens during a connectivity gap is invisible and unrecoverable, permanently — not delayed, lost.
+
+BLE fixes this by turning a fleeting physical encounter into a durable, resolvable record: each device logs the rotating tokens it heard over Bluetooth during the gap, and once connectivity returns, those tokens get exchanged for real candidate profiles — the same "send a connection request" flow as any GPS match, just fed from a different candidate source. BLE does not enable chatting, matching logic, or anything else while offline — the app is otherwise fully non-functional without connectivity, same as before. Its entire value is narrower and specific: recover the *identity of who you passed*, so that a real encounter during a dead zone doesn't just evaporate. This only holds if a token collected early in the gap is still resolvable once connectivity returns — see the rotating-token design note below.
+
 **How it works:**
 - The Angular PWA uses the **Web Bluetooth API** to advertise and scan for BLE devices.
 - Each device running the app broadcasts a BLE advertisement containing:
   - A fixed app Service UUID (identifies the app)
-  - A short-lived rotating token (hashed, not a raw user ID) that refreshes every 5 minutes
+  - A short-lived rotating token (hashed, not a raw user ID) that refreshes every 5 minutes.
+    **Design note (decided after T024 review):** rotation is derived **client-side** from a
+    one-time-registered secret seed, not re-minted from the server every 5 minutes — a
+    server round-trip per rotation would mean a token silently going stale mid-outage with
+    no way to refresh it while offline, defeating the point of an offline fallback. See
+    T024's ticket for the mechanism (HMAC-based per-time-window derivation, same family of
+    technique as Apple/Google's Exposure Notification rotating identifiers).
 - When another device running the app is detected, it appears on the radar locally with a BLE indicator.
 - Profile details (name, photo, destination) cannot be resolved offline — the radar shows "Nearby user (offline)" with signal strength as approximate distance.
 - When connectivity is restored, the app exchanges the rotating tokens with the server to resolve full profiles and enable a connection request.

@@ -50,7 +50,7 @@
 - [x] T021 — Spring Boot Project Setup
 - [x] T022 — Geospatial Schema + Scan Session _(location in Redis only, never SQL)_
 - [x] T023 — GPS Discovery Query _(5 filters, women-only, WebClient to User Service)_
-- [ ] T024 — BLE Token Generation _(HMAC-SHA256, 5-min expiry, resolve endpoint)_
+- [x] T024 — BLE Token Generation _(HMAC-SHA256, 5-min expiry, resolve endpoint)_
 - [ ] T025 — Kafka Consumer: user.verified + trust.score.updated
 - [ ] T026 — Redis Caching Layer _(DiscoveryCacheService, 10s TTL)_
 - [ ] T027 — Resilience4j Circuit Breaker _(User Service calls, 50% threshold, 30s wait)_
@@ -243,12 +243,29 @@ _Note: T073–T080 reserved — not currently assigned._
   future ticket: Redis-backed distributed limiter + note on upstream L4/L7 protection
   once the gateway is deployed behind a real load balancer.
 
+- **Prod schema-migration strategy is undecided.** Every Java service currently relies on
+  Spring Boot's default behavior: Flyway auto-migrates on application boot, using the same
+  DB credential the app uses for everyday reads/writes. Discovered while running Discovery
+  Service locally for T024 — Flyway's own locking makes concurrent-replica boots safe (only
+  one instance actually runs a pending migration; the rest see it's already applied and
+  skip it), so that specific race isn't a real danger. The open question is different: should
+  a service's everyday runtime DB login even *have* DDL rights (CREATE/DROP/ALTER) in prod,
+  given that's a materially bigger blast radius than the DML (SELECT/INSERT/UPDATE) it
+  actually needs to function? The more conservative alternative — migrations run as a
+  separate, deliberate pipeline step with a narrower-scoped, elevated-but-different
+  credential, before a new app version receives traffic, with DDL stripped from the app's
+  own login entirely — is a real, common production pattern this project hasn't evaluated.
+  No ticket in the 96-task list touches deployment topology or credential scoping. Candidate
+  future ticket: decide and implement a prod migration strategy across all Java services,
+  likely alongside whatever ticket first defines real (non-Docker-Compose) deployment
+  infrastructure.
+
 ---
 
 ## Summary
 
-**Done:** 23 / 96  
+**Done:** 24 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 73 / 96  
+**Pending:** 72 / 96  
 
 _Update this section manually or via `/status` after each task completes._

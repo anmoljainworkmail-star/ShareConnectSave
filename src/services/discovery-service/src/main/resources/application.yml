@@ -75,6 +75,27 @@ spring:
       # infrastructure-only), so this has nothing to validate today — it is
       # set now so the first entity added in T022+ is checked automatically.
       ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          # Hibernate 6 changed its DEFAULT JDBC mapping for java.time.Instant
+          # from plain TIMESTAMP to TIMESTAMP_UTC (SQL Server's
+          # `datetimeoffset`, which stores a timezone offset alongside the
+          # value) — every migration in this service declares its timestamp
+          # columns as plain DATETIME2 (no offset), matching the pre-6.x
+          # behavior every entity here was actually written against
+          # (ScanSession.startedAt/endedAt/departureTime, BleSeed.createdAt/
+          # expiresAt). Without this override, ddl-auto: validate fails at
+          # startup with "wrong column type ... found [datetime2], but
+          # expecting [datetimeoffset(6)]" the first time Hibernate actually
+          # validates against a live, migrated database — which is exactly
+          # what surfaced this: T024 v2 was the first ticket in this service
+          # to actually get run end-to-end against a real SQL Server, so this
+          # latent mismatch (present since T022's ScanSession, not something
+          # BleSeed introduced) had never been triggered before now. Setting
+          # this back to TIMESTAMP restores the mapping every column in this
+          # service was actually designed around.
+          preferred_instant_jdbc_type: TIMESTAMP
     # Prevents the Open Session In View anti-pattern: without this, Hibernate
     # keeps a DB connection open for a request's entire lifetime (including
     # view rendering), which quietly hides N+1 lazy-loading queries behind
@@ -155,6 +176,38 @@ discovery:
 # internal port, never the host-side mapping.
 user-service:
   base-url: ${USER_SERVICE_BASE_URL:http://user-service:8080}
+
+# BLE Token Generation v2 (T024 rework) — client-derived rotating tokens.
+# Shared across dev/prod except hmac-secret, same split as discovery.* above
+# vs. the datasource block below: TTL/window/range are tunable thresholds,
+# not environment topology, so they get defaults; hmac-secret is a key, not
+# a threshold, so — like DISCOVERY_DB_PASSWORD — it gets NO default in
+# either profile. A missing key must fail startup loudly, same as v1.
+ble:
+  seed:
+    # The SEED's own lifetime — tied to a realistic scan-session length, NOT
+    # the 5-minute rotation cadence (see BleProperties.Seed's own comment for
+    # why v1 conflating these two was the actual bug this rework fixes).
+    ttl-minutes: ${BLE_SEED_TTL_MINUTES:240}
+    # Env var NAME kept as-is from v1 (Tech Lead decision) though this field
+    # is no longer used by the per-window derivation math itself — see
+    # BleProperties.Seed's comment for why.
+    hmac-secret: ${BLE_TOKEN_HMAC_SECRET}
+  window:
+    # Rotation cadence a client re-derives a fresh broadcast value on —
+    # replaces v1's ble.token.ttl-minutes concept. Default 300s (5 min),
+    # matching this ticket's client-side derivation spec.
+    seconds: ${BLE_WINDOW_SECONDS:300}
+  range:
+    # UNCHANGED from v1 — CLAUDE.md: "10-30 m (BLE offline fallback)". See
+    # BleProperties.Range's comment for why BleTokenServiceImpl uses this
+    # instead of a computed distance for resolved BLE matches.
+    meters: ${BLE_RANGE_METERS:30}
+  cleanup:
+    # UNCHANGED from v1 — BleTokenCleanupTask's @Scheduled interval, every
+    # 1-2 minutes per this ticket's spec; 90s sits in the middle of that
+    # range. Now sweeps ble_seeds instead of ble_tokens.
+    interval-ms: ${BLE_CLEANUP_INTERVAL_MS:90000}
 
 ---
 # dev profile — sensible localhost defaults so a developer can run this

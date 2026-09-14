@@ -21,6 +21,24 @@ import java.time.Instant;
 // write a column the database owns. Hibernate's ddl-auto=validate only checks
 // that mapped columns exist against the real schema, so leaving a column
 // unmapped is safe.
+//
+// Known-unused, kept deliberately (T023 tech-lead decision): the `destination`
+// column and its spatial index (`idx_scan_sessions_destination`, GEOGRAPHY_AUTO_GRID)
+// are not read by any query today — ScanQueryServiceImpl.findNearby's radius
+// filter compares LIVE positions (Redis-only, by the Location Privacy rule this
+// same class's comment above explains), which this column structurally can't
+// help with since live position is never in SQL; and its route-overlap filter
+// computes bearing from the caller's live position, not a destination-to-
+// destination distance, so `STDistance` doesn't answer that question either.
+// Kept rather than dropped for two reasons: it's still a live option for a
+// possible future destination-proximity pre-filter (see
+// .claude/notes/follow-ups.md, "From T023", item 4 — not yet decided, since a
+// tight threshold risks excluding real same-direction matches whose
+// destinations are far apart), and it stands as a real, worked example of SQL
+// Server spatial indexing in a project whose explicit purpose is learning
+// these concepts, not just shipping the leanest possible schema. Revisit
+// (drop via a new migration, never by editing V001) if that pre-filter option
+// is ever declined for good.
 @Entity
 @Table(name = "scan_sessions")
 @Getter

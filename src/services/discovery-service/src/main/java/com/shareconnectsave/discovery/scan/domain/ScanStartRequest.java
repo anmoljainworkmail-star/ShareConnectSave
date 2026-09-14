@@ -17,6 +17,13 @@ public record ScanStartRequest(
         @JsonProperty("destination_lat") @NotNull @DecimalMin("-90.0") @DecimalMax("90.0") Double destinationLat,
         @JsonProperty("destination_lng") @NotNull @DecimalMin("-180.0") @DecimalMax("180.0") Double destinationLng,
         @JsonProperty("destination_label") String destinationLabel,
-        @JsonProperty("departure_time") Instant departureTime
+        @JsonProperty("departure_time") Instant departureTime,
+        // Additive, backward-compatible field (T023): nullable, treated as
+        // false when absent so a client built before this ticket keeps
+        // working unchanged. Women-only mode is a property of THIS session —
+        // decided once here, at start, together with the caller's own
+        // X-User-Gender header (see ScanSessionServiceImpl.startScan) — never
+        // re-derived per /scan/nearby query.
+        @JsonProperty("women_only") Boolean womenOnly
 ) {
 }

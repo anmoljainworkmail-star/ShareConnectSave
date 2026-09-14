@@ -1,5 +1,6 @@
 package com.shareconnectsave.discovery.scan;
 
+import com.shareconnectsave.discovery.cache.ScanCacheService;
 import com.shareconnectsave.discovery.scan.domain.ScanLocation;
 import com.shareconnectsave.discovery.scan.domain.ScanLocationRequest;
 import com.shareconnectsave.discovery.scan.domain.ScanSession;
@@ -43,7 +44,7 @@ public class ScanSessionServiceImpl implements ScanSessionService {
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Override
-    public ScanStartResponse startScan(Long userId, ScanStartRequest request) {
+    public ScanStartResponse startScan(Long userId, String gender, ScanStartRequest request) {
         ScanSession session = ScanSession.builder()
                 .userId(userId)
                 .destinationLat(request.destinationLat())
@@ -53,7 +54,43 @@ public class ScanSessionServiceImpl implements ScanSessionService {
                 .build();
 
         ScanSession saved = scanSessionRepository.save(session);
-        return new ScanStartResponse(saved.getId(), "gps");
+        Long sessionId = saved.getId();
+
+        // T023 addition: nothing before this ticket ever populated
+        // scan:active_sessions, but ScanQueryServiceImpl's whole nearby-query
+        // depends on enumerating it. A session only counts as "looking" (the
+        // ticket's status predicate) while it is a MEMBER of this Set — added
+        // here, removed in stopScan below — so query-time code never has to
+        // scan every scan_sessions row hunting for ended_at IS NULL.
+        redisTemplate.opsForSet().add(ScanCacheService.ACTIVE_SESSIONS_KEY, String.valueOf(sessionId));
+
+        // Women-only mode is resolved ONCE, here, and stored as the
+        // already-decided boolean — never re-derived at query time from a
+        // client-supplied flag. The trusted-header rule (X-User-Gender is
+        // gateway-injected, never client-asserted JSON) means the ONLY
+        // correct place to decide "does this session's own women-only
+        // request actually apply" is right where that header is available:
+        // request.womenOnly() alone is not enough, it must also require
+        // gender == female, otherwise a non-female caller could set
+        // women_only=true in the body and have it silently accepted.
+        boolean womenOnlyRequested = Boolean.TRUE.equals(request.womenOnly());
+        boolean effectiveWomenOnly = womenOnlyRequested && "female".equalsIgnoreCase(gender);
+
+        // No TTL on either key below, unlike the location key: they must
+        // live exactly as long as this session does, deleted deterministically
+        // in stopScan (never left to expire independently mid-session) — same
+        // "explicit delete, not just a timeout" reasoning this class already
+        // applies to the location key.
+        //
+        // gender is never null here: the gateway's JwtValidationMiddleware
+        // rejects any JWT missing the "gender" claim before this controller
+        // is ever reached (see ScanController.startScan's header comment),
+        // so there is no absent-value case to guard against — only the
+        // literal value "Unspecified" for accounts that never set a gender.
+        redisTemplate.opsForValue().set(genderKey(sessionId), gender);
+        redisTemplate.opsForValue().set(womenOnlyKey(sessionId), effectiveWomenOnly);
+
+        return new ScanStartResponse(sessionId, "gps");
     }
 
     // Pattern: Pessimistic locking (TOCTOU race prevention) — @Transactional
@@ -76,6 +113,16 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         // for a client that never calls stop, not a substitute for calling
         // delete() here.
         redisTemplate.delete(locationKey(session.getId()));
+
+        // T023 additions, same "explicit delete on stop" reasoning as the
+        // location key above: a session that has stopped must disappear from
+        // active_sessions immediately (not linger until some future TTL), and
+        // its gender/women_only keys — which intentionally carry no TTL of
+        // their own — must be reclaimed deterministically here or they would
+        // never be cleaned up at all.
+        redisTemplate.opsForSet().remove(ScanCacheService.ACTIVE_SESSIONS_KEY, String.valueOf(session.getId()));
+        redisTemplate.delete(genderKey(session.getId()));
+        redisTemplate.delete(womenOnlyKey(session.getId()));
     }
 
     // See stopScan's note: @Transactional makes this method hold the same
@@ -104,6 +151,18 @@ public class ScanSessionServiceImpl implements ScanSessionService {
     // "scan:{id}:location" format in a second place.
     public static String locationKey(Long sessionId) {
         return "scan:%d:location".formatted(sessionId);
+    }
+
+    // Same "public static, one place, callers reuse it" convention as
+    // locationKey above — ScanQueryServiceImpl reads these two keys back at
+    // query time without duplicating the "scan:{id}:gender" / "...women_only"
+    // string shape in a second file.
+    public static String genderKey(Long sessionId) {
+        return "scan:%d:gender".formatted(sessionId);
+    }
+
+    public static String womenOnlyKey(Long sessionId) {
+        return "scan:%d:women_only".formatted(sessionId);
     }
 
     private ScanSession requireActiveSession(Long userId) {

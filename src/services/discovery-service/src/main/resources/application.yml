@@ -100,13 +100,17 @@ management:
   # HealthIndicator (SQL Server, Redis, disk space). Flipping it to "always"
   # for local debugging would silently change the endpoint's contract.
 
-# Circuit Breaker (Decorator pattern under the hood): configured now, unused
-# until T027 wraps the WebClient call to User Service with
-# @CircuitBreaker(name = "userService"). failure-rate-threshold/sliding-window
-# define "how many of the last N calls have to fail before we stop calling
-# the real dependency and use a fallback instead"; wait-duration-in-open-state
-# is how long the breaker stays open (fast-failing) before it lets one trial
-# call through to check if the dependency has recovered.
+# Circuit Breaker (Decorator pattern under the hood): configured by T021,
+# first wired up by T023's UserServiceClientImpl
+# (@CircuitBreaker(name = "userService") around both its WebClient calls).
+# failure-rate-threshold/sliding-window define "how many of the last N calls
+# have to fail before we stop calling the real dependency and use a fallback
+# instead"; wait-duration-in-open-state is how long the breaker stays open
+# (fast-failing) before it lets one trial call through to check if the
+# dependency has recovered. T027 (a separate, not-yet-approved ticket) is
+# scoped to further tuning (slow-call-duration-threshold, actuator/health
+# exposure) — this config, as-is, is sufficient for T023's own acceptance
+# criteria.
 resilience4j:
   circuitbreaker:
     instances:
@@ -114,6 +118,43 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
         sliding-window-size: 10
+
+# GPS Discovery Query (T023) — every threshold and TTL below is read from a
+# property, never a literal buried in Java code (No Hardcoded Config; this
+# ticket's own "What NOT to do" list calls out radius/threshold/window/TTL
+# specifically). Shared across dev/prod since none of these are
+# environment-topology concerns, unlike the datasource/redis host below.
+discovery:
+  radius:
+    # Default 1 km per CLAUDE.md's "Discovery radius default is 1 km (GPS)".
+    km: ${DISCOVERY_RADIUS_KM:1.0}
+  # Bearing-similarity threshold on a 0..1 scale (see ScanFilterService.
+  # routeOverlap): 1.0 = candidate's destination is in the EXACT same
+  # direction the caller is already heading (0 degrees of bearing
+  # difference); 0.0 = perpendicular or opposite (>=180 degrees apart).
+  # 0.7 is a reasonable "roughly the same direction" default, not a rule.
+  route-overlap-threshold: ${DISCOVERY_ROUTE_OVERLAP_THRESHOLD:0.7}
+  # Matches this ticket's "+/-30 min" spec exactly — configurable so it is
+  # never a magic "30" inside ScanFilterService.withinDepartureWindow.
+  departure-window-minutes: ${DISCOVERY_DEPARTURE_WINDOW_MINUTES:30}
+  cache:
+    # Acceptance criterion: "Result cached in Redis for 10 s" — this is the
+    # one place "10" is spelled out; ScanCacheService reads it, never a
+    # hardcoded Duration.ofSeconds(10) literal.
+    nearby-result-ttl-seconds: ${DISCOVERY_NEARBY_TTL_SECONDS:10}
+    blocklist-ttl-minutes: ${DISCOVERY_BLOCKLIST_TTL_MINUTES:5}
+    # Not one of the four Redis keys this ticket's spec enumerates — see
+    # UserServiceClientImpl's class comment for why this cache exists anyway
+    # (it is what the Circuit Breaker fallback actually returns data from).
+    user-profile-ttl-minutes: ${DISCOVERY_USER_PROFILE_TTL_MINUTES:5}
+
+# User Service base URL for this service's first-ever outbound WebClient call
+# (T023). Port 8080, not 8081: src/infra/docker-compose.yml maps user-service's
+# container port 8080 to HOST port 8081 for local tools — container-to-
+# container traffic (this service calling that one) uses the container's own
+# internal port, never the host-side mapping.
+user-service:
+  base-url: ${USER_SERVICE_BASE_URL:http://user-service:8080}
 
 ---
 # dev profile — sensible localhost defaults so a developer can run this

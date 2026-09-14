@@ -14,7 +14,10 @@ import com.shareconnectsave.discovery.scan.domain.ScanStartResponse;
 // TWILIO_STUB-gated ITwilioClient registration.
 public interface ScanSessionService {
 
-    ScanStartResponse startScan(Long userId, ScanStartRequest request);
+    // gender is a separate parameter, not a ScanStartRequest field: it comes
+    // from the gateway-trusted X-User-Gender header (JWT Identity rule —
+    // read from headers only, never let a client assert it in a JSON body).
+    ScanStartResponse startScan(Long userId, String gender, ScanStartRequest request);
 
     void stopScan(Long userId);
 

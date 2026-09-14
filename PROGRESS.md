@@ -49,7 +49,7 @@
 
 - [x] T021 — Spring Boot Project Setup
 - [x] T022 — Geospatial Schema + Scan Session _(location in Redis only, never SQL)_
-- [ ] T023 — GPS Discovery Query _(5 filters, women-only, WebClient to User Service)_
+- [x] T023 — GPS Discovery Query _(5 filters, women-only, WebClient to User Service)_
 - [ ] T024 — BLE Token Generation _(HMAC-SHA256, 5-min expiry, resolve endpoint)_
 - [ ] T025 — Kafka Consumer: user.verified + trust.score.updated
 - [ ] T026 — Redis Caching Layer _(DiscoveryCacheService, 10s TTL)_
@@ -247,8 +247,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 22 / 96  
+**Done:** 23 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 74 / 96  
+**Pending:** 73 / 96  
 
 _Update this section manually or via `/status` after each task completes._

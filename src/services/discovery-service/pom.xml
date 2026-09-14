@@ -96,13 +96,25 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- WebClient — first outbound HTTP client added to this service (T023,
+		     calling User Service's GET /users/:id and GET /blocks). The starter
+		     (not a bare spring-webflux dependency) is what auto-configures the
+		     WebClient.Builder bean UserServiceClientConfig injects — bringing in
+		     the reactive stack here is intentional and standard as an HTTP CLIENT
+		     ONLY: this app stays on Spring MVC + virtual threads (see
+		     application.yml's Virtual Threads note for why .block() is safe). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+
 		<!-- Circuit Breaker (Decorator pattern under the hood): wraps an
-		     interface-shaped call (e.g. the future WebClient call to User Service
-		     in T023/T027) with retry/fallback behaviour transparently. Added here,
-		     unused, so the ticket that actually wraps a call already has the
-		     dependency available - see T027. resilience4j-spring-boot3 auto-configures
-		     the AOP proxies its @CircuitBreaker annotation needs, which is why
-		     spring-boot-starter-aop is declared alongside it. -->
+		     interface-shaped call with retry/fallback behaviour transparently.
+		     Declared unused by T021; T023 is the first ticket to actually wrap a
+		     call with it (UserServiceClientImpl's @CircuitBreaker(name = "userService")).
+		     resilience4j-spring-boot3 auto-configures the AOP proxies its
+		     @CircuitBreaker annotation needs, which is why spring-boot-starter-aop
+		     is declared alongside it. -->
 		<dependency>
 			<groupId>io.github.resilience4j</groupId>
 			<artifactId>resilience4j-spring-boot3</artifactId>

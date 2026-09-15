@@ -61,7 +61,14 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=${DISCOVERY_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=DiscoveryServiceDb;encrypt=true;trustServerCertificate=true}
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+      # Fix (T025 known follow-up #3): kafka:9092 is the PLAINTEXT listener,
+      # published to the HOST for tools like a developer's own CLI — it is
+      # NOT reachable from container-to-container traffic on this Docker
+      # network the way it might appear to be. discovery-service's Kafka
+      # consumers run INSIDE the compose network, same as user-service (see
+      # that service's own KAFKA_BOOTSTRAP entry, fixed under T020), so the
+      # correct default here is the INTERNAL listener, kafka:29092.
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:29092}
       - SPRING_DATA_REDIS_HOST=${REDIS_HOST:-redis}
 
   connection-service:

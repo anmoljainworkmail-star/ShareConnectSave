@@ -51,7 +51,7 @@
 - [x] T022 — Geospatial Schema + Scan Session _(location in Redis only, never SQL)_
 - [x] T023 — GPS Discovery Query _(5 filters, women-only, WebClient to User Service)_
 - [x] T024 — BLE Token Generation _(HMAC-SHA256, 5-min expiry, resolve endpoint)_
-- [ ] T025 — Kafka Consumer: user.verified + trust.score.updated
+- [x] T025 — Kafka Consumer: user.verified + trust.score.updated
 - [ ] T026 — Redis Caching Layer _(DiscoveryCacheService, 10s TTL)_
 - [ ] T027 — Resilience4j Circuit Breaker _(User Service calls, 50% threshold, 30s wait)_
 - [ ] T028 — Discovery Service Docker Image

@@ -45,6 +45,34 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      # T025: both listeners (user.verified, trust.score.updated) share this
+      # group — Kafka balances partitions of each topic across whichever
+      # instances of this service are running, instead of every instance
+      # independently re-reading the full topic.
+      group-id: discovery-service
+      auto-offset-reset: earliest
+      # Consumer Idempotency (kafka-outbox skill) — paired with
+      # spring.kafka.listener.ack-mode below. With auto-commit OFF, an offset
+      # is committed ONLY after a @KafkaListener method returns without
+      # throwing; if it throws, the same record is redelivered on the next
+      # poll and the processed_events check in each listener is what makes
+      # that redelivery safe rather than a duplicate side effect.
+      enable-auto-commit: false
+      # Plain String deserializers, not Spring Kafka's JsonDeserializer: the
+      # producers on these two topics (User Service today, a future Rating
+      # Service) do not add the __TypeId__ header JsonDeserializer needs to
+      # pick a target class — each listener deserializes the raw JSON string
+      # itself via an injected ObjectMapper instead.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # BATCH (Spring Kafka's own default, spelled out explicitly here so the
+      # convention is visible in this file): the container commits offsets
+      # once per poll batch, after every record in it has been handed to the
+      # listener without an exception escaping — never on a background timer
+      # independent of processing outcome.
+      ack-mode: BATCH
 
   data:
     redis:

@@ -78,6 +78,39 @@ whose implementation or ticket should pick it up.
    Affects: T023, T026 (Redis Caching Layer — already touches this query path's caching,
    natural place to revisit the enumeration/pre-filter strategy together, if ever revisited).
 
+## From T025 (Kafka Consumer: user.verified + trust.score.updated)
+
+1. **TOCTOU race between the caller's eligibility check and session creation in
+   `startScan`.** `ScanSessionServiceImpl.startScan` reads
+   `eligibilityCacheService.isEligible(userId)` once at the top (the new guard clause),
+   then proceeds to create the SQL row and Redis memberships. If a `trust.score.updated`
+   suspension for that same user arrives on the Kafka consumer thread between that read
+   and the writes, the now-suspended user still gets a session created — the check-then-act
+   gap is unguarded by any lock across the Redis read and the SQL/Redis writes. Bounded
+   exposure: the created session immediately fails every subsequent per-candidate
+   eligibility check in `findNearby` (`ScanQueryServiceImpl.java:203`), so the window is
+   "briefly held an active session," not "permanently visible to others." Consistent with
+   every other cache-aside consistency gap already accepted in this codebase; not a
+   blocker, but worth a defense-in-depth re-check if session-creation-under-race ever
+   becomes an actual incident.
+   Affects: T026 (Redis Caching Layer — same query-path consistency territory).
+
+2. **`startScan` still has no existing-active-session guard (duplicate of the T023
+   follow-up #1 self-match issue, re-confirmed present).** Two concurrent
+   `POST /scan/start` calls from the same user create two `ScanSession` rows, both added
+   to `scan:active_sessions` — pre-existing, out of T025's scope, not introduced or
+   worsened by the new eligibility guard.
+   Affects: T022, T023 (see existing entry under "From T023" for full detail — tracked
+   there, referenced here for completeness since it surfaced again during this re-review).
+
+3. **No unit tests exist yet for `UserVerifiedEventListener`,
+   `TrustScoreUpdatedEventListener`, or the new `startScan` eligibility guard.** The only
+   test file in discovery-service is the placeholder `DiscoveryServiceApplicationTests.java`.
+   Recommend at minimum a duplicate-delivery (idempotency) test per listener and a
+   suspended-caller-gets-403 test for the guard before this ships further.
+   Affects: T026, T027 (natural points to introduce the service's first real test
+   coverage alongside other discovery-service work).
+
 ## From T024 (BLE Token Generation)
 
 1. **`MissingRequestHeaderException` on a missing `X-User-Id` returns a raw 500, not a

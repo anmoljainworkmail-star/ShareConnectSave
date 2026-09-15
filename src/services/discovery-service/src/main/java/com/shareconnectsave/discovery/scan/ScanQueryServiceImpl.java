@@ -1,5 +1,6 @@
 package com.shareconnectsave.discovery.scan;
 
+import com.shareconnectsave.discovery.cache.DiscoveryEligibilityCacheService;
 import com.shareconnectsave.discovery.cache.ScanCacheService;
 import com.shareconnectsave.discovery.client.UserServiceClient;
 import com.shareconnectsave.discovery.config.DiscoveryProperties;
@@ -39,6 +40,7 @@ public class ScanQueryServiceImpl implements ScanQueryService {
     private final ScanFilterService scanFilterService;
     private final UserServiceClient userServiceClient;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final DiscoveryEligibilityCacheService eligibilityCacheService;
 
     // Options pattern (T023) — one bean bound from application.yml's
     // "discovery" section (see DiscoveryProperties), injected like any other
@@ -192,6 +194,15 @@ public class ScanQueryServiceImpl implements ScanQueryService {
             // SADD/SREM) — there is no separate status field anywhere in
             // Discovery's own data to check here.
             Long candidateUserId = candidateSession.getUserId();
+
+            // Eligibility gate check: only verified, active users appear in
+            // discovery results. This Set is maintained by Kafka consumers
+            // (T025) reacting to user.verified and trust.score.updated
+            // events. A candidate not in this Set is filtered before any
+            // costly operations (block-list checks, User Service calls).
+            if (!eligibilityCacheService.isEligible(String.valueOf(candidateUserId))) {
+                continue;
+            }
 
             // Block list last: the most expensive remaining check (up to two
             // Redis GETs, and a WebClient call to User Service on a miss),

@@ -1,5 +1,6 @@
 package com.shareconnectsave.discovery.scan;
 
+import com.shareconnectsave.discovery.cache.DiscoveryEligibilityCacheService;
 import com.shareconnectsave.discovery.cache.ScanCacheService;
 import com.shareconnectsave.discovery.scan.domain.ScanLocation;
 import com.shareconnectsave.discovery.scan.domain.ScanLocationRequest;
@@ -42,9 +43,24 @@ public class ScanSessionServiceImpl implements ScanSessionService {
 
     private final ScanSessionRepository scanSessionRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final DiscoveryEligibilityCacheService eligibilityCacheService;
 
     @Override
     public ScanStartResponse startScan(Long userId, String gender, ScanStartRequest request) {
+        // Guard clause (fail fast): scan:eligible_users is populated only by
+        // the user.verified Kafka consumer, and emptied by trust.score.updated
+        // on suspension (see DiscoveryEligibilityCacheService). findNearby
+        // already filters candidates through this same gate, but that only
+        // ever protected the OTHER side of a match — nothing stopped an
+        // unverified or suspended caller from opening their own session and
+        // still seeing everyone else. Checking here, before a ScanSession row
+        // or any active_sessions membership is created, closes that gap at
+        // the one place both problems share: neither side effect should ever
+        // happen for an ineligible caller.
+        if (!eligibilityCacheService.isEligible(String.valueOf(userId))) {
+            throw new UserNotEligibleForDiscoveryException(userId);
+        }
+
         ScanSession session = ScanSession.builder()
                 .userId(userId)
                 .destinationLat(request.destinationLat())

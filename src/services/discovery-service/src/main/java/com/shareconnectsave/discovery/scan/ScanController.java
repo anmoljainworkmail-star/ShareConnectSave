@@ -94,4 +94,14 @@ public class ScanController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("SCAN_SESSION_NOT_FOUND", ex.getMessage(), traceId != null ? traceId : ""));
     }
+
+    // 403, not 404: the caller is authenticated and does exist, they are
+    // simply not (yet, or no longer) allowed to participate in discovery —
+    // that is an authorization outcome, not a missing-resource one.
+    @ExceptionHandler(UserNotEligibleForDiscoveryException.class)
+    public ResponseEntity<ErrorResponse> handleUserNotEligible(UserNotEligibleForDiscoveryException ex) {
+        String traceId = MDC.get("traceId");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse("USER_NOT_ELIGIBLE_FOR_DISCOVERY", ex.getMessage(), traceId != null ? traceId : ""));
+    }
 }

@@ -52,7 +52,7 @@
 - [x] T023 — GPS Discovery Query _(5 filters, women-only, WebClient to User Service)_
 - [x] T024 — BLE Token Generation _(HMAC-SHA256, 5-min expiry, resolve endpoint)_
 - [x] T025 — Kafka Consumer: user.verified + trust.score.updated
-- [ ] T026 — Redis Caching Layer _(DiscoveryCacheService, 10s TTL)_
+- [x] T026 — Redis Caching Layer _(DiscoveryCacheService, 10s TTL)_
 - [ ] T027 — Resilience4j Circuit Breaker _(User Service calls, 50% threshold, 30s wait)_
 - [ ] T028 — Discovery Service Docker Image
 
@@ -264,8 +264,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 24 / 96  
+**Done:** 25 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 72 / 96  
+**Pending:** 71 / 96  
 
 _Update this section manually or via `/status` after each task completes._

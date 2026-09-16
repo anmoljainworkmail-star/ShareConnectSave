@@ -1,8 +1,7 @@
 package com.shareconnectsave.discovery.ble;
 
 import com.shareconnectsave.discovery.ble.domain.BleSeed;
-import com.shareconnectsave.discovery.cache.ScanCacheService;
-import com.shareconnectsave.discovery.client.UserServiceClient;
+import com.shareconnectsave.discovery.cache.DiscoveryCacheService;
 import com.shareconnectsave.discovery.config.BleProperties;
 import com.shareconnectsave.discovery.scan.ScanSessionRepository;
 import com.shareconnectsave.discovery.scan.domain.ScanSession;
@@ -28,11 +27,11 @@ import java.util.Set;
 
 // Pattern: Single Responsibility (SOLID-S) — this class only orchestrates
 // BLE seed generation/resolution (random bytes, HMAC-based per-window
-// derivation, expiry math, delegating profile lookups to
-// UserServiceClient); it owns no HTTP concerns (BleTokenController) and no
-// scheduling concerns (BleTokenCleanupTask). Class name kept as-is per this
-// ticket's own "Java classes" section — this is a rework of v1's service,
-// not a replacement of it.
+// derivation, expiry math, delegating profile/block-list lookups to
+// DiscoveryCacheService); it owns no HTTP concerns (BleTokenController) and
+// no scheduling concerns (BleTokenCleanupTask). Class name kept as-is per
+// this ticket's own "Java classes" section — this is a rework of v1's
+// service, not a replacement of it.
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -55,9 +54,14 @@ public class BleTokenServiceImpl implements BleTokenService {
 
     private final BleSeedRepository bleSeedRepository;
     private final ScanSessionRepository scanSessionRepository;
-    private final UserServiceClient userServiceClient;
+
+    // T026: profile and block-list lookups (both used below) now go through
+    // DiscoveryCacheService's Cache-Aside orchestration instead of calling
+    // UserServiceClient directly — same consolidation ScanQueryServiceImpl's
+    // GPS path already applies, so BLE resolve benefits from the same warm
+    // cache without duplicating the get/miss/populate logic a second time.
+    private final DiscoveryCacheService discoveryCacheService;
     private final BleProperties bleProperties;
-    private final ScanCacheService scanCacheService;
 
     @Override
     @Transactional
@@ -168,11 +172,11 @@ public class BleTokenServiceImpl implements BleTokenService {
                     break; // candidate settled (blocked) — stop scanning seeds for THIS submitted token
                 }
 
-                // Circuit Breaker Pattern (Decorator under the hood) — same
-                // UserServiceClient the GPS query path uses; a down/slow
-                // User Service degrades this candidate to cached data or
-                // omission, never a failed request.
-                UserCardResponse card = userServiceClient.getUserCard(candidateUserId, distanceKm);
+                // Cache-Aside + Circuit Breaker Pattern (Decorator under the
+                // hood) — same DiscoveryCacheService.getProfile the GPS query
+                // path uses; a down/slow User Service degrades this candidate
+                // to cached data or omission, never a failed request.
+                UserCardResponse card = discoveryCacheService.getProfile(candidateUserId, distanceKm);
                 if (card != null) {
                     results.add(card);
                 }
@@ -185,7 +189,7 @@ public class BleTokenServiceImpl implements BleTokenService {
 
     // Resolves scan:active_sessions (the Redis Set of currently-scanning
     // session ids — same source ScanQueryServiceImpl.findNearby reads via
-    // ScanCacheService.getActiveSessionIds) down to the USER ids that own
+    // DiscoveryCacheService.getActiveSessions) down to the USER ids that own
     // those sessions, reusing ScanSessionRepository.findAllById exactly the
     // way ScanQueryServiceImpl already batch-fetches sessions by id — no new
     // query shape invented for this ticket. A session can be a member of
@@ -193,13 +197,9 @@ public class BleTokenServiceImpl implements BleTokenService {
     // elsewhere (see ScanQueryServiceImpl's own comment on this); such a
     // session is silently skipped here rather than treated as a crash.
     private List<Long> activeCandidateUserIds() {
-        Set<Object> activeSessionIds = scanCacheService.getActiveSessionIds();
-        List<Long> sessionIds = new ArrayList<>();
-        for (Object rawSessionId : activeSessionIds) {
-            sessionIds.add(Long.valueOf(String.valueOf(rawSessionId)));
-        }
+        Set<Long> activeSessionIds = discoveryCacheService.getActiveSessions();
 
-        return scanSessionRepository.findAllById(sessionIds).stream()
+        return scanSessionRepository.findAllById(activeSessionIds).stream()
                 .filter(ScanSession::isActive)
                 .map(ScanSession::getUserId)
                 .toList();
@@ -225,15 +225,10 @@ public class BleTokenServiceImpl implements BleTokenService {
     // Cache-Aside Pattern, bidirectional — identical shape to
     // ScanQueryServiceImpl.isBlocked (GPS discovery's own block check):
     // a candidate only passes when NEITHER direction of the block
-    // relationship exists. Unchanged from v1, per this ticket's own
-    // instructions.
+    // relationship exists. T026: delegates to DiscoveryCacheService's
+    // getBlocklist instead of duplicating the get/miss/populate steps here.
     private boolean isBlocked(Long ownerUserId, Long otherUserId) {
-        List<Long> blockList = scanCacheService.getCachedBlockList(ownerUserId);
-        if (blockList == null) {
-            blockList = userServiceClient.getBlockList(ownerUserId);
-            scanCacheService.cacheBlockList(ownerUserId, blockList);
-        }
-        return blockList.contains(otherUserId);
+        return discoveryCacheService.getBlocklist(ownerUserId).contains(otherUserId);
     }
 
     // Mac is explicitly documented as NOT thread-safe (unlike

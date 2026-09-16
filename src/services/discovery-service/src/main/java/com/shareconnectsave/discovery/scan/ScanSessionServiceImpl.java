@@ -1,7 +1,6 @@
 package com.shareconnectsave.discovery.scan;
 
-import com.shareconnectsave.discovery.cache.DiscoveryEligibilityCacheService;
-import com.shareconnectsave.discovery.cache.ScanCacheService;
+import com.shareconnectsave.discovery.cache.DiscoveryCacheService;
 import com.shareconnectsave.discovery.scan.domain.ScanLocation;
 import com.shareconnectsave.discovery.scan.domain.ScanLocationRequest;
 import com.shareconnectsave.discovery.scan.domain.ScanSession;
@@ -12,13 +11,22 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-
 // Pattern: Single Responsibility (SOLID-S) — this class owns exactly the
 // scan lifecycle (start/stop) and the Redis-only live-location bookkeeping
 // underneath it. It does not compute nearby matches, call User Service, or
 // apply trust-score/gender filters — that is T023's job, injected here as a
 // separate collaborator once it exists rather than folded into this class.
+//
+// T026 note: session location, scan:active_sessions membership, and the
+// eligibility gate are now read/written through DiscoveryCacheService (see
+// that class for the TTL/key mechanics). gender/women_only below deliberately
+// stay on the raw RedisTemplate this class already held — they are per-session
+// identity attributes with NO TTL of their own (set once at /scan/start,
+// deleted once at /scan/stop), not a TTL'd cache or a managed membership Set,
+// so they fall outside T026's own key table and DiscoveryCacheService's
+// documented scope. Consolidating a non-cache value into a class named
+// DiscoveryCacheService would blur "cache" with "session state that happens
+// to live in Redis" — the same line T023's ScanCacheService already drew.
 //
 // Only one @Service implementation of ScanSessionService exists today, so
 // there is nothing to switch between yet — no external paid/rate-limited
@@ -34,22 +42,18 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class ScanSessionServiceImpl implements ScanSessionService {
 
-    // Ephemeral storage as a privacy control: a 30s TTL on this Redis key is
-    // what guarantees a raw GPS fix is never retained beyond a short window,
-    // even if the client goes silent (killed app, lost network) right after
-    // the last PUT /scan/location — Redis's own EXPIRE is what guarantees
-    // deletion without any app code having to remember to run a cleanup job.
-    private static final Duration LOCATION_TTL = Duration.ofSeconds(30);
-
     private final ScanSessionRepository scanSessionRepository;
+
+    // gender/women_only only, as of T026 — see class comment.
     private final RedisTemplate<String, Object> redisTemplate;
-    private final DiscoveryEligibilityCacheService eligibilityCacheService;
+
+    private final DiscoveryCacheService discoveryCacheService;
 
     @Override
     public ScanStartResponse startScan(Long userId, String gender, ScanStartRequest request) {
         // Guard clause (fail fast): scan:eligible_users is populated only by
         // the user.verified Kafka consumer, and emptied by trust.score.updated
-        // on suspension (see DiscoveryEligibilityCacheService). findNearby
+        // on suspension (see DiscoveryCacheService). findNearby
         // already filters candidates through this same gate, but that only
         // ever protected the OTHER side of a match — nothing stopped an
         // unverified or suspended caller from opening their own session and
@@ -57,7 +61,7 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         // or any active_sessions membership is created, closes that gap at
         // the one place both problems share: neither side effect should ever
         // happen for an ineligible caller.
-        if (!eligibilityCacheService.isEligible(String.valueOf(userId))) {
+        if (!discoveryCacheService.isEligible(String.valueOf(userId))) {
             throw new UserNotEligibleForDiscoveryException(userId);
         }
 
@@ -78,7 +82,7 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         // ticket's status predicate) while it is a MEMBER of this Set — added
         // here, removed in stopScan below — so query-time code never has to
         // scan every scan_sessions row hunting for ended_at IS NULL.
-        redisTemplate.opsForSet().add(ScanCacheService.ACTIVE_SESSIONS_KEY, String.valueOf(sessionId));
+        discoveryCacheService.addActiveSession(sessionId);
 
         // Women-only mode is resolved ONCE, here, and stored as the
         // already-decided boolean — never re-derived at query time from a
@@ -115,7 +119,7 @@ public class ScanSessionServiceImpl implements ScanSessionService {
     // Redis delete, releasing it only at commit. Without this, the lock (if
     // taken at all) would release the instant the finder returns, and a
     // concurrent updateLocation() could still slip a location write in
-    // between this method's close() and its redisTemplate.delete() call.
+    // between this method's close() and its removeSessionLocation() call.
     @Override
     @Transactional
     public void stopScan(Long userId) {
@@ -128,7 +132,7 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         // "gone within 30 seconds of /scan/stop" — the TTL is a safety net
         // for a client that never calls stop, not a substitute for calling
         // delete() here.
-        redisTemplate.delete(locationKey(session.getId()));
+        discoveryCacheService.removeSessionLocation(session.getId());
 
         // T023 additions, same "explicit delete on stop" reasoning as the
         // location key above: a session that has stopped must disappear from
@@ -136,7 +140,7 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         // its gender/women_only keys — which intentionally carry no TTL of
         // their own — must be reclaimed deterministically here or they would
         // never be cleaned up at all.
-        redisTemplate.opsForSet().remove(ScanCacheService.ACTIVE_SESSIONS_KEY, String.valueOf(session.getId()));
+        discoveryCacheService.removeActiveSession(session.getId());
         redisTemplate.delete(genderKey(session.getId()));
         redisTemplate.delete(womenOnlyKey(session.getId()));
     }
@@ -151,26 +155,14 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         ScanSession session = requireActiveSession(userId);
 
         // This method must never touch scan_sessions or any other SQL table
-        // (Location Privacy) — the write below is the only side effect,
-        // and it goes to Redis with an explicit TTL in the same call, never
-        // a plain SET followed by a separate EXPIRE that a crash could land
-        // between.
-        redisTemplate.opsForValue().set(
-                locationKey(session.getId()),
-                new ScanLocation(request.lat(), request.lng()),
-                LOCATION_TTL
-        );
+        // (Location Privacy) — the write below is the only side effect, and
+        // DiscoveryCacheService.cacheSessionLocation applies its TTL in the
+        // same Redis call, never a plain SET followed by a separate EXPIRE
+        // that a crash could land between.
+        discoveryCacheService.cacheSessionLocation(session.getId(), new ScanLocation(request.lat(), request.lng()));
     }
 
-    // Public + static so T023's nearby-search query can build the identical
-    // key shape to read back what this class writes, without duplicating the
-    // "scan:{id}:location" format in a second place.
-    public static String locationKey(Long sessionId) {
-        return "scan:%d:location".formatted(sessionId);
-    }
-
-    // Same "public static, one place, callers reuse it" convention as
-    // locationKey above — ScanQueryServiceImpl reads these two keys back at
+    // Public + static, one place, callers reuse it — ScanQueryServiceImpl reads these two keys back at
     // query time without duplicating the "scan:{id}:gender" / "...women_only"
     // string shape in a second file.
     public static String genderKey(Long sessionId) {

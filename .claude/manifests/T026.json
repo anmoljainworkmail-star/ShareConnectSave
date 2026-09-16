@@ -1,0 +1,29 @@
+{
+  "task_id": "T026",
+  "title": "Redis Caching Layer",
+  "status": "completed",
+  "files_created": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/cache/DiscoveryCacheService.java"
+  ],
+  "files_modified": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/config/DiscoveryProperties.java",
+    "src/services/discovery-service/src/main/resources/application.yml",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/config/RedisConfig.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/client/UserServiceClientImpl.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanSessionServiceImpl.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanQueryServiceImpl.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/ble/BleTokenServiceImpl.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/kafka/listener/UserVerifiedEventListener.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/kafka/listener/TrustScoreUpdatedEventListener.java"
+  ],
+  "files_deleted": [
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/cache/ScanCacheService.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/cache/DiscoveryEligibilityCacheService.java"
+  ],
+  "criteria_checked": {
+    "All cache reads/writes go through DiscoveryCacheService, not raw RedisTemplate calls in controllers": "PASS",
+    "Cache miss on profile -> WebClient fetch, store result": "PASS",
+    "All TTLs configurable via application.yml": "PASS"
+  },
+  "last_note": "Consolidated ScanCacheService + DiscoveryEligibilityCacheService + UserServiceClientImpl's inline profile cache into one DiscoveryCacheService (session location, nearby results, active-sessions Set, eligible-users Set, trust-metadata hash, and true Cache-Aside profile/blocklist lookups that now fetch-on-miss via UserServiceClient instead of always calling upstream live). UserServiceClientImpl reduced to a pure WebClient client with no Redis dependency. gender/women_only keys deliberately left on raw RedisTemplate in ScanSessionServiceImpl/ScanQueryServiceImpl (no TTL, not a cache/membership-set concern, outside T026's key table -- same scope line T023 already drew for ScanCacheService). Added discovery.cache.session-location-ttl-seconds (default 30) to DiscoveryProperties/application.yml, replacing a hardcoded Duration.ofSeconds(30). Deleted the two superseded cache classes and updated all their callers (ScanSessionServiceImpl, ScanQueryServiceImpl, BleTokenServiceImpl, UserVerifiedEventListener, TrustScoreUpdatedEventListener). Verified with `mvnw -o compile` -- clean build, no leftover references to removed classes/methods (grep-verified)."
+}

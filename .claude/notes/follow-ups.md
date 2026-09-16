@@ -111,6 +111,48 @@ whose implementation or ticket should pick it up.
    Affects: T026, T027 (natural points to introduce the service's first real test
    coverage alongside other discovery-service work).
 
+## From T026 (Redis Caching Layer)
+
+1. **`scan:{id}:gender` / `scan:{id}:women_only` still read/written via raw `RedisTemplate`
+   in `ScanSessionServiceImpl.java` and `ScanQueryServiceImpl.java`, outside
+   `DiscoveryCacheService`'s consolidation.** These two keys aren't in the ticket's own key
+   table, and this leaves the "one class owns every Redis key" guarantee slightly
+   incomplete — a future key-format or TTL change to either key has two places to check
+   instead of one. Fix: fold into `DiscoveryCacheService` as
+   `cacheSessionGender()`/`getSessionGender()`/`cacheWomenOnlyFlag()`/`isWomenOnly()`/
+   `removeSessionIdentity()`, same "no TTL, explicit delete" shape as `scan:active_sessions`.
+   Affects: T022, T023 (own the current call sites).
+
+2. **TTL property names deviate from the ticket's suggested naming.** Ticket spec suggested
+   `cache.ttls.session-location` etc.; implementation uses
+   `discovery.cache.session-location-ttl-seconds` etc. under the existing `discovery.*`
+   Options-pattern root. Functionally equivalent, consistently documented, no action needed
+   unless a future ticket wants literal alignment with ticket text.
+   Affects: none currently — cosmetic only.
+
+3. **`log.warn(..., ex.toString())` in `DiscoveryCacheService.getProfile`/`getBlocklist`
+   could surface an upstream response-body fragment in a log line** (server-side log only,
+   not an HTTP response — no active leak today). Consider
+   `ex.getClass().getSimpleName() + ": " + ex.getMessage()` for tighter control, matching
+   the caution already applied to Kafka payload logging elsewhere in this service.
+   Affects: whichever future ticket first hardens logging across discovery-service (no
+   specific task ID yet in PROGRESS.md).
+
+4. **No unit tests for `DiscoveryCacheService`'s hit/miss/failure branches.** Not a
+   regression (no test precedent exists elsewhere in this service either), but this class
+   has the most meaningful conditional logic added by this ticket and would benefit from
+   Mockito coverage of the `getProfile`/`getBlocklist` cache-hit, cache-miss-success, and
+   cache-miss-failure paths.
+   Affects: T027 (next discovery-service ticket — natural point to introduce the service's
+   first real test coverage, per the existing T025 follow-up #3 on the same gap).
+
+5. **`TrustScoreUpdatedEventListener` has no path to re-add a user to `scan:eligible_users`
+   after a suspension is later lifted** (`requestLimit` recovering above 0). Pre-existing
+   from T025, unchanged by this refactor — re-confirmed present while reviewing this
+   listener's cache-service integration.
+   Affects: T025's original scope area — flag for whichever future ticket revisits trust
+   score recalculation / eligibility gating in discovery-service.
+
 ## From T024 (BLE Token Generation)
 
 1. **`MissingRequestHeaderException` on a missing `X-User-Id` returns a raw 500, not a

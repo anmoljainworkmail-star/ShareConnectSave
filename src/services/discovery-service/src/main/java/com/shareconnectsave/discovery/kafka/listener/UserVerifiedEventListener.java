@@ -2,7 +2,7 @@ package com.shareconnectsave.discovery.kafka.listener;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shareconnectsave.discovery.cache.DiscoveryEligibilityCacheService;
+import com.shareconnectsave.discovery.cache.DiscoveryCacheService;
 import com.shareconnectsave.discovery.kafka.ProcessedEventsRepository;
 import com.shareconnectsave.discovery.kafka.domain.ProcessedEvent;
 import com.shareconnectsave.discovery.kafka.event.UserVerifiedEvent;
@@ -32,7 +32,7 @@ public class UserVerifiedEventListener {
 
     private final ObjectMapper objectMapper;
     private final ProcessedEventsRepository processedEventsRepository;
-    private final DiscoveryEligibilityCacheService eligibilityCacheService;
+    private final DiscoveryCacheService discoveryCacheService;
 
     // groupId is spelled out literally, matching the kafka-outbox skill's own
     // examples (e.g. groupId = "chat-service") — every consumer in this
@@ -93,9 +93,10 @@ public class UserVerifiedEventListener {
 
         // Cache-Aside write: this Set is the eligibility gate — a newly
         // onboarded user must appear in it before any discovery scan can
-        // surface them. See DiscoveryEligibilityCacheService's class comment
-        // for why this lives outside ScanCacheService.
-        eligibilityCacheService.addEligible(event.userId());
+        // surface them. See DiscoveryCacheService's class comment for why
+        // this managed Set lives alongside every other Redis interaction
+        // this service makes, not in a dedicated class of its own.
+        discoveryCacheService.addEligibleUser(event.userId());
 
         processedEventsRepository.save(ProcessedEvent.builder()
                 .eventId(event.eventId().toString())

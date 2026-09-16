@@ -7,12 +7,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-// Pattern: Cache-Aside — this bean is the client Discovery's later tickets
-// (e.g. caching a User Service profile lookup) will inject: check Redis
-// first, on a miss call User Service and write the result back here, so the
-// *next* lookup for the same key is served from cache instead of hitting
-// User Service again. Nothing in this ticket populates the cache yet — this
-// class only makes the wiring correct once a feature package needs it.
+// Pattern: Cache-Aside — this bean is the client every Redis interaction in
+// this service goes through: check Redis first, on a miss call User Service
+// and write the result back here, so the *next* lookup for the same key is
+// served from cache instead of hitting User Service again. T021 only wired
+// this bean up; T026's DiscoveryCacheService is the single component that
+// actually injects and uses it now — no controller or other service touches
+// this RedisTemplate directly.
 //
 // spring.data.redis.database: 0 in application.yml (not the client code
 // below) is what actually pins this connection to logical DB index 0 — see

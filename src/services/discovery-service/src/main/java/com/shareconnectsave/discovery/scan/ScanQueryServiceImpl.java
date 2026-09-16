@@ -1,8 +1,6 @@
 package com.shareconnectsave.discovery.scan;
 
-import com.shareconnectsave.discovery.cache.DiscoveryEligibilityCacheService;
-import com.shareconnectsave.discovery.cache.ScanCacheService;
-import com.shareconnectsave.discovery.client.UserServiceClient;
+import com.shareconnectsave.discovery.cache.DiscoveryCacheService;
 import com.shareconnectsave.discovery.config.DiscoveryProperties;
 import com.shareconnectsave.discovery.scan.domain.ScanLocation;
 import com.shareconnectsave.discovery.scan.domain.ScanSession;
@@ -22,25 +20,32 @@ import java.util.stream.Collectors;
 
 // Pattern: Single Responsibility (SOLID-S) — this class does exactly one
 // job, the 5-step GPS nearby-query orchestration this ticket specifies.
-// Redis key/TTL mechanics live in ScanCacheService, HTTP + circuit-breaker
-// mechanics live in UserServiceClient, and pure math lives in
+// Redis key/TTL mechanics live in DiscoveryCacheService (T026), HTTP +
+// circuit-breaker mechanics live in UserServiceClient, and pure math lives in
 // ScanFilterService — this class only sequences those collaborators and
 // applies filter predicates in order. It never opens a RedisTemplate
 // connection for its OWN cache keys or builds a WebClient itself; it does
 // read two Redis keys directly (gender/women_only, below) because those are
-// ScanSessionServiceImpl's keys, not ScanCacheService's — see the comment at
-// that read site for why.
+// ScanSessionServiceImpl's keys, not DiscoveryCacheService's — see the
+// comment at that read site for why.
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ScanQueryServiceImpl implements ScanQueryService {
 
     private final ScanSessionRepository scanSessionRepository;
-    private final ScanCacheService scanCacheService;
+
+    // T026: the single dependency for every Redis-backed cache this class
+    // needs (nearby-result cache, session location, active-sessions Set,
+    // eligibility gate, and — via getProfile/getBlocklist — the upstream
+    // User Service fetch orchestration those two caches wrap). This class no
+    // longer injects UserServiceClient directly; DiscoveryCacheService is the
+    // one place that decides "cache hit, or ask User Service."
+    private final DiscoveryCacheService discoveryCacheService;
     private final ScanFilterService scanFilterService;
-    private final UserServiceClient userServiceClient;
+
+    // gender/women_only reads only, as of T026 — see class comment.
     private final RedisTemplate<String, Object> redisTemplate;
-    private final DiscoveryEligibilityCacheService eligibilityCacheService;
 
     // Options pattern (T023) — one bean bound from application.yml's
     // "discovery" section (see DiscoveryProperties), injected like any other
@@ -67,12 +72,12 @@ public class ScanQueryServiceImpl implements ScanQueryService {
         // Cache-Aside read: a query for this exact session inside the last
         // 10s is served straight from Redis, without recomputing a single
         // filter or re-calling User Service for the same candidates.
-        List<UserCardResponse> cachedResult = scanCacheService.getCachedNearbyResult(callerSessionId);
+        List<UserCardResponse> cachedResult = discoveryCacheService.getNearbyResults(callerSessionId);
         if (cachedResult != null) {
             return cachedResult;
         }
 
-        ScanLocation callerLocation = getLocation(callerSessionId);
+        ScanLocation callerLocation = discoveryCacheService.getSessionLocation(callerSessionId);
         if (callerLocation == null) {
             // "What NOT to do": missing location must never crash the query
             // — a caller with no live GPS fix (client went silent, the 30s
@@ -82,22 +87,21 @@ public class ScanQueryServiceImpl implements ScanQueryService {
         }
 
         // gender/women_only are ScanSessionServiceImpl's keys, not
-        // ScanCacheService's (see that class's scope comment) — they carry
-        // no TTL and are written once at /scan/start, deleted once at
+        // DiscoveryCacheService's (see that class's scope comment) — they
+        // carry no TTL and are written once at /scan/start, deleted once at
         // /scan/stop, so a plain RedisTemplate read is used here rather than
         // adding cache-aside ceremony (get/miss/populate) around a value
         // that is never "recomputed", only ever looked up.
         boolean callerWomenOnly = Boolean.TRUE.equals(
                 redisTemplate.opsForValue().get(ScanSessionServiceImpl.womenOnlyKey(callerSessionId)));
 
-        Set<Object> activeSessionIds = scanCacheService.getActiveSessionIds();
+        Set<Long> activeSessionIds = discoveryCacheService.getActiveSessions();
 
         // First pass: narrow the candidate set using ONLY the session id —
         // self-exclusion and women-only (a single, always-cached Redis GET
         // each) — before touching SQL or any per-candidate location lookup.
         List<Long> preFilteredCandidateIds = new ArrayList<>();
-        for (Object rawSessionId : activeSessionIds) {
-            Long candidateSessionId = Long.valueOf(String.valueOf(rawSessionId));
+        for (Long candidateSessionId : activeSessionIds) {
             if (candidateSessionId.equals(callerSessionId)) {
                 continue;
             }
@@ -123,7 +127,7 @@ public class ScanQueryServiceImpl implements ScanQueryService {
         List<Long> nearbyCandidateIds = new ArrayList<>();
         Map<Long, Double> distanceKmBySessionId = new HashMap<>();
         for (Long candidateSessionId : preFilteredCandidateIds) {
-            ScanLocation candidateLocation = getLocation(candidateSessionId);
+            ScanLocation candidateLocation = discoveryCacheService.getSessionLocation(candidateSessionId);
             if (candidateLocation == null) {
                 log.warn("No cached location for candidate session {} — skipping", candidateSessionId);
                 continue;
@@ -162,7 +166,7 @@ public class ScanQueryServiceImpl implements ScanQueryService {
                 // for a far-away ghost session, which was never going to be
                 // a match anyway.
                 log.warn("Session {} is in {} but has no active SQL row — skipping",
-                        candidateSessionId, ScanCacheService.ACTIVE_SESSIONS_KEY);
+                        candidateSessionId, DiscoveryCacheService.ACTIVE_SESSIONS_KEY);
                 continue;
             }
 
@@ -200,49 +204,40 @@ public class ScanQueryServiceImpl implements ScanQueryService {
             // (T025) reacting to user.verified and trust.score.updated
             // events. A candidate not in this Set is filtered before any
             // costly operations (block-list checks, User Service calls).
-            if (!eligibilityCacheService.isEligible(String.valueOf(candidateUserId))) {
+            if (!discoveryCacheService.isEligible(String.valueOf(candidateUserId))) {
                 continue;
             }
 
             // Block list last: the most expensive remaining check (up to two
             // Redis GETs, and a WebClient call to User Service on a miss),
             // so it only ever runs for a candidate who already survived
-            // every cheaper filter above, including women-only.
+            // every cheaper filter above, including women-only. Bidirectional:
+            // a candidate only passes when NEITHER direction of the block
+            // relationship exists — checking only caller -> candidate would
+            // miss a candidate who has blocked the caller (this ticket's own
+            // "What NOT to do" calls this out explicitly).
             if (isBlocked(callerUserId, candidateUserId) || isBlocked(candidateUserId, callerUserId)) {
                 continue;
             }
 
-            // Circuit Breaker Pattern — UserServiceClient wraps this call in
-            // Resilience4j; a down/slow User Service degrades to cached
-            // profile data or null (this candidate simply omitted) instead
-            // of failing the entire /scan/nearby request for every other
-            // match already computed above.
-            UserCardResponse card = userServiceClient.getUserCard(candidateUserId, distanceKm);
+            // Cache-Aside + Circuit Breaker — DiscoveryCacheService checks
+            // Redis first and only calls UserServiceClient (Resilience4j-
+            // wrapped) on a miss; a down/slow User Service degrades to null
+            // (this candidate simply omitted) instead of failing the entire
+            // /scan/nearby request for every other match already computed
+            // above.
+            UserCardResponse card = discoveryCacheService.getProfile(candidateUserId, distanceKm);
             if (card != null) {
                 results.add(card);
             }
         }
 
-        scanCacheService.cacheNearbyResult(callerSessionId, results);
+        discoveryCacheService.cacheNearbyResults(callerSessionId, results);
         return results;
     }
 
-    // Cache-Aside Pattern, bidirectional: a candidate only passes when
-    // NEITHER direction of the block relationship exists. Checking only
-    // caller -> candidate would miss a candidate who has blocked the caller
-    // (this ticket's own "What NOT to do" calls this out explicitly).
     private boolean isBlocked(Long ownerUserId, Long otherUserId) {
-        List<Long> blockList = scanCacheService.getCachedBlockList(ownerUserId);
-        if (blockList == null) {
-            blockList = userServiceClient.getBlockList(ownerUserId);
-            scanCacheService.cacheBlockList(ownerUserId, blockList);
-        }
-        return blockList.contains(otherUserId);
-    }
-
-    private ScanLocation getLocation(Long sessionId) {
-        Object raw = redisTemplate.opsForValue().get(ScanSessionServiceImpl.locationKey(sessionId));
-        return raw instanceof ScanLocation location ? location : null;
+        return discoveryCacheService.getBlocklist(ownerUserId).contains(otherUserId);
     }
 
     // Deliberately duplicates ONE repository call from

@@ -187,14 +187,19 @@ discovery:
   # never a magic "30" inside ScanFilterService.withinDepartureWindow.
   departure-window-minutes: ${DISCOVERY_DEPARTURE_WINDOW_MINUTES:30}
   cache:
+    # T026: was a hardcoded Duration.ofSeconds(30) in ScanSessionServiceImpl
+    # (CLAUDE.md: "No Hardcoded Config") — now the one place "30" is spelled
+    # out for the scan:{session_id}:location key. DiscoveryCacheService is the
+    # only reader.
+    session-location-ttl-seconds: ${DISCOVERY_SESSION_LOCATION_TTL_SECONDS:30}
     # Acceptance criterion: "Result cached in Redis for 10 s" — this is the
-    # one place "10" is spelled out; ScanCacheService reads it, never a
+    # one place "10" is spelled out; DiscoveryCacheService reads it, never a
     # hardcoded Duration.ofSeconds(10) literal.
     nearby-result-ttl-seconds: ${DISCOVERY_NEARBY_TTL_SECONDS:10}
     blocklist-ttl-minutes: ${DISCOVERY_BLOCKLIST_TTL_MINUTES:5}
-    # Not one of the four Redis keys this ticket's spec enumerates — see
-    # UserServiceClientImpl's class comment for why this cache exists anyway
-    # (it is what the Circuit Breaker fallback actually returns data from).
+    # T026: this is now one of the six Redis key patterns DiscoveryCacheService
+    # centralizes (user:{id}:profile_cache) — see that class's Cache-Aside
+    # getProfile/cacheProfile pair, the single source of truth for this TTL.
     user-profile-ttl-minutes: ${DISCOVERY_USER_PROFILE_TTL_MINUTES:5}
 
 # User Service base URL for this service's first-ever outbound WebClient call

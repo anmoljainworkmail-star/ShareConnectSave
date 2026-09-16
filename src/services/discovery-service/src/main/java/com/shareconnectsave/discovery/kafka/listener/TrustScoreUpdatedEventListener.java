@@ -2,7 +2,7 @@ package com.shareconnectsave.discovery.kafka.listener;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shareconnectsave.discovery.cache.DiscoveryEligibilityCacheService;
+import com.shareconnectsave.discovery.cache.DiscoveryCacheService;
 import com.shareconnectsave.discovery.kafka.ProcessedEventsRepository;
 import com.shareconnectsave.discovery.kafka.domain.ProcessedEvent;
 import com.shareconnectsave.discovery.kafka.event.TrustScoreUpdatedEvent;
@@ -25,7 +25,7 @@ public class TrustScoreUpdatedEventListener {
 
     private final ObjectMapper objectMapper;
     private final ProcessedEventsRepository processedEventsRepository;
-    private final DiscoveryEligibilityCacheService eligibilityCacheService;
+    private final DiscoveryCacheService discoveryCacheService;
 
     // Same consumer group as UserVerifiedEventListener ("discovery-service")
     // — Kafka consumer groups are scoped per TOPIC-partition assignment, not
@@ -85,7 +85,7 @@ public class TrustScoreUpdatedEventListener {
         // latest score/badge available to whatever future ticket wires a
         // read of this Hash into the discovery query or request-throttling
         // path.
-        eligibilityCacheService.cacheTrustMetadata(
+        discoveryCacheService.cacheTrustMetadata(
                 event.userId(), event.newScore(), event.badgeLevel(), event.requestLimit());
 
         // Guard clause (CLAUDE.md: early return over nested ifs) — the
@@ -93,7 +93,7 @@ public class TrustScoreUpdatedEventListener {
         // eligibility gate itself; every other trust update only refreshes
         // the metadata cache above and returns from here.
         if (event.requestLimit() != null && event.requestLimit() == 0) {
-            eligibilityCacheService.removeEligible(event.userId());
+            discoveryCacheService.removeEligibleUser(event.userId());
         }
 
         processedEventsRepository.save(ProcessedEvent.builder()

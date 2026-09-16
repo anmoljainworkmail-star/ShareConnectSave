@@ -1,18 +1,15 @@
 package com.shareconnectsave.discovery.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.shareconnectsave.discovery.config.DiscoveryProperties;
 import com.shareconnectsave.discovery.scan.domain.UserCardResponse;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -22,26 +19,22 @@ import java.util.List;
 // and routing every subsequent call straight to its fallback method instead
 // of letting a slow/down User Service block every /scan/nearby request
 // behind it. Same shape as the java-spring-boot skill's own example.
+//
+// T026 change: this class no longer touches Redis at all. Before T026 it
+// held its own fallback-only profile cache (a RedisTemplate field, populated
+// on every live success, read only when the circuit tripped) — that was
+// caching logic leaking into what should be a pure upstream HTTP client
+// (Single Responsibility, SOLID-S). Cache-Aside orchestration, including what
+// to do on a miss OR a failure, now lives entirely in DiscoveryCacheService;
+// this class's only job is "call User Service, or fail" — a fallback here
+// simply returns null/empty and lets the caller (DiscoveryCacheService)
+// decide what a missing answer means.
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class UserServiceClientImpl implements UserServiceClient {
 
-    // Deliberately NOT one of ScanCacheService's owned keys (see that
-    // class's scope comment) — this cache exists only so getUserCardFallback
-    // below has something real to return. It is co-located with the client
-    // that populates it because nothing else in T023 ever reads or writes
-    // it; adding it to ScanCacheService would widen that class's documented
-    // scope for the sake of a single fallback method.
-    private static final String USER_PROFILE_CACHE_KEY_PREFIX = "user:profile:";
-
     private final WebClient userServiceWebClient;
-    private final RedisTemplate<String, Object> redisTemplate;
-
-    // Options pattern (T023) — see DiscoveryProperties. Converted to a
-    // Duration inline at its one call site below rather than precomputed in
-    // a constructor, now that @RequiredArgsConstructor generates it.
-    private final DiscoveryProperties discoveryProperties;
 
     @Override
     @CircuitBreaker(name = "userService", fallbackMethod = "getUserCardFallback")
@@ -63,15 +56,7 @@ public class UserServiceClientImpl implements UserServiceClient {
             return null;
         }
 
-        UserCardResponse card = new UserCardResponse(
-                profile.id(), profile.name(), profile.photoUrl(), profile.identityBadge(), distanceKm);
-
-        // Cache-Aside write: populated on every LIVE success so a future
-        // circuit-open window (or a transient failure) has something recent
-        // to fall back to instead of omitting the candidate outright.
-        redisTemplate.opsForValue().set(
-                profileCacheKey(userId), card, Duration.ofMinutes(discoveryProperties.cache().userProfileTtlMinutes()));
-        return card;
+        return new UserCardResponse(profile.id(), profile.name(), profile.photoUrl(), profile.identityBadge(), distanceKm);
     }
 
     // Resilience4j fallback-method contract: same parameters as the guarded
@@ -79,21 +64,14 @@ public class UserServiceClientImpl implements UserServiceClient {
     // CallNotPermittedException; a real failure throws whatever
     // WebClient/Netty raised) — Resilience4j resolves this by reflection at
     // startup, matching on name + parameter shape.
+    //
+    // Fail-open, no cache read here (see class comment): DiscoveryCacheService
+    // already checked Redis before ever calling this method, so on a genuine
+    // upstream failure there is nothing left to fall back to except "omit
+    // this candidate" — the caller decides that, this method just reports
+    // "unavailable" as null.
     private UserCardResponse getUserCardFallback(Long userId, double distanceKm, Throwable ex) {
-        log.warn("User Service unavailable for user {} ({}); falling back to cached profile data",
-                userId, ex.toString());
-
-        Object cached = redisTemplate.opsForValue().get(profileCacheKey(userId));
-        if (cached instanceof UserCardResponse card) {
-            // distanceKm depends on the CALLER's current position, not the
-            // candidate's profile, so it is recomputed fresh every query —
-            // the cached card's stale distance is swapped for today's value
-            // rather than served as-is.
-            return new UserCardResponse(card.id(), card.name(), card.photoUrl(), card.identityBadge(), distanceKm);
-        }
-
-        // Nothing cached either — omit this candidate rather than fabricate
-        // a placeholder profile.
+        log.warn("User Service unavailable for user {} ({}); omitting candidate", userId, ex.toString());
         return null;
     }
 
@@ -136,10 +114,6 @@ public class UserServiceClientImpl implements UserServiceClient {
         log.warn("Block list unavailable for user {} ({}); degrading to empty list (fail-open)",
                 userId, ex.toString());
         return List.of();
-    }
-
-    private static String profileCacheKey(Long userId) {
-        return USER_PROFILE_CACHE_KEY_PREFIX + userId;
     }
 
     // Nested, package-private — this is the exact wire shape User Service

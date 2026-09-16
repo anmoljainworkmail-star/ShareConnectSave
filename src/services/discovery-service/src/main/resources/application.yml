@@ -143,11 +143,29 @@ management:
         # microservice should not expose beyond its own liveness/readiness
         # check.
         include: health,info
-  # show-details is intentionally left at Boot's default ("never") in both
-  # profiles: GET /actuator/health must return exactly {"status":"UP"} per
-  # this ticket's acceptance criterion, not a nested breakdown of every
-  # HealthIndicator (SQL Server, Redis, disk space). Flipping it to "always"
-  # for local debugging would silently change the endpoint's contract.
+  endpoint:
+    health:
+      # T027 supersedes T021/T023's choice here: show-details used to be left
+      # at Boot's default ("never") so GET /actuator/health returned exactly
+      # {"status":"UP"} for that ticket's own acceptance criterion. T027's
+      # acceptance criterion is the opposite requirement — the userService
+      # circuit breaker's CLOSED/OPEN/HALF_OPEN state must be visible on this
+      # same endpoint — which is only possible once component-level detail is
+      # turned on. "always" (not the more cautious "when-authorized") because
+      # this service has no Spring Security principal to authorize against;
+      # "when-authorized" would just behave as permanently hidden here. That
+      # trade-off is acceptable because this endpoint is never routed through
+      # the public-facing YARP gateway — it is a Docker-network-only
+      # operational surface, the same trust boundary the include: health,info
+      # restriction above already assumes.
+      show-details: always
+  health:
+    circuitbreakers:
+      # resilience4j-spring-boot3's own actuator integration: without this,
+      # the dependency being on the classpath is not enough to add a
+      # "circuitBreakers" component to /actuator/health — this flag is what
+      # actually registers that HealthIndicator.
+      enabled: true
 
 # Circuit Breaker (Decorator pattern under the hood): configured by T021,
 # first wired up by T023's UserServiceClientImpl
@@ -156,10 +174,10 @@ management:
 # have to fail before we stop calling the real dependency and use a fallback
 # instead"; wait-duration-in-open-state is how long the breaker stays open
 # (fast-failing) before it lets one trial call through to check if the
-# dependency has recovered. T027 (a separate, not-yet-approved ticket) is
-# scoped to further tuning (slow-call-duration-threshold, actuator/health
-# exposure) — this config, as-is, is sufficient for T023's own acceptance
-# criteria.
+# dependency has recovered. T027 tunes this the rest of the way (the
+# minimum-number-of-calls fix below, plus actuator/health exposure above) —
+# this section was already sufficient for T023's own acceptance criteria,
+# but NOT yet for T027's, on its own.
 resilience4j:
   circuitbreaker:
     instances:
@@ -167,6 +185,16 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
         sliding-window-size: 10
+        # T027 fix: Resilience4j's own default for this property is 100,
+        # completely independent of sliding-window-size. Left unset, a
+        # window of only 10 calls could NEVER reach the 100 calls needed
+        # before the breaker will even compute a failure rate — the circuit
+        # would silently never open no matter how many calls failed, despite
+        # every other setting above looking correct. This is set equal to
+        # sliding-window-size so "5 of the last 10 calls failed" (this
+        # ticket's own acceptance criterion) is exactly the point the
+        # failure-rate-threshold check first becomes eligible to run.
+        minimum-number-of-calls: 10
 
 # GPS Discovery Query (T023) — every threshold and TTL below is read from a
 # property, never a literal buried in Java code (No Hardcoded Config; this

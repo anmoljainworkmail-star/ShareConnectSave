@@ -20,10 +20,21 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 // membership being the structural "looking" signal), and gender is never
 // returned here at all — Women-only mode is a server-side filter predicate
 // only, never exposed in an API response to another user.
+//
+// unavailable (T027): Circuit Breaker degraded-response marker. Every real
+// profile (a live User Service fetch, or a cache hit of one) sets this
+// false; DiscoveryCacheService sets it true only for the placeholder card it
+// manufactures itself when User Service's circuit is open or a call to it
+// failed. Callers (ScanQueryServiceImpl) still include the card in results —
+// unlike a genuine 404 (still modeled as a null UserCardResponse, "omit this
+// candidate"), "User Service is having a bad day" is not a reason to make a
+// real nearby match vanish from someone's radar, just a reason to show it
+// with less detail than usual.
 public record UserCardResponse(
         @JsonProperty("id") Long id,
         @JsonProperty("name") String name,
         @JsonProperty("photo_url") String photoUrl,
         @JsonProperty("identity_badge") boolean identityBadge,
-        @JsonProperty("distance_km") double distanceKm) {
+        @JsonProperty("distance_km") double distanceKm,
+        @JsonProperty("unavailable") boolean unavailable) {
 }

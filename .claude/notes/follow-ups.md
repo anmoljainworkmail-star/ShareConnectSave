@@ -153,6 +153,63 @@ whose implementation or ticket should pick it up.
    Affects: T025's original scope area — flag for whichever future ticket revisits trust
    score recalculation / eligibility gating in discovery-service.
 
+## From T027 (Resilience4j Circuit Breaker (User Service calls))
+
+1. **`getBlocklist` fails open (returns an empty list) during a User Service outage,
+   meaning a previously-blocked user can reappear in someone's discovery radar for the
+   duration of the outage.** `DiscoveryCacheService.getBlocklist`'s catch block returns
+   `List.of()` uncached rather than degrading to a cached blocklist the way `getProfile`
+   degrades to a cached-or-placeholder profile. Given CLAUDE.md treats blocking as safety
+   infrastructure alongside women-only mode and trust-score suspension, this is a
+   product-safety trade-off, not just a technical fallback shape, and should be a
+   conscious sign-off rather than an emergent side effect of "keep the endpoint from
+   500ing."
+   Affects: whichever future ticket first implements User Service's `/blocks` controller
+   (no task ID yet in PROGRESS.md/SPECS.md — the endpoint doesn't exist yet, per
+   `UserServiceClientImpl`'s own "Known limitation" comment), and T028 (Discovery Service
+   Docker Image — flag for tech-lead sign-off before this phase closes).
+
+2. **Stale/contradictory comment in `DiscoveryCacheService.getBlocklist`.** The doc
+   comment directly above the method claims "Caching the empty result for the full TTL is
+   deliberate too," but the actual `catch` block does not call `cacheBlocklist` — it
+   returns `List.of()` uncached, matching the WARN log line's own "(fail-open, not
+   cached)" wording two lines below. The comment teaches the wrong lesson to the next
+   reader in a project whose explicit convention is comments-explain-the-pattern.
+   Affects: T028 (cheap enough to fix directly whenever this file is next touched).
+
+3. **`permitted-number-of-calls-in-half-open-state` left at Resilience4j's default (10)
+   rather than tuned to "one cautious probe."** The ticket's own plain-English
+   explanation describes half-open as letting through one trial call to check recovery,
+   but `application.yml`'s `resilience4j.circuitbreaker.instances.userService` block
+   doesn't set this property, so up to 10 calls are actually permitted through before the
+   breaker decides to re-close or re-open. Functionally still satisfies the literal
+   acceptance criterion ("the next call attempts a real request"), but the configured
+   behavior doesn't match what this ticket teaches about half-open.
+   Affects: T027 itself (cheap one-line config fix next time this file is touched), or
+   whichever future ticket does a circuit-breaker tuning/hardening pass.
+
+4. **No `slow-call-duration-threshold` (or explicit WebClient response timeout)
+   configured.** Failure-rate counting alone doesn't trip the breaker on a *hanging* (not
+   erroring) User Service — only genuine exceptions count as failures today. This
+   partially undercuts the ticket's own stated goal ("stop hammering a struggling
+   dependency") for the slow-but-not-down case, distinct from the down case this ticket
+   does handle correctly.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — flag for whichever
+   ticket next does a resilience/timeout hardening pass across discovery-service's
+   WebClient calls.
+
+5. **`DiscoveryCacheService.degradedProfile`'s own Redis read is unguarded** — a
+   simultaneous Redis outage during the fallback path (circuit open or User Service call
+   failed, AND Redis unreachable at the same moment) throws uncaught up through
+   `getProfile`/`findNearby` to whatever the controller does with an unhandled exception.
+   Low real-world likelihood in practice (`findNearby` already depends on Redis earlier
+   for session location/active-sessions/eligibility, so a genuine Redis outage would
+   already fail the request before reaching this point), but the "always returns
+   something useful" promise this ticket makes has an unguarded seam here.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — flag for a future
+   Redis-resilience ticket if discovery-service ever gets its own circuit breaker/retry
+   layer around Redis itself.
+
 ## From T024 (BLE Token Generation)
 
 1. **`MissingRequestHeaderException` on a missing `X-User-Id` returns a raw 500, not a

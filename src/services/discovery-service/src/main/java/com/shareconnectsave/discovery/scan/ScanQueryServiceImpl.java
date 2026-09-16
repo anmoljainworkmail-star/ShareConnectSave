@@ -222,10 +222,15 @@ public class ScanQueryServiceImpl implements ScanQueryService {
 
             // Cache-Aside + Circuit Breaker — DiscoveryCacheService checks
             // Redis first and only calls UserServiceClient (Resilience4j-
-            // wrapped) on a miss; a down/slow User Service degrades to null
-            // (this candidate simply omitted) instead of failing the entire
-            // /scan/nearby request for every other match already computed
-            // above.
+            // wrapped) on a miss. Two different kinds of "no real profile"
+            // are handled two different ways (T027): a genuine 404 (user id
+            // no longer exists) still comes back null and is omitted below;
+            // a down/slow User Service instead comes back as a degraded,
+            // non-null card (a stale cached copy, or an "Unknown,
+            // unavailable" placeholder) so a real nearby match doesn't
+            // silently vanish from the radar just because a dependency is
+            // having a bad day — either way, the /scan/nearby request for
+            // every other match already computed above is never failed.
             UserCardResponse card = discoveryCacheService.getProfile(candidateUserId, distanceKm);
             if (card != null) {
                 results.add(card);

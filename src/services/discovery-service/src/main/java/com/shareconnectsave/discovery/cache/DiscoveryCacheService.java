@@ -221,16 +221,17 @@ public class DiscoveryCacheService {
     public UserCardResponse getProfile(Long userId, double distanceKm) {
         Object cached = redisTemplate.opsForValue().get(profileKey(userId));
         if (cached instanceof UserCardResponse card) {
-            return new UserCardResponse(card.id(), card.name(), card.photoUrl(), card.identityBadge(), distanceKm);
+            return withDistance(card, distanceKm);
         }
 
-        // Cache miss: fall through to User Service. The try/catch here is
-        // deliberately defensive on top of UserServiceClientImpl's own
-        // @CircuitBreaker fallback — that annotation only intercepts calls
-        // matching its declared exception handling; this catch-all is the
-        // guarantee that ANY unexpected failure here still degrades to
-        // "omit this candidate" instead of failing the whole /scan/nearby
-        // request.
+        // Cache miss: fall through to User Service. UserServiceClientImpl's
+        // getUserCard is @CircuitBreaker-wrapped but declares NO
+        // fallbackMethod (T027) — a circuit-open or call failure reaches
+        // this catch as a thrown exception rather than being swallowed
+        // there, precisely so THIS class (the one T026 already made the
+        // sole owner of Redis access) is the one that decides what a failed
+        // call degrades to, instead of duplicating that Redis-aware decision
+        // in two places.
         try {
             UserCardResponse fetched = userServiceClient.getUserCard(userId, distanceKm);
             if (fetched != null) {
@@ -238,10 +239,48 @@ public class DiscoveryCacheService {
             }
             return fetched;
         } catch (Exception ex) {
-            log.warn("Profile fetch failed for user {} ({}); returning null (fail-open, not cached)",
+            // Pattern: Circuit Breaker fallback (Decorator under the hood) —
+            // like a business that switches to a backup supplier the moment
+            // its usual one stops delivering reliably, instead of placing
+            // (and losing) yet another order and waiting out the timeout:
+            // once "userService" has tripped (or even before it trips, on
+            // any single call failure — see this method's own AC), every
+            // discovery request that would otherwise wait out a full
+            // WebClient timeout gets an immediate answer instead. Never log
+            // level below WARN: a real User Service outage must be visible
+            // here, not just inferable from a sudden wave of placeholder
+            // cards on the radar screen.
+            log.warn("User Service call failed for user {} ({}); degrading to cached-or-placeholder profile",
                     userId, ex.toString());
-            return null;
+            return degradedProfile(userId, distanceKm);
         }
+    }
+
+    // T027's two-step fallback, in the order the ticket specifies: a cached
+    // profile if one exists, else a minimal placeholder. Re-checking Redis
+    // here (rather than trusting the miss already found above) matters only
+    // in the narrow window where a different concurrent /scan/nearby request
+    // for the SAME candidate populated the cache between that first read and
+    // this failure — an unlikely but free-to-handle race, not the common
+    // case. The placeholder itself is deliberately never passed to
+    // cacheProfile: it is a best-effort stand-in for THIS one response, not
+    // a fact about the user worth remembering for the next 5 minutes.
+    private UserCardResponse degradedProfile(Long userId, double distanceKm) {
+        Object cached = redisTemplate.opsForValue().get(profileKey(userId));
+        if (cached instanceof UserCardResponse card) {
+            return withDistance(card, distanceKm);
+        }
+        return new UserCardResponse(userId, "Unknown", null, false, distanceKm, true);
+    }
+
+    // distanceKm is caller-position-dependent (see this class's earlier
+    // comment on why it is never part of what gets cached) — every read of a
+    // cached UserCardResponse, whether a clean cache hit or the fallback's
+    // own re-check, needs to restitch the CURRENT query's distance onto
+    // whatever profile fields were cached, so this one-liner replaces two
+    // near-identical reconstructions that used to drift independently.
+    private static UserCardResponse withDistance(UserCardResponse card, double distanceKm) {
+        return new UserCardResponse(card.id(), card.name(), card.photoUrl(), card.identityBadge(), distanceKm, card.unavailable());
     }
 
     public void cacheProfile(Long userId, UserCardResponse card) {

@@ -16,9 +16,13 @@ import java.util.List;
 // Pattern: Circuit Breaker (Decorator under the hood, per this project's
 // CLAUDE.md) — @CircuitBreaker wraps each public method transparently,
 // tripping open after the "userService" instance's configured failure rate
-// and routing every subsequent call straight to its fallback method instead
-// of letting a slow/down User Service block every /scan/nearby request
-// behind it. Same shape as the java-spring-boot skill's own example.
+// so a slow/down User Service can no longer block every /scan/nearby
+// request behind it. getBlockList still routes straight to its own
+// fallback method on trip/failure (fail-open to an empty list, see that
+// method); getUserCard deliberately does NOT (see the T027 paragraph
+// below) — same annotation, same shared "userService" instance and sliding
+// window, two different post-failure shapes. Same shape as the
+// java-spring-boot skill's own example.
 //
 // T026 change: this class no longer touches Redis at all. Before T026 it
 // held its own fallback-only profile cache (a RedisTemplate field, populated
@@ -29,6 +33,22 @@ import java.util.List;
 // this class's only job is "call User Service, or fail" — a fallback here
 // simply returns null/empty and lets the caller (DiscoveryCacheService)
 // decide what a missing answer means.
+//
+// T027 change: getUserCard's @CircuitBreaker now declares NO fallbackMethod
+// at all (getBlockList's below is unchanged — see that method's own
+// comment). Resilience4j's annotation still wraps the call for exactly the
+// reason it always has — measuring failures against the "userService"
+// sliding window and fast-failing with CallNotPermittedException once it
+// opens — but with no fallbackMethod configured, that exception (or whatever
+// the real WebClient call threw) is simply left to propagate to whoever
+// called getUserCard, instead of being swallowed here. That caller is
+// DiscoveryCacheService, the one class T026 already made responsible for
+// Redis, so it is also the one place that can honor T027's "serve the
+// cached profile, else a placeholder" fallback without this class reaching
+// back into Redis (which would reintroduce exactly the caching-logic-leak
+// T026 just removed) or DiscoveryCacheService duplicating this class's own
+// try/catch around the same call. One exception, one place that decides
+// what to do about it.
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -36,8 +56,19 @@ public class UserServiceClientImpl implements UserServiceClient {
 
     private final WebClient userServiceWebClient;
 
+    // Note there is deliberately no fallbackMethod on this annotation — see
+    // the T027 paragraph in the class comment above for why the exception is
+    // left to propagate to DiscoveryCacheService rather than being handled
+    // here. Also note a genuine 404 never reaches that exception path at
+    // all: .onStatus below turns it into an empty Mono, so .block() just
+    // returns null as a NORMAL return value — Resilience4j only ever counts
+    // (and only ever routes to a fallback) an exception, never a null. That
+    // is what keeps "this user id doesn't exist" (a business outcome, still
+    // "omit the candidate") distinct from "User Service is unreachable/
+    // erroring" (an infrastructure failure, T027's cached-or-placeholder
+    // case) — the two would otherwise be indistinguishable null returns.
     @Override
-    @CircuitBreaker(name = "userService", fallbackMethod = "getUserCardFallback")
+    @CircuitBreaker(name = "userService")
     public UserCardResponse getUserCard(Long userId, double distanceKm) {
         PublicUserProfileResponse profile = userServiceWebClient.get()
                 .uri("/users/{id}", userId)
@@ -56,23 +87,7 @@ public class UserServiceClientImpl implements UserServiceClient {
             return null;
         }
 
-        return new UserCardResponse(profile.id(), profile.name(), profile.photoUrl(), profile.identityBadge(), distanceKm);
-    }
-
-    // Resilience4j fallback-method contract: same parameters as the guarded
-    // method, plus the Throwable that triggered it (an open circuit throws
-    // CallNotPermittedException; a real failure throws whatever
-    // WebClient/Netty raised) — Resilience4j resolves this by reflection at
-    // startup, matching on name + parameter shape.
-    //
-    // Fail-open, no cache read here (see class comment): DiscoveryCacheService
-    // already checked Redis before ever calling this method, so on a genuine
-    // upstream failure there is nothing left to fall back to except "omit
-    // this candidate" — the caller decides that, this method just reports
-    // "unavailable" as null.
-    private UserCardResponse getUserCardFallback(Long userId, double distanceKm, Throwable ex) {
-        log.warn("User Service unavailable for user {} ({}); omitting candidate", userId, ex.toString());
-        return null;
+        return new UserCardResponse(profile.id(), profile.name(), profile.photoUrl(), profile.identityBadge(), distanceKm, false);
     }
 
     @Override

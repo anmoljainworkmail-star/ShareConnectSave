@@ -54,7 +54,7 @@
 - [x] T025 — Kafka Consumer: user.verified + trust.score.updated
 - [x] T026 — Redis Caching Layer _(DiscoveryCacheService, 10s TTL)_
 - [x] T027 — Resilience4j Circuit Breaker _(User Service calls, 50% threshold, 30s wait)_
-- [ ] T028 — Discovery Service Docker Image
+- [x] T028 — Discovery Service Docker Image
 
 ---
 

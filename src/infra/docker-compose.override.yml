@@ -61,6 +61,19 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=${DISCOVERY_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=DiscoveryServiceDb;encrypt=true;trustServerCertificate=true}
+      # Bug fix (T028): application.yml only declares dev/prod profile documents,
+      # not docker — so activating SPRING_PROFILES_ACTIVE=docker skips the
+      # spring.datasource.username/password ${DISCOVERY_DB_USERNAME}/${DISCOVERY_DB_PASSWORD}
+      # placeholders in both of those blocks entirely. Spring Boot's DataSource
+      # autoconfig then connects with an EMPTY username (SQL Server error 18456,
+      # "Login failed for user ''"), not a missing-property failure, so this went
+      # unnoticed until this service was the first one actually run in a
+      # container. Setting these two directly as OS env vars works regardless of
+      # active profile — same relaxed-binding mechanism SPRING_DATASOURCE_URL
+      # above already relies on — and reuses the same SA_PASSWORD the sqlserver
+      # service itself requires, rather than inventing a second credential.
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=${SA_PASSWORD:?SA_PASSWORD must be set — copy .env.example to .env and fill in values}
       # Fix (T025 known follow-up #3): kafka:9092 is the PLAINTEXT listener,
       # published to the HOST for tools like a developer's own CLI — it is
       # NOT reachable from container-to-container traffic on this Docker

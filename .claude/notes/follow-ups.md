@@ -153,6 +153,43 @@ whose implementation or ticket should pick it up.
    Affects: T025's original scope area — flag for whichever future ticket revisits trust
    score recalculation / eligibility gating in discovery-service.
 
+## From T028 (Discovery Service Docker Image)
+
+1. **Manifest's stated root cause for the `docker images` (~450MB) vs. actual image size
+   (~152MB) gap is wrong.** `.claude/manifests/T028.json` attributes the discrepancy to a
+   "Docker Desktop containerd image-store virtual-size reporting quirk with multi-stage
+   BuildKit builds" and specifically implies BuildKit attestation/SBOM metadata as the
+   mechanism. Reviewer rebuilt with `--provenance=false --sbom=false` and the `docker
+   images` number was unchanged (still ~450MB), while `docker inspect --format {{.Size}}`
+   and `docker save` both independently corroborated ~152MB — so the top-line conclusion
+   ("trust `docker inspect`, not `docker images`, for this image") is correct and
+   reproducible, but the specific *mechanism* named (BuildKit attestation) is not what's
+   actually happening; the real cause is an unconfirmed containerd-snapshotter display
+   quirk (`docker info` shows `driver-type: io.containerd.snapshotter.v1` active on this
+   machine). Whoever writes the size-budget check for the remaining Java services should
+   use `docker inspect .Size` (or `docker save` size) as the authoritative metric, not
+   `docker images`, and should also be aware `docker history`'s summed layer size comes to
+   ~298MB uncompressed — only ~2MB under the 300MB budget — so an uncompressed-size-based
+   check could flip pass/fail depending on which metric is used.
+   Affects: T034, T046, T055, T061 (remaining Java service Docker Image tickets — all will
+   hit the same `docker images` display quirk and need the same inspect-based verification
+   approach).
+
+2. **`SPRING_PROFILES_ACTIVE=docker` is set for connection-service, rating-service,
+   report-service, and admin-service in `docker-compose.override.yml`, but none of those
+   services' `application.yml` files have been confirmed to define a `docker` profile
+   document** — the exact same latent bug T028 discovered and fixed for discovery-service
+   (activating a nonexistent Spring profile silently no-ops, so `SPRING_DATASOURCE_USERNAME`/
+   `PASSWORD` never bind from the `dev`/`prod`-only placeholders, and the app connects to
+   SQL Server with an empty username — error 18456). discovery-service was fixed by adding
+   explicit `SPRING_DATASOURCE_USERNAME=sa` / `SPRING_DATASOURCE_PASSWORD=${SA_PASSWORD:?...}`
+   env vars directly in the override file, bypassing the profile system entirely via Spring's
+   relaxed env-var binding. The other four services will hit this the moment they get a
+   Dockerfile and are run for the first time, unless fixed proactively.
+   Affects: T034 (Connection Service Docker Image — next in line, will hit this first),
+   T046 (Rating Service Docker Image), T055 (Report Service Docker Image), T061 (Admin
+   Service Docker Image).
+
 ## From T027 (Resilience4j Circuit Breaker (User Service calls))
 
 1. **`getBlocklist` fails open (returns an empty list) during a User Service outage,

@@ -1,0 +1,20 @@
+{
+  "task_id": "T028",
+  "title": "Discovery Service Docker Image",
+  "status": "completed",
+  "files_created": [
+    "src/services/discovery-service/Dockerfile"
+  ],
+  "files_modified": [
+    "src/infra/docker-compose.yml",
+    "src/infra/docker-compose.override.yml"
+  ],
+  "files_removed": [
+    "src/infra/.env"
+  ],
+  "criteria_checked": {
+    "AC1_docker_compose_up_discovery_service_starts_and_health_passes": "PASS — verified via `docker compose -p shareconnectsave ps`: discovery-service Up (healthy) on 0.0.0.0:8082->8080/tcp.",
+    "AC2_image_under_300MB": "PASS — 151997058 bytes (~152MB) via `docker inspect --format {{.Size}}`, well under the 300MB budget. Note: `docker images` displayed 450MB due to a Docker Desktop containerd image-store virtual-size reporting quirk with multi-stage BuildKit builds; docker inspect's .Size is authoritative."
+  },
+  "last_note": "Three real issues surfaced and fixed during verification, beyond the original Dockerfile: (1) discovery-service depends on sibling Maven module shared-java-lib, not published anywhere -- widened docker-compose.yml build.context to src/services and had the Dockerfile install shared-java-lib into the build stage's local .m2 first (pattern the other 4 Java services' future Dockerfile tickets will need too). (2) docker-compose.override.yml's discovery-service block set SPRING_PROFILES_ACTIVE=docker but application.yml has no 'docker' profile document and never set SPRING_DATASOURCE_USERNAME/PASSWORD as env vars, so the app connected with an empty username (SQL Server 18456) -- fixed by adding SPRING_DATASOURCE_USERNAME=sa and SPRING_DATASOURCE_PASSWORD=${SA_PASSWORD} directly (same latent bug exists for connection/rating/report/admin-service, unfixed, since those don't have Dockerfiles yet). (3) Two divergent .env files existed (root vs src/infra/.env) with different SA_PASSWORD values; src/infra/.env was a stale T014 leftover missing most current keys -- deleted it (untracked, gitignored) since root .env is the complete, actively-used one with COMPOSE_FILE/COMPOSE_PROJECT_NAME already wired for repo-root invocation. Both acceptance criteria verified PASS against the live running container."
+}

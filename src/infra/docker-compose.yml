@@ -307,8 +307,10 @@ services:
   discovery-service:
     image: shareconnectsave/discovery-service:dev
     build:
-      context: ../../src/services/discovery-service
-      dockerfile: Dockerfile
+      # Context is the services parent dir, not discovery-service/ alone — the
+      # Dockerfile needs shared-java-lib's source too, see its build-stage comment.
+      context: ../../src/services
+      dockerfile: discovery-service/Dockerfile
     container_name: discovery-service
     depends_on:
       sqlserver:

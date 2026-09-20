@@ -1,0 +1,23 @@
+{
+  "task_id": "T029",
+  "title": "Spring Boot Setup + DB Schema",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/pom.xml",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceApplication.java",
+    "src/services/connection-service/src/test/java/com/shareconnectsave/connection/ConnectionServiceApplicationTests.java",
+    "src/services/connection-service/src/main/resources/application.yml",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/ConnectionStatus.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/ConnectionRequest.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/ExceptionHandlingConfig.java"
+  ],
+  "files_deleted": [
+    "src/services/connection-service/src/main/resources/application.properties",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection_service/ConnectionServiceApplication.java",
+    "src/services/connection-service/src/test/java/com/shareconnectsave/connection_service/ConnectionServiceApplicationTests.java"
+  ],
+  "criteria_checked": {
+    "Service starts, Flyway runs, /actuator/health returns UP": "PENDING-MANUAL-VERIFY"
+  },
+  "last_note": "All setup/schema code complete: pom.xml deps (flyway, mssql-jdbc, shared-java-lib, mapstruct) added matching discovery-service template; package moved connection_service -> connection; application.properties replaced by application.yml (dev/prod profiles, env vars, virtual threads, flyway locations, ddl-auto validate, actuator health/info only); ConnectionStatus enum + ConnectionRequest entity written to match existing V001 migration exactly; ExceptionHandlingConfig thin re-export added. No live SQL Server available in this environment to run mvn spring-boot:run end-to-end, so the actuator/health criterion is PENDING-MANUAL-VERIFY -- Tech Lead should run docker-up then mvn spring-boot:run from src/services/connection-service to confirm Flyway applies V001 cleanly and GET /actuator/health returns UP."
+}

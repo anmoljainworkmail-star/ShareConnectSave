@@ -1,4 +1,4 @@
-package com.shareconnectsave.connection_service;
+package com.shareconnectsave.connection;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

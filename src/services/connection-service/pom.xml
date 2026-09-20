@@ -28,6 +28,13 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Pattern: pin third-party (non-Spring-managed) versions as properties,
+		     not inline literals — see discovery-service's pom.xml, the template
+		     this file was copied from. mssql-jdbc, flyway-core and
+		     flyway-sqlserver are intentionally NOT listed here — the parent
+		     spring-boot-starter-parent BOM already pins compatible versions of
+		     those. -->
+		<mapstruct.version>1.6.3</mapstruct.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -49,6 +56,52 @@
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
+		<!-- Flyway: version-controlled, one-way-forward schema migrations
+		     instead of Hibernate's ddl-auto=update. flyway-sqlserver is a
+		     SEPARATE artifact from flyway-core as of the Flyway major version
+		     Spring Boot 3.3.x manages — without it on the classpath, Flyway
+		     throws "Unsupported Database: Microsoft SQL Server" at startup
+		     even though the JDBC driver itself connects fine. -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-sqlserver</artifactId>
+		</dependency>
+
+		<!-- JDBC driver for spring.datasource.url's jdbc:sqlserver: scheme.
+		     scope=runtime because application code talks to Hibernate/JPA,
+		     never this driver class, directly. -->
+		<dependency>
+			<groupId>com.microsoft.sqlserver</groupId>
+			<artifactId>mssql-jdbc</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- DRY via shared library, not inheritance: pulls in ErrorResponse +
+		     GlobalExceptionHandler (T003) so this service's HTTP error
+		     envelope is byte-for-byte identical to every other Java service's,
+		     instead of a copy-pasted @ControllerAdvice drifting apart over
+		     time. -->
+		<dependency>
+			<groupId>com.shareconnectsave</groupId>
+			<artifactId>shared-java-lib</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+
+		<!-- MapStruct: compile-time-generated DTO mapping (later Phase 5
+		     tickets' feature packages use this for entity<->DTO translation).
+		     Declared now, wired below, so the state-machine/controller
+		     tickets that follow don't also need to touch the compiler plugin
+		     config. -->
+		<dependency>
+			<groupId>org.mapstruct</groupId>
+			<artifactId>mapstruct</artifactId>
+			<version>${mapstruct.version}</version>
 		</dependency>
 
 		<dependency>
@@ -98,6 +151,21 @@
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
 								</path>
+								<!-- Ordering matters: Lombok must run before MapStruct's
+								     processor so generated getters/builders already exist
+								     when MapStruct inspects a bean's structure. This shim
+								     has no runtime code of its own — it exists solely to
+								     make both processors agree on that order. -->
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
+								</path>
 							</annotationProcessorPaths>
 						</configuration>
 					</execution>
@@ -112,6 +180,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>

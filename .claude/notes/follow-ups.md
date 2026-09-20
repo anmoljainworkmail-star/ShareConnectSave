@@ -247,6 +247,28 @@ whose implementation or ticket should pick it up.
    Redis-resilience ticket if discovery-service ever gets its own circuit breaker/retry
    layer around Redis itself.
 
+## From T029 (Spring Boot Setup + DB Schema)
+
+1. **`ConnectionRequest.status` has no `@Builder.Default`, so a future create-flow that
+   forgets `.status(...)` will INSERT an explicit `NULL` instead of falling back to the
+   DB's `DEFAULT 'PENDING'`.** Hibernate lists every mapped, non-`insertable=false` column
+   in its generated INSERT using whatever the Java field currently holds — `null` included
+   — so the column's own `DEFAULT 'PENDING'` (V001) never gets a chance to fire once
+   Hibernate is involved. Fix: `@Builder.Default private ConnectionStatus status =
+   ConnectionStatus.PENDING;` on `ConnectionRequest.java`, added when the first
+   `.save()` call is written.
+   Affects: T030 (Request Lifecycle Endpoints — first ticket to actually construct and
+   persist a `ConnectionRequest`).
+
+2. **`ConnectionServiceApplicationTests.contextLoads()` has no `@ActiveProfiles` and
+   `application.yml` only defines `spring.datasource.url` inside the `dev`/`prod` profile
+   documents**, so a bare `mvn test` with no `SPRING_PROFILES_ACTIVE` set and no env vars
+   exported will likely fail with "Failed to configure a DataSource: 'url' attribute is
+   not specified." Inherited unchanged from `discovery-service`'s T021 template (same gap
+   confirmed there) — not new to this ticket, but worth fixing once real tests exist.
+   Affects: T081 (Unit Tests: Java Services — natural point to give every Java service's
+   placeholder test a working `@ActiveProfiles`/test-profile setup).
+
 ## From T024 (BLE Token Generation)
 
 1. **`MissingRequestHeaderException` on a missing `X-User-Id` returns a raw 500, not a

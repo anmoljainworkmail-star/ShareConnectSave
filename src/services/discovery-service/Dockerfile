@@ -1,3 +1,8 @@
+# syntax=docker/dockerfile:1
+# The line above pins the BuildKit Dockerfile frontend so `RUN --mount=type=cache`
+# below is available regardless of the local Docker Engine's default frontend
+# version — see the Maven cache-mount fix a few lines down for why it's needed.
+#
 # Multi-Stage Build (T028) — same shape T014 established for api-gateway/
 # user-service (.NET), now applied to the first Java service to get a
 # Dockerfile. The `build` stage carries the full JDK plus Maven's dependency
@@ -29,7 +34,14 @@ COPY shared-java-lib/.mvn/ shared-java-lib/.mvn/
 COPY shared-java-lib/mvnw shared-java-lib/pom.xml shared-java-lib/
 RUN chmod +x shared-java-lib/mvnw
 COPY shared-java-lib/src shared-java-lib/src
-RUN cd shared-java-lib && ./mvnw install -DskipTests -B
+# Bug fix (testing-bugs-pending.md #4): without a persisted .m2, editing ANY
+# shared-java-lib source file invalidates this layer and forces Maven to
+# re-download its entire dependency tree from a cold cache on every rebuild —
+# a 3-line logging change shouldn't cost the same as the very first build ever
+# run. The cache mount persists ~/.m2 across builds (BuildKit-managed, not a
+# bind mount into the image — nothing here ships in the final jar/runtime
+# stage), so only genuinely NEW dependency versions ever hit the network again.
+RUN --mount=type=cache,target=/root/.m2 cd shared-java-lib && ./mvnw install -DskipTests -B
 
 # Maven Wrapper, not a globally-installed Maven — mirrors the ticket's own
 # rule for why .NET Dockerfiles never assume a host-installed SDK version.
@@ -48,15 +60,17 @@ RUN chmod +x discovery-service/mvnw
 # anything yet, so a source-only change still hits this cache. shared-java-lib
 # is already sitting in this stage's local .m2 (installed above), so this
 # resolves cleanly instead of failing with "artifact could not be resolved."
-RUN cd discovery-service && ./mvnw dependency:go-offline -B
+RUN --mount=type=cache,target=/root/.m2 cd discovery-service && ./mvnw dependency:go-offline -B
 
 COPY discovery-service/src discovery-service/src
 # -DskipTests: this Dockerfile packages what T-series test tickets already
 # verified in CI/local runs — a Docker build is not the place to re-run the
 # suite. package (not just compile) is what actually produces the runnable
 # fat jar under target/, via the spring-boot-maven-plugin repackage goal
-# already configured in pom.xml.
-RUN cd discovery-service && ./mvnw package -DskipTests -B
+# already configured in pom.xml. Same cache mount as the two Maven steps
+# above (testing-bugs-pending.md #4) — this step also touches ~/.m2 for
+# plugin resolution, not just the dependency:go-offline step.
+RUN --mount=type=cache,target=/root/.m2 cd discovery-service && ./mvnw package -DskipTests -B
 
 # Runtime stage — JRE-only Alpine, no JDK/compiler/Maven cache ever ships.
 # Alpine's musl-libc base plus a JRE-not-JDK image is what keeps this stage

@@ -14,8 +14,7 @@ public interface IJwksService
 {
     Task<IReadOnlyList<SecurityKey>> GetSigningKeysAsync(CancellationToken cancellationToken = default);
 
-    // Fix (found during integration testing — see
-    // .claude/notes/integration-testing-bugs.md #3): forces the NEXT
+    // Fix (found during integration testing): forces the NEXT
     // GetSigningKeysAsync call to bypass the cached 24h interval and fetch a
     // genuinely fresh JWKS document, instead of waiting out the full
     // AutomaticRefreshInterval. JwtValidationMiddleware calls this — and
@@ -49,6 +48,23 @@ public interface IJwksService
 // just parsing a JsonWebKeySet directly instead of an OIDC document.
 public class JwksService : IJwksService
 {
+    // Bug fix (testing-bugs-pending.md #1): ConfigurationManager<T>'s own
+    // RefreshInterval — the MINIMUM time between two actual refetches,
+    // regardless of how many times RequestRefresh() is called — defaults to
+    // 5 minutes (confirmed via reflection against the installed
+    // Microsoft.IdentityModel.Tokens.BaseConfigurationManager). Left
+    // unset, that meant JwtValidationMiddleware's reactive
+    // refresh-and-retry-once logic (see that class) was a no-op for up to 5
+    // minutes after user-service regenerates its signing key on every
+    // restart (it has no persisted RSA key — see JwtIssuer.cs) — a token's
+    // kid would never resolve until either 5 minutes passed or this gateway
+    // itself was restarted. 10 seconds keeps the "don't hammer the JWKS
+    // endpoint on every bad kid" protection this interval exists for (a
+    // real attacker still only forces one refetch per 10s), while making a
+    // local dev restart self-heal within one retry instead of stalling for
+    // most of a five-minute window.
+    private static readonly TimeSpan JwksRefreshInterval = TimeSpan.FromSeconds(10);
+
     private readonly ConfigurationManager<JsonWebKeySet> _configManager;
 
     public JwksService(IOptions<JwtOptions> options, HttpClient httpClient)
@@ -65,6 +81,7 @@ public class JwksService : IJwksService
             new HttpDocumentRetriever(httpClient) { RequireHttps = false })
         {
             AutomaticRefreshInterval = TimeSpan.FromHours(jwtOptions.JwksCacheHours),
+            RefreshInterval = JwksRefreshInterval,
         };
     }
 

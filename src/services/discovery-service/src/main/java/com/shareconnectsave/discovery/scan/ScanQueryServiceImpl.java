@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,20 +54,35 @@ public class ScanQueryServiceImpl implements ScanQueryService {
     // collaborator instead of three separate @Value constructor parameters.
     private final DiscoveryProperties discoveryProperties;
 
+    // Bug fix: @Lock(PESSIMISTIC_WRITE) on ScanSessionRepository's finder
+    // requires a GENUINELY active transaction to acquire the row lock —
+    // Spring Data JPA's own reference docs call this out as the exception to
+    // "every query method gets an implicit default transaction": that
+    // implicit wrapping does not reliably cover @Lock methods. Confirmed the
+    // hard way — findNearby had no @Transactional anywhere in its call path
+    // and every single call failed with
+    // jakarta.persistence.TransactionRequiredException. A plain @Transactional
+    // on requireActiveSession() below would NOT have fixed this either: it's
+    // called via `this.requireActiveSession(...)`, and Spring's @Transactional
+    // is proxy-based AOP — a self-invocation never goes through the proxy, so
+    // the annotation would silently do nothing. TransactionTemplate sidesteps
+    // both problems: it opens/commits a real transaction programmatically,
+    // scoped to exactly the one repository call below, with no proxy involved.
+    private final PlatformTransactionManager transactionManager;
+
     @Override
     public List<UserCardResponse> findNearby(Long callerUserId) {
         // Pattern: Pessimistic locking, deliberately kept SHORT here — unlike
         // stopScan/updateLocation (which wrap this same repository call in an
         // outer @Transactional specifically to WIDEN the lock's scope), this
-        // method has NO @Transactional of its own. Spring Data JPA still
-        // wraps every derived query method in its own short-lived, repository
-        // -managed transaction by default — so the PESSIMISTIC_WRITE row lock
-        // this query takes is acquired and released by the time this single
-        // call returns, never held across the Redis reads and User Service
-        // HTTP calls below. Widening it here (the way stopScan does) would
-        // hold a SQL row lock for the duration of a network call to another
-        // service — exactly the kind of latency-amplifying mistake a
-        // P95 < 500ms endpoint can't afford.
+        // method has no @Transactional of its own; requireActiveSession()
+        // below opens its own short-lived transaction via TransactionTemplate
+        // instead (see that field's comment for why), acquired and released
+        // before this method returns from that call — never held across the
+        // Redis reads and User Service HTTP calls that follow. Widening it
+        // the way stopScan does would hold a SQL row lock for the duration of
+        // a network call to another service — exactly the kind of
+        // latency-amplifying mistake a P95 < 500ms endpoint can't afford.
         ScanSession callerSession = requireActiveSession(callerUserId);
         Long callerSessionId = callerSession.getId();
 
@@ -252,7 +269,14 @@ public class ScanQueryServiceImpl implements ScanQueryService {
     // fresh call through the same shared ScanSessionRepository, not
     // duplicated business logic.
     private ScanSession requireActiveSession(Long userId) {
-        return scanSessionRepository.findFirstByUserIdAndEndedAtIsNullOrderByIdDesc(userId)
-                .orElseThrow(() -> new ScanSessionNotFoundException(userId));
+        // See transactionManager's field comment: a new TransactionTemplate
+        // per call is cheap (a thin wrapper, not a new connection/transaction
+        // manager), and keeps this the one place that owns "how long is the
+        // PESSIMISTIC_WRITE lock held" — exactly the single repository call
+        // below, nothing else.
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        return transactionTemplate.execute(status ->
+                scanSessionRepository.findFirstByUserIdAndEndedAtIsNullOrderByIdDesc(userId)
+                        .orElseThrow(() -> new ScanSessionNotFoundException(userId)));
     }
 }

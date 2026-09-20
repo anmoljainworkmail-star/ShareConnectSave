@@ -19,12 +19,19 @@ public interface BleSeedRepository extends JpaRepository<BleSeed, Long> {
     // never costs N round-trips (no per-candidate N+1 query).
     List<BleSeed> findByUserIdIn(List<Long> userIds);
 
-    // Per-user sweep, called from BleTokenServiceImpl.issueSeed every time a
-    // new seed is minted for that user (same "old tokens for this user are
-    // deleted" spirit as v1) — narrower and more frequent than
-    // BleTokenCleanupTask's own service-wide sweep below, which exists as a
-    // backstop for a user who stops requesting new seeds altogether.
-    void deleteByUserIdAndExpiresAtBefore(Long userId, Instant cutoff);
+    // Bug fix (testing-bugs-pending.md #7): this used to be
+    // deleteByUserIdAndExpiresAtBefore(userId, now) — pruning only this
+    // user's ALREADY-EXPIRED seeds, which let a still-valid prior seed keep
+    // coexisting with a freshly-issued one (two valid seeds for the same
+    // user at once, neither ever explicitly superseded). issueSeed's own
+    // intent — "exactly one live seed per user" — needs every PRIOR seed
+    // gone the moment a new one is minted, valid or not, not just the
+    // expired ones. Kept as its own repository method (not folded into the
+    // per-user find/save flow) for the same reason deleteByExpiresAtBefore
+    // below is separate from this one: BleTokenCleanupTask's service-wide
+    // sweep and issueSeed's per-user replacement are two different callers
+    // with two different scopes.
+    void deleteByUserId(Long userId);
 
     // Service-wide sweep for BleTokenCleanupTask's @Scheduled job — without
     // this, seeds belonging to a user who never calls /scan/ble/seed again

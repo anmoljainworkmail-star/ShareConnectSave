@@ -118,9 +118,8 @@ public class JwtValidationMiddleware
             }
             catch (SecurityTokenSignatureKeyNotFoundException)
             {
-                // Reactive refresh (fix, found during integration testing —
-                // see .claude/notes/integration-testing-bugs.md #3): this
-                // token's `kid` doesn't match anything currently cached —
+                // Reactive refresh (fix, found during integration testing):
+                // this token's `kid` doesn't match anything currently cached —
                 // most likely because user-service's signing key changed
                 // since the last fetch (every restart in local dev, since it
                 // has no persisted RSA key; a deliberate rotation schedule in
@@ -132,7 +131,13 @@ public class JwtValidationMiddleware
                 // own. A second failure here (still unrecognized after a
                 // real refetch, or any other validation problem) falls
                 // through to the catch blocks below exactly as before — this
-                // never retries more than once.
+                // never retries more than once. Note: RequestRefresh() only
+                // actually triggers a new fetch if ConfigurationManager<T>'s
+                // own RefreshInterval has elapsed since the last one — see
+                // JwksService's JwksRefreshInterval field for why that's
+                // pinned to 10s here rather than left at the library's
+                // 5-minute default (a fresh refetch inside this same retry
+                // is the entire point of this catch block).
                 _jwksService.RequestRefresh();
                 var refreshedKeys = await _jwksService.GetSigningKeysAsync(context.RequestAborted);
                 principal = ValidateToken(token, refreshedKeys);

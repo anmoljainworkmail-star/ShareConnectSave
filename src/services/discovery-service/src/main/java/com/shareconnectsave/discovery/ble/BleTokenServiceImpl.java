@@ -77,11 +77,14 @@ public class BleTokenServiceImpl implements BleTokenService {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(bleProperties.seed().ttlMinutes(), ChronoUnit.MINUTES);
 
-        // Spec step 2: "old tokens for this user (expired) are deleted" —
-        // same per-user, inline-with-issuance spirit as v1, scoped to THIS
-        // user and distinct from BleTokenCleanupTask's service-wide
-        // scheduled sweep.
-        bleSeedRepository.deleteByUserIdAndExpiresAtBefore(userId, now);
+        // Spec step 2: "old tokens for this user are deleted" — ALL of this
+        // user's prior seeds, not just already-expired ones (bug fix,
+        // testing-bugs-pending.md #7 — see BleSeedRepository.deleteByUserId's
+        // own comment for why the expired-only version left a still-valid
+        // previous seed coexisting with the new one). Same per-user,
+        // inline-with-issuance spirit as v1, scoped to THIS user and
+        // distinct from BleTokenCleanupTask's service-wide scheduled sweep.
+        bleSeedRepository.deleteByUserId(userId);
 
         // Rolling identifiers derived from a locally-held secret (the actual
         // concept behind Apple/Google's Exposure Notification system): this

@@ -1,6 +1,8 @@
 package com.shareconnectsave.shared;
 
 import org.slf4j.MDC;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     // Maps bean-validation failures (e.g. @NotBlank, @Email on a request DTO) to a
     // 400 with a stable machine-readable code, so the Angular client can branch on
     // `code` without parsing prose.
@@ -40,12 +44,20 @@ public class GlobalExceptionHandler {
     // the message never echoes ex.getMessage() because that can leak internals
     // (SQL, stack details, class names) straight into an HTTP response body.
     // The traceId is how an operator finds out what actually happened, in Jaeger,
-    // without the client ever seeing it.
+    // without the client ever seeing it — but Jaeger being unavailable/unwired
+    // (or the request simply falling outside a sampled trace) must never be the
+    // ONLY way to find out. Logging the full exception here, server-side only,
+    // is what keeps an unhandled exception from being completely invisible when
+    // that traceId comes back empty — as it will for any request Jaeger never
+    // instrumented.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnhandled(Exception ex) {
+        String traceId = traceId();
+        log.error("Unhandled exception (traceId={})", traceId, ex);
+
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("INTERNAL_ERROR", "An unexpected error occurred.", traceId()));
+                .body(new ErrorResponse("INTERNAL_ERROR", "An unexpected error occurred.", traceId));
     }
 
     // Pattern: Distributed Tracing integration. traceId is read from MDC — populated

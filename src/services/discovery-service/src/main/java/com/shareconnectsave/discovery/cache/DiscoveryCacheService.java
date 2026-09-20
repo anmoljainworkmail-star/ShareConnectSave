@@ -297,7 +297,29 @@ public class DiscoveryCacheService {
 
     @SuppressWarnings("unchecked")
     public List<Long> getBlocklist(Long userId) {
-        Object cached = redisTemplate.opsForValue().get(blocklistKey(userId));
+        // Bug fix (found via manual testing, see testing-bugs-pending.md):
+        // this read used to be unguarded. GenericJackson2JsonRedisSerializer
+        // wraps every List value with a type-id ("[\"java.util.ArrayList\",
+        // [...]]") so it knows what to rebuild on the way back out — but
+        // List.of() (returned by getBlockListFallback below, since User
+        // Service's /blocks endpoint doesn't exist yet) is a JDK-internal
+        // ImmutableCollections type, not a plain ArrayList, and round-trips
+        // through that same wrapper as a bare "[]" with no type id at all.
+        // Reading it back then throws mid-deserialization, before this method
+        // ever produces a List for a caller to even call .contains() on — a
+        // cache is an optimization, and a value it can't read back must
+        // degrade to "treat it as a miss," the same as the fetch-failure
+        // catch block below already does, never a new way for the whole
+        // /scan/nearby request to fail that a cold cache wouldn't have.
+        Object cached;
+        try {
+            cached = redisTemplate.opsForValue().get(blocklistKey(userId));
+        } catch (Exception ex) {
+            log.warn("Blocklist cache read failed for user {} ({}); treating as a cache miss",
+                    userId, ex.toString());
+            cached = null;
+        }
+
         if (cached instanceof List<?> list) {
             return (List<Long>) list;
         }

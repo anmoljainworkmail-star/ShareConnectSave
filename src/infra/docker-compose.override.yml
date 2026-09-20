@@ -83,6 +83,29 @@ services:
       # correct default here is the INTERNAL listener, kafka:29092.
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:29092}
       - SPRING_DATA_REDIS_HOST=${REDIS_HOST:-redis}
+      # Fix (found while preparing Discovery Service manual testing, same class
+      # of gap as the two fixes above): application.yml's ble.seed.hmac-secret
+      # (`${BLE_TOKEN_HMAC_SECRET}`, no default) lives in the file's SHARED
+      # section, not inside the dev/prod profile documents skipped by
+      # SPRING_PROFILES_ACTIVE=docker — so it is resolved at startup
+      # regardless of profile, and was never being forwarded into this
+      # container at all. Without this line, discovery-service fails to boot
+      # in Docker with "Could not resolve placeholder 'BLE_TOKEN_HMAC_SECRET'"
+      # every time, which went unnoticed until someone actually tried to bring
+      # this service up via `docker compose up`. BleProperties.Seed's own
+      # comment already explains this value is unused by the v2 resolve-side
+      # math (the per-user SEED is the real signing key) — it still must be a
+      # real, non-empty value, same :? required-with-message style as
+      # SA_PASSWORD/JWT_SECRET above, not a blank default.
+      - BLE_TOKEN_HMAC_SECRET=${BLE_TOKEN_HMAC_SECRET:?BLE_TOKEN_HMAC_SECRET must be set — copy .env.example to .env and fill in values}
+      # Testing convenience only, not a prod concern: application.yml's real
+      # default is 30s (discovery.cache.session-location-ttl-seconds, see that
+      # file's own comment on why — a live GPS fix must expire fast, Location
+      # Privacy). 30s is too short to manually re-hit /scan/update-location
+      # from Postman between other checks, so this lets a developer raise it
+      # locally via .env without touching the tracked default. Unset in .env
+      # (or delete this override) to go back to the real 30s behavior.
+      - DISCOVERY_SESSION_LOCATION_TTL_SECONDS=${DISCOVERY_SESSION_LOCATION_TTL_SECONDS:-30}
 
   connection-service:
     environment:

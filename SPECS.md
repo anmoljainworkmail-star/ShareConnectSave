@@ -1201,9 +1201,21 @@ Kafka consumers:
 
 Connection Service sends `connection.requested` when a request is created and `connection.accepted` when recipient accepts — this service fans out both.
 
+Event staleness (accepted, by design — see the `kafka-outbox` skill's "Event staleness after
+an outage" section): if the Kafka outage/backlog window outlives a request's 10-minute TTL,
+this consumer may process `connection.requested` for a connection that has already moved to
+`EXPIRED` by the time the message arrives. Do not add a synchronous call back to Connection
+Service to check "is this still current" before notifying — that reintroduces the tight
+coupling Kafka exists to remove. Send the notification regardless; the recipient's own next
+action (opening the request) hits Connection Service directly and sees the real, current
+status. Partition key is `connection_id` for all three topics (set by Connection Service in
+T032), so a same-connection `connection.requested`/`connection.expired` pair always arrives
+in the order they actually happened, even after a large replay.
+
 **Acceptance criteria:**
 - [ ] Event consumed → SignalR notification delivered to connected client within 1 s
 - [ ] FCM push sent if user not connected to hub
+- [ ] Consumer does not call back to Connection Service to re-validate state before notifying — notifies from the event payload alone, even for a since-expired connection
 
 ---
 

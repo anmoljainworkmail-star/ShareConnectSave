@@ -13,6 +13,7 @@ import com.shareconnectsave.connection.exception.InvalidStateTransitionException
 import com.shareconnectsave.connection.exception.RequestLimitExceededException;
 import com.shareconnectsave.connection.exception.SelfConnectionRequestException;
 import com.shareconnectsave.connection.kafka.event.ConnectionAcceptedEvent;
+import com.shareconnectsave.connection.kafka.event.ConnectionExpiredEvent;
 import com.shareconnectsave.connection.kafka.event.ConnectionRequestedEvent;
 import com.shareconnectsave.connection.mapper.ConnectionMapper;
 import com.shareconnectsave.connection.outbox.IOutboxService;
@@ -248,6 +249,74 @@ public class ConnectionServiceImpl implements ConnectionService {
     public Optional<ConnectionResponse> getActiveConnection(Long userId) {
         return connectionRequestRepository.findByStatusAndEitherParty(ConnectionStatus.ACCEPTED, userId)
                 .map(connectionMapper::toResponse);
+    }
+
+    // Read-only, no @Transactional needed here: Spring Data's own
+    // SimpleJpaRepository already wraps every derived-query method (like
+    // findByStatusAndExpiresAtBefore) in its own short, read-only
+    // transaction — there is nothing else in this method for a wider
+    // transaction boundary to protect. Mapping straight to ids, not
+    // ConnectionRequest entities, also sidesteps a subtler trap: an entity
+    // read here would be detached the moment this method returns (no
+    // transaction/session left open around it), so
+    // expireConnectionRequest re-reads each row fresh inside its own
+    // transaction rather than being handed a stale, detached instance.
+    @Override
+    public List<Long> findOverdueConnectionRequestIds() {
+        return connectionRequestRepository
+                .findByStatusAndExpiresAtBefore(ConnectionStatus.PENDING, Instant.now())
+                .stream()
+                .map(ConnectionRequest::getId)
+                .toList();
+    }
+
+    // Pattern: Saga (Choreography), compensating step of
+    // ConnectionLifecycleSaga's no-response branch.
+    // Pattern: Outbox — the EXPIRED transition and the connection.expired
+    // outbox row commit together inside this ONE @Transactional method,
+    // the same discipline acceptConnection uses for connection.accepted.
+    // This method is called by ConnectionExpiryScheduler through the
+    // injected ConnectionService bean (see this interface method's own
+    // comment for why that indirection — not a private helper on this
+    // class — is what makes @Transactional actually apply per request).
+    @Override
+    @Transactional
+    public void expireConnectionRequest(Long connectionId) {
+        Optional<ConnectionRequest> maybeConnectionRequest = connectionRequestRepository.findById(connectionId);
+        if (maybeConnectionRequest.isEmpty()) {
+            return;
+        }
+
+        ConnectionRequest connectionRequest = maybeConnectionRequest.get();
+
+        // Idempotency guard clause: the id list this method receives was
+        // read in a SEPARATE, earlier transaction
+        // (findOverdueConnectionRequestIds), so by the time this
+        // transaction opens, the row may already have moved on — accepted
+        // or declined by a user in between, or expired by a previous
+        // scheduler tick that overlapped this one. Re-checking PENDING
+        // here, rather than trusting the caller's list, is what makes
+        // calling this method twice for the same id a safe no-op the
+        // second time.
+        if (connectionRequest.getStatus() != ConnectionStatus.PENDING) {
+            return;
+        }
+
+        // Step 1 of 2: the local transition (Tell, Don't Ask — same as
+        // acceptConnection/declineConnection).
+        connectionRequest.transitionTo(ConnectionStatus.EXPIRED);
+        ConnectionRequest saved = connectionRequestRepository.save(connectionRequest);
+
+        // Step 2 of 2: the outbox row, in the SAME transaction as the
+        // status update above. Connection Service has no idea Notification
+        // Service exists — this only states the fact that a request timed
+        // out with no response.
+        ConnectionExpiredEvent event = new ConnectionExpiredEvent(
+                UUID.randomUUID().toString(),
+                saved.getId(),
+                saved.getRequesterId()
+        );
+        outboxService.publish("connection.expired", event);
     }
 
     private ConnectionRequest requireConnection(Long connectionId) {

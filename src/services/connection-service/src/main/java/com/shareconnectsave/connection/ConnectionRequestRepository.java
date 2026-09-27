@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,4 +42,14 @@ public interface ConnectionRequestRepository extends JpaRepository<ConnectionReq
     Optional<ConnectionRequest> findByStatusAndEitherParty(
             @Param("status") ConnectionStatus status,
             @Param("userId") Long userId);
+
+    // Idempotency: this is the ONLY read ConnectionExpiryScheduler's tick
+    // uses to decide what's overdue. Filtering strictly on
+    // status = PENDING (a derived query, not a hand-written JPQL OR like
+    // the method above — Spring Data's method-name derivation already
+    // expresses "two ANDed equality/comparison conditions" cleanly) means a
+    // row already moved to EXPIRED by a previous tick, or concurrently
+    // ACCEPTED/DECLINED by a user in between ticks, is never picked up
+    // again — re-running the same query on the same data twice is safe.
+    List<ConnectionRequest> findByStatusAndExpiresAtBefore(ConnectionStatus status, Instant expiresAt);
 }

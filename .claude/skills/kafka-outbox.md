@@ -153,6 +153,38 @@ kafkaTemplate.send(dlq);
 event.setStatus(OutboxStatus.DLQ);  // mark as sent to DLQ, not processed
 ```
 
+## Event staleness after an outage — replay is chronologically true, not "still current"
+
+The Problem: the outbox relay only publishes once Kafka is reachable. If Kafka is down for
+15 minutes, every row written during that window (e.g. `connection.requested` at t=0,
+`connection.expired` at t=10min for the *same* connection) stays `PENDING` until the relay
+catches up. When it does, it publishes both, back to back. A consumer processing
+`connection.requested` at t=15min is being told about a request that, in the producer's own
+database, has already expired five minutes ago.
+
+Why this is safe, not a bug: the outbox pattern promises the event is a true fact ("this
+happened, at this time") — it never promises the event is fresh. A consumer that treats an
+event as "please mutate your own state to match, right now" is fine; a consumer that treats
+an event as "this is what's true in the source service *at this exact moment*" is not — that
+assumption breaks the instant a backlog exists. In this project: Notification Service
+consuming a stale `connection.requested` still pushes "you have a new connection request" —
+harmless, because the user's next action (viewing/accepting it) hits Connection Service
+directly and gets the real, current state (already `EXPIRED`), which is what
+`assertValidTransition` (see `connection-service`'s `ConnectionServiceImpl`) rejects with a
+clean 409 rather than silently succeeding. The stale push is a UX inconvenience — the
+requester sees "new request" immediately followed by "that request expired" — never a
+correctness bug, because the source-of-truth database was never wrong; only the notification
+about it arrived late.
+
+Why partition keys matter here: this story only holds together if `connection.requested`
+and `connection.expired` for the *same* connection arrive in the order they actually
+happened. Kafka only guarantees ordering within a single partition, and the partition is
+chosen from the message key — so every producer must key each event by its aggregate id
+(`connection_id`), never leave the key null or derive it from something else. Without a
+consistent key, a big replay after an outage could theoretically land `connection.expired`
+on a different partition than `connection.requested` and have a fast consumer instance read
+it first, telling a story more confusing than "notified late" — "notified out of order."
+
 ## Topic configuration (T009 init script)
 
 ```bash

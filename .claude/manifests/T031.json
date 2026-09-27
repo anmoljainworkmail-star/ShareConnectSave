@@ -1,0 +1,19 @@
+{
+  "task_id": "T031",
+  "title": "Request TTL Expiry Job",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/scheduler/ConnectionExpiryScheduler.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/event/ConnectionExpiredEvent.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionService.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceImpl.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionRequestRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceApplication.java"
+  ],
+  "criteria_checked": {
+    "AC1_pending_past_expires_at_transitions_to_expired_within_1_minute": "PASS",
+    "AC2_connection_expired_event_published_per_expired_request": "PASS",
+    "AC3_scheduler_does_not_fail_if_kafka_temporarily_unavailable": "PASS"
+  },
+  "last_note": "Implementation complete. Added ConnectionExpiryScheduler (@Scheduled fixedRate=60000, @EnableScheduling added to ConnectionServiceApplication), ConnectionService.findOverdueConnectionRequestIds()/expireConnectionRequest(Long) (split into two interface methods instead of one, to avoid the Spring self-invocation pitfall that would have silently broken the per-request @Transactional/Outbox atomicity if the loop and the transactional transition lived in the same class), ConnectionRequestRepository.findByStatusAndExpiresAtBefore, and ConnectionExpiredEvent (event_id, connection_id, requester_id only, matching contracts/kafka/connection.expired.schema.json's additionalProperties:false exactly). No Flyway migration needed (EXPIRED already existed in ConnectionStatus enum from T029/T030; no new columns). No CLI codegen commands were required for this ticket."
+}

@@ -345,6 +345,54 @@ whose implementation or ticket should pick it up.
    ever formally reassessed (e.g. alongside T027, Resilience4j Circuit Breaker's own
    hardening pass).
 
+## From T031 (Request TTL Expiry Job)
+
+1. **AC2 ("`connection.expired` event published per expired request") is only verifiable
+   at the outbox-table level right now — `OutboxRelay`, the component that actually reads
+   the `outbox` table and calls Kafka, does not exist anywhere in the codebase yet.** T031's
+   own ticket text asserts it "reuses the existing `OutboxRelay` (from T029/shared outbox
+   wiring)," but that relay is T032's deliverable, and T032 is still `status: draft`. T031's
+   code correctly writes the `connection.expired` outbox row inside the same `@Transactional`
+   boundary as the status transition (matching the Outbox Pattern exactly), so this is a
+   ticket-sequencing/documentation gap, not a defect in T031 itself — but until T032 ships,
+   every expired connection's outbox row will sit at `status = 'PENDING'` forever, and
+   Notification Service will never receive a single `connection.expired` event no matter how
+   many requests expire.
+   Affects: T032 (Kafka Producer: connection.accepted + connection.expired — must actually
+   build `OutboxRelay` for this event to ever reach Kafka; also worth correcting T031.md's
+   text once T032 lands, so it no longer claims a relay that didn't exist yet at implementation
+   time).
+
+## From T031 design discussion (outage-window event staleness) — surfaced in conversation, not `/review-task`
+
+1. **If Kafka is down long enough for a connection's 10-minute TTL to elapse, the outbox
+   relay will eventually replay `connection.requested` for a connection that has already
+   moved to `EXPIRED` in Connection Service's own database by the time Notification Service
+   processes it.** Walked through end-to-end: `createConnection` writes the
+   `connection.requested` outbox row (`ConnectionServiceImpl.java:139`); if Kafka is still
+   down 10 minutes later, the scheduler's `expireConnectionRequest` writes the
+   `connection.expired` outbox row (`ConnectionServiceImpl.java:314-319`) for the same
+   connection; both sit `PENDING` until Kafka recovers, then `OutboxRelay` (T032) publishes
+   both, back to back. This is expected, safe behavior, not a bug — the outbox pattern
+   promises an event is a true historical fact, never that it's still current — but it is
+   only *safe* (rather than *confusing*) if two things hold: (a) the consumer never assumes
+   the event describes the present tense, only treats it as "this happened" and lets its own
+   action re-validate current state before mutating anything, and (b) same-connection events
+   stay in order across a replay, which requires every producer to key Kafka messages by
+   `connection_id`, not leave the key null/random.
+   Resolution: T032's ticket already specifies partition key = `connection_id` for both
+   topics (`.claude/tickets/T032.md` lines 22, 38, 69) and oldest-first outbox draining
+   (line 63) — the ordering half was already correctly scoped before this discussion, no
+   change needed there. Added a new "Event staleness after an outage" section to the
+   `kafka-outbox` skill file explaining the concept generally, and added an explicit note +
+   acceptance criterion to T049's spec in SPECS.md (Kafka Consumers, notification-service)
+   stating the consumer must notify from the event payload alone — no synchronous
+   re-validation call back to Connection Service — since the recipient's own next action
+   (opening the request) already hits Connection Service directly and sees the real,
+   current status.
+   Affects: T049 (Kafka Consumers, notification-service) — ticket not yet created; when
+   `/phase 8` generates `T049.md`, confirm this note carried over from SPECS.md.
+
 ## From T030 (Request Lifecycle Endpoints) — surfaced in design discussion, not `/review-task`
 
 1. **`createConnection` only checks the requester's active-connection status, not the

@@ -2054,17 +2054,20 @@ Implement saga state tracking for the `ConnectionLifecycleSaga` across both serv
 **Connection Service (Java):**
 - Add `saga_state` table (see REQUIREMENTS.md schema).
 - On `ACCEPTED` transition: insert saga record `{ saga_id: connection_id, saga_type: 'ConnectionLifecycle', current_step: 'CHAT_OPENING', status: 'in_progress' }`.
+- Consume `connection.chat-opened` event (new topic — add to T002 contracts; Chat Service publishes it right after successfully creating the room, via its own outbox): update saga to `{ current_step: 'CHAT_OPEN', status: 'in_progress' }`. This transition is what lets the timeout job below tell "opened fine, still chatting" apart from "never opened."
 - Consume `chat.closed` event: update saga to `{ current_step: 'COMPLETED', status: 'completed' }`.
-- If chat fails to open within 5 minutes (no `ChatOpened` confirmation): compensating transaction → revert connection status to `PENDING`, update saga `status: 'compensating'`, publish `connection.chat-failed` event (new topic — add to T002 contracts).
+- Scheduled timeout job (`@Scheduled`, runs every minute): query `saga_state` WHERE `current_step = 'CHAT_OPENING'` AND `status = 'in_progress'` AND `updated_at` older than 5 minutes — filtered on this specific step name, not just `status`, so a row that already advanced to `CHAT_OPEN` never matches again regardless of how long the chat runs. For any match: compensating transaction → revert connection status to `PENDING`, update saga `status: 'compensating'`, publish `connection.chat-failed` event (new topic — add to T002 contracts).
 
 **Chat Service (.NET):**
 - Add `saga_state` EF Core entity.
 - On `connection.accepted` Kafka event: insert saga record `{ current_step: 'CHAT_OPEN', status: 'in_progress' }`.
+- On successfully creating the chat room: publish `connection.chat-opened` event (new topic — add to T002 contracts), via this service's own outbox in the same transaction as room creation.
 - On chat close (any path): update saga to `completed`.
 - If chat room creation fails: publish `connection.chat-failed` event.
 
 **Acceptance criteria:**
 - [ ] Saga record created when connection accepted
 - [ ] Happy path: saga reaches `completed` after chat closes
-- [ ] Compensating path: kill Chat Service after accept → Connection Service detects timeout → reverts to PENDING within 5 min → saga shows `compensating`
-- [ ] `connection.chat-failed` topic added to Kafka init script (T009)
+- [ ] `connection.chat-opened` received → Connection Service saga moves to `CHAT_OPEN`, and the timeout job leaves it alone even after 5+ minutes of continued chatting
+- [ ] Compensating path: kill Chat Service after accept (so `connection.chat-opened` is never published) → Connection Service detects timeout → reverts to PENDING within 5 min → saga shows `compensating`
+- [ ] `connection.chat-failed` and `connection.chat-opened` topics added to Kafka init script (T009)

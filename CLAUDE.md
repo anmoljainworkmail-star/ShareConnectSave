@@ -40,6 +40,12 @@ This project exists primarily to learn. Every implementation decision should be 
 - Feature modules are lazy-loaded via `loadChildren` in the app router.
 - Shared UI goes in `SharedModule`. Feature-specific logic stays in its own feature module.
 
+## Java Rules
+
+- JPA `@Entity` classes take an explicit `Entity` suffix (e.g. `ConnectionRequestEntity`) so the persistence shape is visually distinct from a same-named DTO in the file list, instead of relying on "no suffix = entity."
+- This applies **going forward only** — do not rename already-shipped entities (`ConnectionRequest`, `User`, `OtpAttempt`, etc.) just to add the suffix; see the no-retroactive-docs precedent.
+- Output/input DTOs keep their existing suffixes unchanged: `...Response` (`ConnectionResponse`), `...Dto` (`CreateConnectionDto`).
+
 ## Microservices
 
 ```

@@ -1195,10 +1195,11 @@ Redis backplane (DB 1) shared with Chat Service.
 
 **Spec:**
 Kafka consumers:
+- `connection.requested` → notify recipient via SignalR + FCM (`RequestReceived`) — added post-T030 so the recipient learns of a new inbound request in real time, instead of only discovering it via `GET /connections/pending` polling
 - `connection.accepted` → notify requester via SignalR + FCM (`RequestAccepted`)
 - `connection.expired` → notify requester via SignalR + FCM (`RequestExpired`)
 
-Connection Service sends `connection.accepted` when recipient accepts — this service fans it out.
+Connection Service sends `connection.requested` when a request is created and `connection.accepted` when recipient accepts — this service fans out both.
 
 **Acceptance criteria:**
 - [ ] Event consumed → SignalR notification delivered to connected client within 1 s

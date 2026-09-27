@@ -9,7 +9,7 @@ For each topic defined in REQUIREMENTS.md, verify:
 - Every consumer service deserializes those same field names
 - `event_id` (UUID) field is present on every schema — required for consumer idempotency
 
-Expected topics: `user.verified`, `connection.accepted`, `connection.expired`, `connection.chat-failed`, `chat.closed`, `rating.submitted`, `trust.score.updated`, `report.filed`
+Expected topics: `user.verified`, `connection.requested`, `connection.accepted`, `connection.expired`, `connection.chat-failed`, `chat.closed`, `rating.submitted`, `trust.score.updated`, `report.filed`
 
 ### 2. HTTP error envelope
 Every service must return this exact JSON shape on errors:

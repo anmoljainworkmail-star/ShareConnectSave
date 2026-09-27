@@ -43,6 +43,7 @@ API Gateway (YARP)          ← JWT validation, rate limiting, routing
 
 Kafka topics:
   user.verified → Discovery Service (enable in scan pool)
+  connection.requested → Notification Service (alert recipient of new request)
   connection.accepted → Chat Service (open chat room)
   chat.closed → Rating Service (trigger rating prompt)
   rating.submitted → Rating Service (recalculate trust score)
@@ -315,6 +316,7 @@ All topics use JSON. Field naming: `snake_case`. Schemas stored in `/contracts/k
 | Topic | Producer | Consumers | Key fields |
 |---|---|---|---|
 | `user.verified` | User Service | Discovery | `user_id`, `gender`, `verified_at` |
+| `connection.requested` | Connection Service | Notification | `connection_id`, `requester_id`, `recipient_id` |
 | `connection.accepted` | Connection Service | Chat, Notification | `connection_id`, `requester_id`, `recipient_id` |
 | `connection.expired` | Connection Service | Notification | `connection_id`, `requester_id` |
 | `chat.closed` | Chat Service | Rating, Notification | `chat_id`, `connection_id`, `user_a_id`, `user_b_id`, `closed_reason` |

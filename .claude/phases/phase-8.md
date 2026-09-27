@@ -10,4 +10,4 @@
 | T049 | Kafka Consumers | dotnet-mvc-controllers kafka-outbox |
 | T050 | Notification Service Docker Image | — |
 
-**Phase complete when:** Receiving connection.accepted fires FCM push to recipient device and emits SignalR event to the connected frontend.
+**Phase complete when:** Receiving connection.requested fires FCM push to the recipient device (new-request alert) and receiving connection.accepted fires FCM push to the requester device, both also emitting a SignalR event to the connected frontend.

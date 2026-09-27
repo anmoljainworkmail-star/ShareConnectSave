@@ -37,6 +37,7 @@ BOOTSTRAP_SERVER="kafka:29092"
 # distinction matters (producers never expect or wait for a reply).
 TOPICS=(
   "user.verified"
+  "connection.requested"
   "connection.accepted"
   "connection.expired"
   "chat.closed"

@@ -15,6 +15,7 @@ Events are named in the past tense — they are facts, not commands: `user.verif
 | Topic | Producer | Consumers |
 |---|---|---|
 | `user.verified` | User Service | Discovery Service |
+| `connection.requested` | Connection Service | Notification Service |
 | `connection.accepted` | Connection Service | Chat Service, Notification Service |
 | `connection.expired` | Connection Service | Notification Service |
 | `connection.chat-failed` | Chat Service | Connection Service (compensating) |
@@ -162,4 +163,4 @@ kafka-topics.sh --bootstrap-server kafka:9092 --create \
   --config retention.ms=604800000   # 7 days
 ```
 
-Run this for all 8 topics. Partition count = 3 is enough for dev. In prod this would scale with consumer group size.
+Run this for all 9 topics listed in the table above. Partition count = 3 is enough for dev. In prod this would scale with consumer group size.

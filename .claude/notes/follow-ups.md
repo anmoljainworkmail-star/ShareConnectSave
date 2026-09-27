@@ -344,3 +344,43 @@ whose implementation or ticket should pick it up.
    Affects: no specific future task — revisit only if this service's threat model is
    ever formally reassessed (e.g. alongside T027, Resilience4j Circuit Breaker's own
    hardening pass).
+
+## From T030 (Request Lifecycle Endpoints) — surfaced in design discussion, not `/review-task`
+
+1. **`createConnection` only checks the requester's active-connection status, not the
+   recipient's — a request to an already-busy recipient is accepted and silently wastes
+   one of the requester's limited `request_limit` slots.** `ConnectionServiceImpl
+   .createConnection`'s Guard 2 (`ConnectionServiceImpl.java:105`) queries
+   `findByStatusAndEitherParty(ACCEPTED, requesterId)` only; nothing checks whether
+   `dto.recipientId()` already has an ACCEPTED connection elsewhere. That request persists
+   as PENDING, but `acceptConnection`'s Guard 3 (`ConnectionServiceImpl.java:169-175`)
+   checks BOTH parties, so it can never actually be accepted while the recipient stays
+   busy — it just occupies one of the requester's limited outbound slots until it expires
+   (and T031, the TTL expiry job that would even clear it, doesn't exist yet either). Fix
+   direction discussed: reject at creation time with a `RECIPIENT_UNAVAILABLE`-style 409,
+   symmetric with the existing requester-side check — or, better, keep already-connected
+   users out of the requestable pool entirely via finding #2 below.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — natural candidates are a
+   future Connection Service hardening ticket, or Discovery Service's candidate-filtering
+   logic (T023/T026 already own the `status = "Looking for companion"` filter).
+
+2. **Entering an ACCEPTED connection never flips a user's discovery status to "Not
+   available," so Discovery Service keeps surfacing already-connected users as
+   requestable.** REQUIREMENTS.md §3 documents status flipping automatically on scan
+   start/exit, but nothing flips it on `connection.accepted`. If Discovery excluded
+   already-connected users the way it excludes blocked/suspended ones, finding #1 above
+   would largely disappear upstream instead of needing a Connection Service-side rejection.
+   Affects: no specific future task yet — candidate for whichever ticket next revisits
+   Discovery Service's candidate-filtering predicates (T023/T026's territory), paired with
+   T032/T038 (the tickets that actually produce/consume `connection.accepted`).
+
+3. **No way for a user to leave an ACCEPTED connection early if they're unhappy with the
+   match — only mutual "Met Successfully" or the 2-hour chat timeout ends one.**
+   `ConnectionStatus` (`ConnectionStatus.java`) only defines `PENDING/ACCEPTED/DECLINED
+   /EXPIRED` — no `CANCELLED` or equivalent early-exit state, even though the enum's own
+   comment notes adding one is meant to be a simple data change. Until this exists, a
+   recipient who'd rather switch to a better-matched incoming request has no supported
+   path to free themselves up.
+   Affects: no specific future task yet — candidate for T037 (Chat Lifecycle) if
+   chat-closing ever needs a corresponding connection-side status transition, or a
+   dedicated future ticket if SPECS.md gains a "cancel connection" requirement.

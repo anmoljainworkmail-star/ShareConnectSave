@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://shareconnectsave.dev/contracts/kafka/connection.requested",
+  "title": "connection.requested",
+  "description": "Published by Connection Service when a requester sends a new connection request. Consumed by Notification Service (alert the recipient in real time).",
+
+  "_comment_event_driven": "Connection Service has no idea Notification Service exists or what it does with this event — the producer only states a fact that already happened.",
+  "_comment_outbox": "Connection Service writes this event to its outbox table in the same transaction that inserts the PENDING connection_requests row. Atomicity ensures the DB and Kafka never diverge.",
+
+  "type": "object",
+  "required": ["event_id", "connection_id", "requester_id", "recipient_id"],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Deduplication key for consumer idempotency."
+    },
+    "connection_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The connection request that was created."
+    },
+    "requester_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User who sent the connection request."
+    },
+    "recipient_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "User who should be notified of the incoming request."
+    }
+  }
+}

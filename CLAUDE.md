@@ -56,6 +56,7 @@ Angular PWA → API Gateway (YARP)
 
 Kafka topics:
 - `user.verified` → Discovery (add to scan pool)
+- `connection.requested` → Notification (alert recipient of new request)
 - `connection.accepted` → Chat (open room)
 - `connection.chat-failed` → Connection (compensating: revert to PENDING)
 - `chat.closed` → Rating (prompt both users)

@@ -12,6 +12,7 @@ All field names are `snake_case`. Every schema uses JSON Schema draft-07. Every 
 | Topic | Producer | Consumers | Partitions | Retention |
 |---|---|---|---|---|
 | `user.verified` | User Service | Discovery Service | 3 | 7 days |
+| `connection.requested` | Connection Service | Notification Service | 3 | 7 days |
 | `connection.accepted` | Connection Service | Chat Service, Notification Service | 3 | 7 days |
 | `connection.expired` | Connection Service | Notification Service | 3 | 7 days |
 | `chat.closed` | Chat Service | Rating Service, Notification Service | 3 | 7 days |
@@ -26,6 +27,7 @@ All field names are `snake_case`. Every schema uses JSON Schema draft-07. Every 
 | File | Topic |
 |---|---|
 | `user.verified.schema.json` | `user.verified` |
+| `connection.requested.schema.json` | `connection.requested` |
 | `connection.accepted.schema.json` | `connection.accepted` |
 | `connection.expired.schema.json` | `connection.expired` |
 | `chat.closed.schema.json` | `chat.closed` |

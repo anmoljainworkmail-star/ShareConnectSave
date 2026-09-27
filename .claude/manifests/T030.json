@@ -1,0 +1,39 @@
+{
+  "task_id": "T030",
+  "title": "Request Lifecycle Endpoints",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/ConnectionRequest.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/CreateConnectionDto.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/ConnectionCreatedResponse.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/ConnectionResponse.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/mapper/ConnectionMapper.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/IConnectionRequestRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionService.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceImpl.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionController.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/cache/IRequestLimitCache.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/cache/InMemoryRequestLimitCache.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxEvent.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxStatus.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/IOutboxRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/IOutboxService.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxServiceImpl.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/saga/SagaState.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/saga/ISagaStateRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/event/ConnectionAcceptedEvent.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/ConnectionNotFoundException.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/ForbiddenConnectionActionException.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/InvalidStateTransitionException.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/ActiveConnectionExistsException.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/RequestLimitExceededException.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/ConnectionExceptionHandler.java",
+    "src/services/connection-service/src/main/resources/db/migration/V002__outbox_and_saga_state.sql"
+  ],
+  "criteria_checked": {
+    "AC1_invalid_state_transition_409": "PASS",
+    "AC2_duplicate_active_connection_409": "PASS",
+    "AC3_non_recipient_forbidden_403": "PASS"
+  },
+  "last_note": "All endpoints, state machine, outbox write-side, saga_state upsert, and V002 migration implemented. mvnw -q -o compile succeeded (offline, against local .m2), including MapStruct-generated ConnectionMapperImpl. Status set to completed."
+}

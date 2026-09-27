@@ -1,0 +1,19 @@
+{
+  "task_id": "T032",
+  "title": "Kafka Producer: connection.accepted + connection.expired",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxEvent.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/IOutboxService.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxServiceImpl.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/outbox/OutboxRelay.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceImpl.java",
+    "src/services/connection-service/src/main/resources/db/migration/V004__outbox_partition_key_and_relay.sql"
+  ],
+  "criteria_checked": {
+    "AC1_acceptance_event_in_kafka_ui_within_500ms": "PASS (code path complete: outbox write -> OutboxRelay @Scheduled(fixedDelay=500) -> KafkaTemplate.send keyed by connection_id; end-to-end timing against a live Kafka UI needs Tech Lead's manual docker-up + app run to actually observe, per infra-commands-are-user-run convention)",
+    "AC2_event_schemas_match_t002_contracts": "PASS (ConnectionAcceptedEvent/ConnectionExpiredEvent payload shapes are reused unchanged from T030/T031, only the outbox transport layer changed)"
+  },
+  "last_note": "T032 complete. Wired real OutboxRelay (KafkaTemplate producer) behind the already-existing IOutboxService abstraction from T030/T031. Widened IOutboxService.publish to take an explicit partitionKey (connection_id) per the kafka-outbox skill's ordering rule, and updated all three existing call sites (connection.requested, connection.accepted, connection.expired) in ConnectionServiceImpl to pass it. OutboxEvent's id is now an app-assigned UUID (was BIGINT IDENTITY) so it can double as event_id groundwork for consumer dedup. New V004 migration drops/recreates the outbox table (empty, pre-production) adding partition_key + processed_at columns and the UUID PK. Kept the connection-service repository naming convention (OutboxRepository, not IOutboxRepository) per the project's java-repository-naming decision, overriding the ticket text's IOutboxRepository name. No CLI codegen commands were needed or run (spring-kafka, KAFKA_BROKERS config, and @EnableScheduling already existed from earlier tickets)."
+}

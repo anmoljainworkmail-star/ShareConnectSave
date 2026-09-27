@@ -345,6 +345,26 @@ whose implementation or ticket should pick it up.
    ever formally reassessed (e.g. alongside T027, Resilience4j Circuit Breaker's own
    hardening pass).
 
+## From T032 (Kafka Producer: connection.accepted + connection.expired)
+
+1. **Two comments still describe the pre-fix eventId-minting location, now factually wrong
+   (comment-only, zero runtime impact).** During review, cycle 1 found the outbox row's `id`
+   was minted independently (`UUID.randomUUID()` inside `OutboxServiceImpl.publish`) from the
+   `event_id` already baked into the JSON payload by the caller — fixed in cycle 2 by changing
+   `IOutboxService.publish` to accept an `eventId` parameter and having `OutboxServiceImpl` do
+   `UUID.fromString(eventId)` instead of minting its own. Two comments were never updated to
+   match: `OutboxEvent.java` (~lines 45-50) and
+   `V004__outbox_partition_key_and_relay.sql` (~lines 22-31) both still say
+   "`OutboxServiceImpl.publish` mints this id with `UUID.randomUUID()`" — it no longer does;
+   `ConnectionServiceImpl` mints it now, at each of its three `outboxService.publish(...)` call
+   sites, and just passes the string through. A reader trusting these comments would look in
+   the wrong class to understand where the idempotency key actually originates — exactly the
+   confusion the cycle-2 fix was meant to resolve.
+   Fix: reword both comments to name `ConnectionServiceImpl` as the minting site and
+   `OutboxServiceImpl.publish` as the conversion site only.
+   Affects: T091, T093 (Phase 14, shared-java-lib outbox module — the next work to touch this
+   exact mechanism and the most likely place someone copies this class as a reference).
+
 ## From T031 (Request TTL Expiry Job)
 
 1. **AC2 ("`connection.expired` event published per expired request") is only verifiable

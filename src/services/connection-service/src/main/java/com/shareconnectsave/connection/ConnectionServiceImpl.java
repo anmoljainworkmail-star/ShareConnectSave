@@ -136,7 +136,12 @@ public class ConnectionServiceImpl implements ConnectionService {
                 dto.recipientId(),
                 now
         );
-        outboxService.publish("connection.requested", event);
+        // Partition key = connection_id (this event's aggregate id), per the
+        // kafka-outbox skill's ordering rule - every producer keys by its
+        // own aggregate id, never leaves the key null, so Kafka's
+        // per-partition ordering guarantee actually protects this
+        // connection's own event sequence.
+        outboxService.publish("connection.requested", saved.getId().toString(), event.eventId(), event);
 
         return new ConnectionCreatedResponse(saved.getId());
     }
@@ -193,7 +198,9 @@ public class ConnectionServiceImpl implements ConnectionService {
                 recipientId,
                 acceptedAt
         );
-        outboxService.publish("connection.accepted", event);
+        // Partition key = connection_id - see createConnection's
+        // connection.requested call above for why.
+        outboxService.publish("connection.accepted", saved.getId().toString(), event.eventId(), event);
 
         // Step 3 of 3: record this service's own saga_state row. sagaId ==
         // connectionId (the saga's natural key, per saga.md) — see
@@ -316,7 +323,13 @@ public class ConnectionServiceImpl implements ConnectionService {
                 saved.getId(),
                 saved.getRequesterId()
         );
-        outboxService.publish("connection.expired", event);
+        // Partition key = connection_id - same ordering rationale as
+        // connection.requested/connection.accepted above. Keeping this
+        // connection's own requested -> accepted/expired events on one
+        // partition is what makes their relative order trustworthy for any
+        // consumer that cares (e.g. a saga participant reacting to whichever
+        // terminal event arrives).
+        outboxService.publish("connection.expired", saved.getId().toString(), event.eventId(), event);
     }
 
     private ConnectionRequest requireConnection(Long connectionId) {

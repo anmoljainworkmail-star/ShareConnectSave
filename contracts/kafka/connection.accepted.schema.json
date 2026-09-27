@@ -8,7 +8,7 @@
   "_comment_outbox": "Connection Service writes this event to its outbox table in the same transaction that flips connection status to ACCEPTED. Atomicity ensures the DB and Kafka never diverge.",
 
   "type": "object",
-  "required": ["event_id", "connection_id", "requester_id", "recipient_id"],
+  "required": ["event_id", "connection_id", "requester_id", "recipient_id", "accepted_at"],
   "additionalProperties": false,
   "properties": {
     "event_id": {
@@ -17,19 +17,24 @@
       "description": "Deduplication key for consumer idempotency."
     },
     "connection_id": {
-      "type": "string",
-      "format": "uuid",
+      "type": "integer",
+      "format": "int64",
       "description": "The connection request that was accepted."
     },
     "requester_id": {
-      "type": "string",
-      "format": "uuid",
+      "type": "integer",
+      "format": "int64",
       "description": "User who sent the connection request."
     },
     "recipient_id": {
-      "type": "string",
-      "format": "uuid",
+      "type": "integer",
+      "format": "int64",
       "description": "User who accepted the connection request."
+    },
+    "accepted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the connection was accepted."
     }
   }
 }

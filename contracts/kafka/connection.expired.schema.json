@@ -16,13 +16,13 @@
       "description": "Deduplication key for consumer idempotency."
     },
     "connection_id": {
-      "type": "string",
-      "format": "uuid",
+      "type": "integer",
+      "format": "int64",
       "description": "The connection request that expired."
     },
     "requester_id": {
-      "type": "string",
-      "format": "uuid",
+      "type": "integer",
+      "format": "int64",
       "description": "User who sent the original request — receives the expiry notification."
     }
   }

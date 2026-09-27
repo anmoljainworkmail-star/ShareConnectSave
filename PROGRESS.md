@@ -63,7 +63,7 @@
 - [x] T029 — Spring Boot Setup + DB Schema
 - [x] T030 — Request Lifecycle Endpoints _(PENDING→ACCEPTED/DECLINED/EXPIRED state machine)_
 - [x] T031 — Request TTL Expiry Job _(@Scheduled every 1 min)_
-- [ ] T032 — Kafka Producer: connection.accepted + connection.expired
+- [x] T032 — Kafka Producer: connection.accepted + connection.expired
 - [ ] T033 — Kafka Consumer: trust.score.updated _(Caffeine cache for request limits)_
 - [ ] T034 — Connection Service Docker Image
 
@@ -264,8 +264,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 26 / 96  
+**Done:** 32 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 70 / 96  
+**Pending:** 64 / 96  
 
 _Update this section manually or via `/status` after each task completes._

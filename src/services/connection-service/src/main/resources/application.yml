@@ -44,6 +44,16 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    # Spring Boot leaves these null unless set explicitly - it does NOT
+    # default to StringSerializer the way some tutorials assume. Without
+    # this, the first real kafkaTemplate.send() (OutboxRelay.java) throws
+    # "Missing required configuration 'key.serializer' which has no
+    # default value" from the underlying Kafka client, since our outbox
+    # payload is already a JSON string (OutboxServiceImpl serializes it)
+    # and the partition key is also a plain String (connection_id).
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   flyway:
     # Points Flyway at the already-existing

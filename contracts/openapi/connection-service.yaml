@@ -4,7 +4,7 @@ info:
   version: "1.0.0"
   description: >
     Connection request lifecycle: pending -> accepted / declined / expired.
-    JWT validated at API Gateway (YARP). Services receive X-User-Id (uuid),
+    JWT validated at API Gateway (YARP). Services receive X-User-Id (int64),
     X-User-Role (user|admin), X-User-Gender (female|male|unspecified)
     headers. Never re-validate the JWT.
 
@@ -215,8 +215,8 @@ components:
       required: true
       description: Injected by the API Gateway after JWT validation.
       schema:
-        type: string
-        format: uuid
+        type: integer
+        format: int64
 
   responses:
     BadRequest:

@@ -4,7 +4,7 @@ info:
   version: "1.0.0"
   description: >
     Auth, profile, OTP, identity verification, and block management.
-    JWT validated at API Gateway (YARP). Services receive X-User-Id (uuid),
+    JWT validated at API Gateway (YARP). Services receive X-User-Id (int64),
     X-User-Role (user|admin), X-User-Gender (female|male|unspecified) headers.
     Never re-validate the JWT.
 
@@ -366,8 +366,8 @@ components:
         trust this header and never re-validate the JWT (API Gateway pattern
         — auth is a cross-cutting concern handled once, centrally).
       schema:
-        type: string
-        format: uuid
+        type: integer
+        format: int64
     XUserRole:
       name: X-User-Role
       in: header

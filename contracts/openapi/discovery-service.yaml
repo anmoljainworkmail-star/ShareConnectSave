@@ -5,7 +5,7 @@ info:
   description: >
     Geospatial scan (GPS mode), BLE offline-fallback token resolution, and
     discovery filters (women-only, radius, route overlap). JWT validated at
-    API Gateway (YARP). Services receive X-User-Id (uuid), X-User-Role
+    API Gateway (YARP). Services receive X-User-Id (int64), X-User-Role
     (user|admin), X-User-Gender (female|male|unspecified) headers. Never
     re-validate the JWT.
 
@@ -195,8 +195,8 @@ components:
       required: true
       description: Injected by the API Gateway after JWT validation.
       schema:
-        type: string
-        format: uuid
+        type: integer
+        format: int64
     XUserGender:
       name: X-User-Gender
       in: header

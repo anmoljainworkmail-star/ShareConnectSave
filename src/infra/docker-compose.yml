@@ -337,8 +337,11 @@ services:
   connection-service:
     image: shareconnectsave/connection-service:dev
     build:
-      context: ../../src/services/connection-service
-      dockerfile: Dockerfile
+      # Context is the services parent dir, not connection-service/ alone —
+      # the Dockerfile needs shared-java-lib's source too, see its build-stage
+      # comment (same reason as discovery-service's build context above).
+      context: ../../src/services
+      dockerfile: connection-service/Dockerfile
     container_name: connection-service
     depends_on:
       sqlserver:

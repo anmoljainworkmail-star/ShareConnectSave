@@ -321,7 +321,7 @@ All topics use JSON. Field naming: `snake_case`. Schemas stored in `/contracts/k
 | `connection.expired` | Connection Service | Notification | `connection_id`, `requester_id` |
 | `chat.closed` | Chat Service | Rating, Notification | `chat_id`, `connection_id`, `user_a_id`, `user_b_id`, `closed_reason` |
 | `rating.submitted` | Rating Service | Rating (self) | `rating_id`, `rater_id`, `rated_id`, `tags[]` |
-| `trust.score.updated` | Rating Service | Discovery | `user_id`, `new_score`, `badge_level`, `request_limit` |
+| `trust.score.updated` | Rating Service | Discovery, Connection | `user_id`, `new_score`, `badge_level`, `request_limit` |
 | `report.filed` | Report Service | Admin | `report_id`, `reporter_id`, `reported_id`, `reason`, `report_count_for_target` |
 
 ### HTTP Error Envelope

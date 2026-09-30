@@ -17,7 +17,7 @@ All field names are `snake_case`. Every schema uses JSON Schema draft-07. Every 
 | `connection.expired` | Connection Service | Notification Service | 3 | 7 days |
 | `chat.closed` | Chat Service | Rating Service, Notification Service | 3 | 7 days |
 | `rating.submitted` | Rating Service | Rating Service (self — recalculate trust score) | 3 | 7 days |
-| `trust.score.updated` | Rating Service | Discovery Service | 3 | 7 days |
+| `trust.score.updated` | Rating Service | Discovery Service, Connection Service | 3 | 7 days |
 | `report.filed` | Report Service | Admin Service | 3 | 7 days |
 
 ---

@@ -111,7 +111,21 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=${CONNECTION_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=ConnectionServiceDb;encrypt=true;trustServerCertificate=true}
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+      # Bug fix (same class as T028's fix for discovery-service, see that
+      # block's comment above): application.yml only declares dev/prod
+      # profile documents, not docker, so SPRING_PROFILES_ACTIVE=docker skips
+      # the spring.datasource.username/password placeholders entirely and
+      # Spring Boot connects with an EMPTY username (SQL error 18456). Setting
+      # these directly as OS env vars works regardless of active profile and
+      # reuses the same SA_PASSWORD the sqlserver service itself requires.
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=${SA_PASSWORD:?SA_PASSWORD must be set — copy .env.example to .env and fill in values}
+      # Fix (same class as T025's fix for discovery-service): kafka:9092 is
+      # the PLAINTEXT listener published to the HOST, not reachable from
+      # container-to-container traffic. connection-service's Kafka consumers
+      # (TrustScoreUpdatedConsumer, outbox relay) run INSIDE the compose
+      # network, so the correct default is the internal listener, kafka:29092.
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:29092}
 
   chat-service:
     environment:

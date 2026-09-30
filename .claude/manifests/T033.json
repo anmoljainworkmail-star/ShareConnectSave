@@ -1,0 +1,21 @@
+{
+  "task_id": "T033",
+  "title": "Kafka Consumer: trust.score.updated (request limit cache)",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/src/main/resources/db/migration/V005__processed_events.sql",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/domain/ProcessedEvent.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/ProcessedEventsRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/ProcessedEventsPruner.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/event/TrustScoreUpdatedEvent.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/kafka/consumer/TrustScoreUpdatedConsumer.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/cache/InMemoryRequestLimitCache.java (modified: Caffeine-backed maximumSize+TTL, was a bare unbounded ConcurrentHashMap)",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/cache/IRequestLimitCache.java (modified: comment only)",
+    "src/services/connection-service/src/main/resources/application.yml (modified: added spring.kafka.consumer + spring.kafka.listener blocks — service had no consumer config before this ticket)",
+    "src/services/connection-service/pom.xml (modified: added caffeine dependency, no explicit version per parent BOM convention)"
+  ],
+  "criteria_checked": {
+    "AC1_updated_limit_takes_effect_next_send_attempt": "PASS"
+  },
+  "last_note": "Reused T030's IRequestLimitCache/InMemoryRequestLimitCache instead of creating a duplicate cache class; swapped its internals to a Caffeine cache (maximumSize 100_000, expireAfterWrite 24h) to satisfy the no-unbounded-growth requirement. Connection Service had no prior Kafka consumer, so also created (mirroring discovery-service's T025 shape): V005 processed_events migration, ProcessedEvent entity, ProcessedEventsRepository, and ProcessedEventsPruner (7-day retention, first pruning job in this service). Added the missing spring.kafka.consumer/listener config to application.yml. Verified with ./mvnw -o compile (offline, no codegen) - exit 0, all new classes present under target/classes. Status completed - no manual CLI command was required (no new Flyway CLI generate, no ng/dotnet ef/archetype command)."
+}

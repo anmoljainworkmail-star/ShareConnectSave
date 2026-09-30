@@ -55,6 +55,45 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+    # T033: this service's first Kafka CONSUMER (everything above this block
+    # is producer-only, from T032). Same shape as discovery-service's own
+    # consumer block (that service's T025 ticket) — see its application.yml
+    # comment for the full rationale; reproduced here because this is a
+    # different Spring Boot property document, not something a YAML anchor
+    # could share across services.
+    consumer:
+      # One group for the whole service, not one per @KafkaListener method —
+      # TrustScoreUpdatedConsumer is the only listener today, but any future
+      # one added to this service shares this id, the same convention
+      # discovery-service's user.verified + trust.score.updated listeners
+      # already use.
+      group-id: connection-service
+      auto-offset-reset: earliest
+      # Consumer Idempotency (kafka-outbox skill) — paired with
+      # spring.kafka.listener.ack-mode below. With auto-commit OFF, an offset
+      # is committed ONLY after a @KafkaListener method returns without
+      # throwing; if it throws, the same record is redelivered on the next
+      # poll, and TrustScoreUpdatedConsumer's processed_events check is what
+      # makes that redelivery safe rather than a duplicate cache write.
+      enable-auto-commit: false
+      # Plain String deserializers, not Spring Kafka's JsonDeserializer:
+      # Rating Service (the producer, Phase 6) does not add the __TypeId__
+      # header JsonDeserializer needs to pick a target class —
+      # TrustScoreUpdatedConsumer deserializes the raw JSON string itself via
+      # an injected ObjectMapper instead. Without this, Spring Boot leaves
+      # the deserializer unset (it does NOT default to StringDeserializer),
+      # and the consumer fails at startup the same way the producer's
+      # key/value serializer would above.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # BATCH (Spring Kafka's own default, spelled out explicitly so the
+      # convention is visible in this file, not left implicit): the
+      # container commits offsets once per poll batch, after every record in
+      # it has been handed to the listener without an exception escaping —
+      # never on a background timer independent of processing outcome.
+      ack-mode: BATCH
+
   flyway:
     # Points Flyway at the already-existing
     # V001__connection_service_initial_schema.sql (written by T006).

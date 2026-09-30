@@ -413,6 +413,37 @@ whose implementation or ticket should pick it up.
    Affects: T049 (Kafka Consumers, notification-service) — ticket not yet created; when
    `/phase 8` generates `T049.md`, confirm this note carried over from SPECS.md.
 
+## From T033 (Kafka Consumer: trust.score.updated — request limit cache)
+
+1. **`InMemoryRequestLimitCache` is per-JVM, so in any deployment with more than one
+   `connection-service` replica, only the pod owning a user's Kafka partition ever sees
+   their updated `request_limit` — every other pod keeps serving `DEFAULT_REQUEST_LIMIT`
+   for that user indefinitely.** This is ticket-mandated (T033 explicitly specified a local
+   in-memory map), not an implementer deviation, and `IRequestLimitCache`'s interface
+   already makes a future Redis-backed implementation a drop-in swap with zero caller
+   changes (same shape as Discovery Service's own Redis-backed handling of the identical
+   `trust.score.updated` event in `DiscoveryCacheService.cacheTrustMetadata`). Only
+   breaks once `connection-service` scales beyond one instance — holds correctly in the
+   current single-instance `docker-up` dev/QA environment.
+   Affects: whichever future ticket first introduces multi-replica deployment or scaling
+   for connection-service (no specific task ID yet in PROGRESS.md/SPECS.md) — recommend a
+   dedicated "Redis-backed IRequestLimitCache" follow-up ticket at that point.
+
+2. **`TrustScoreUpdatedConsumer` guards `request_limit` for `null` but not for a negative
+   value.** A malformed/buggy producer publishing `request_limit: -1` is accepted and
+   cached as-is; functionally fails closed (user is always throttled) rather than
+   crashing, but it's an unvalidated boundary. Fix: add a guard clause alongside the
+   existing null check.
+   Affects: T033 itself (cheap fix next time this file is touched).
+
+3. **The missing-required-field guard logs the entire parsed event object (`log.error(...,
+   event)`), inconsistent with the "never log raw payload" discipline the JSON-parse-failure
+   branch two lines above explicitly follows.** No sensitive field exists on this event
+   today, so no active leak, but `TrustScoreUpdatedEvent`'s own `@JsonIgnoreProperties` already
+   anticipates the schema growing new fields later. Fix: log only `event.eventId()`
+   (or similarly redacted) there, matching the branch above it.
+   Affects: T033 itself (cheap fix next time this file is touched).
+
 ## From T030 (Request Lifecycle Endpoints) — surfaced in design discussion, not `/review-task`
 
 1. **`createConnection` only checks the requester's active-connection status, not the

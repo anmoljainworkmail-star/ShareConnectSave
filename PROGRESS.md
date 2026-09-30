@@ -64,7 +64,7 @@
 - [x] T030 — Request Lifecycle Endpoints _(PENDING→ACCEPTED/DECLINED/EXPIRED state machine)_
 - [x] T031 — Request TTL Expiry Job _(@Scheduled every 1 min)_
 - [x] T032 — Kafka Producer: connection.accepted + connection.expired
-- [ ] T033 — Kafka Consumer: trust.score.updated _(Caffeine cache for request limits)_
+- [x] T033 — Kafka Consumer: trust.score.updated _(Caffeine cache for request limits)_
 - [ ] T034 — Connection Service Docker Image
 
 ---
@@ -264,8 +264,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 32 / 96  
+**Done:** 33 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 64 / 96  
+**Pending:** 63 / 96  
 
 _Update this section manually or via `/status` after each task completes._

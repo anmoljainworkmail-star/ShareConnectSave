@@ -58,6 +58,18 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
+		<!-- Caffeine: backs InMemoryRequestLimitCache (T033) with an
+		     explicit maximumSize + expireAfterWrite bound, instead of a bare
+		     ConcurrentHashMap that would grow unbounded as distinct userIds
+		     accumulate. No <version> here: spring-boot-starter-parent's BOM
+		     already manages a version compatible with this Spring Boot
+		     release, the same "let the parent pin it" convention this file's
+		     own comment on mssql-jdbc/flyway already documents. -->
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+
 		<!-- Flyway: version-controlled, one-way-forward schema migrations
 		     instead of Hibernate's ddl-auto=update. flyway-sqlserver is a
 		     SEPARATE artifact from flyway-core as of the Flyway major version

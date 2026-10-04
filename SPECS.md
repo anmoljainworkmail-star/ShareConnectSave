@@ -1132,9 +1132,17 @@ Algorithm:
 
 Update `trust_scores` table on every recalculation.
 
+**Cross-service requirement — closes a gap left open by T033:**
+T033 built `connection-service`'s `InMemoryRequestLimitCache` as write-only: it is populated solely by the `trust.score.updated` consumer, and a cache miss silently falls back to `DEFAULT_REQUEST_LIMIT` (5) — a *permissive* default. Until this ticket, that was unavoidable because no endpoint existed to read the real value. Two real failure modes stem from this: (1) a pod restart wipes the in-memory cache and silently re-permissions every low-trust user to the default until Rating Service happens to republish an event for them; (2) with multiple connection-service replicas sharing one Kafka consumer group, a replica that never consumed a given user's partition never learns their real limit at all.
+
+This ticket must also update `connection-service` to make `getLimit()` a genuine Cache-Aside read: on a cache miss, synchronously call this new `GET /trust/:userId` endpoint, cache the returned `request_limit`, and return it — instead of silently defaulting. Build the client mirroring Discovery Service's existing `UserServiceClient` pattern exactly: WebClient + Resilience4j `@CircuitBreaker` (`client/RatingServiceClient.java` + `RatingServiceClientImpl.java` + `RatingServiceClientConfig.java` + `RatingServiceProperties`, `resilience4j.circuitbreaker.instances.ratingService` block in `application.yml`, `rating-service.base-url` config). When the circuit is open (Rating Service unreachable), fall back to `DEFAULT_REQUEST_LIMIT` via a `fallbackMethod` — same fail-open posture as today, now an explicit, reviewed decision rather than an accidental one.
+
 **Acceptance criteria:**
 - [ ] Response matches current `trust_scores` table record
 - [ ] `trusted` badge only returned when conditions met (≥ 4.5, ≥ 10 ratings)
+- [ ] `connection-service`'s `getLimit()` calls `GET /trust/:userId` on a cache miss and caches the result (no more silent default-on-miss for a user Rating Service actually has data for)
+- [ ] Simulated Rating Service outage (circuit open) → `getLimit()` falls back to `DEFAULT_REQUEST_LIMIT`, `createConnection` still succeeds
+- [ ] Restarting connection-service no longer resets a known low-trust user's limit back to default — a fresh `getLimit()` call re-fetches their real limit from Rating Service
 
 ---
 

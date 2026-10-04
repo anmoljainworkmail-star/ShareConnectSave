@@ -1,0 +1,15 @@
+{
+  "task_id": "T034",
+  "title": "Connection Service Docker Image",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/Dockerfile",
+    "src/infra/docker-compose.override.yml",
+    "src/infra/docker-compose.yml"
+  ],
+  "criteria_checked": {
+    "docker compose up connection-service starts and health passes": "PASS"
+  },
+  "last_note": "Verified working-tree state already matched the content previously reverted pending this ticket (commit 7b3d908 reverted 46ce001's Dockerfile + compose wiring). Confirmed Dockerfile byte-identical to 46ce001's version, compose files identical to 46ce001. Ran docker compose build connection-service (succeeded, multi-stage JDK->JRE-alpine). True image size via docker inspect = 134.2MB (docker images misleadingly reports 426MB, matching T028's known containerd-snapshotter display quirk) - well under 300MB budget. Ran docker compose -p shareconnectsave up -d connection-service against the already-running shared dev stack; container reached healthy status, logs show clean SQL Server login (ConnectionServiceDb) and successful join of the trust.score.updated Kafka consumer group. Note: an intermediate step recreated sqlserver with a wrong dummy SA_PASSWORD and briefly broke the shared stack's SQL logins for all services - recovered by restarting sqlserver from the repo root with the real SA_PASSWORD from root .env; all services (discovery-service, user-service, api-gateway, redis) returned to healthy before connection-service was started. docker-compose.override.yml's SPRING_DATASOURCE_USERNAME/PASSWORD fix for connection-service was already present and correct (mirrors discovery-service's T028 fix)."
+  }
+}

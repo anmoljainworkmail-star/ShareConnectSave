@@ -444,6 +444,30 @@ whose implementation or ticket should pick it up.
    (or similarly redacted) there, matching the branch above it.
    Affects: T033 itself (cheap fix next time this file is touched).
 
+## From T034 (Connection Service Docker Image)
+
+1. **Ticket's own acceptance-criteria checkbox is unchecked despite `status: done`.**
+   `.claude/tickets/T034.md:37` still shows `- [ ] docker compose up connection-service
+   starts and health passes` even though the ticket frontmatter says `status: done` and
+   `.claude/manifests/T034.json` records the criterion as PASS. Cosmetic self-consistency
+   gap only — anyone auditing `.claude/tickets/` without cross-referencing the manifest
+   would see an unchecked box on a "done" ticket.
+   Affects: T034 itself (check the box next time this file is touched).
+
+2. **No `docker` Spring profile document exists in any Java service's `application.yml`
+   (confirmed again for connection-service, matching discovery-service's T028 precedent)
+   — the fix correctly works around this via OS-env-var overrides in
+   `docker-compose.override.yml`, but nothing in the codebase documents *why* a profile
+   named `docker` is activated when it matches zero profile documents.** A future engineer
+   could reasonably "clean up" the override env vars thinking a real `docker` profile
+   handles datasource credentials, reintroducing the exact SQL error 18456 bug T028 and
+   T034 both fixed.
+   Affects: T046 (Rating Service Docker Image), T055 (Report Service Docker Image), T061
+   (Admin Service Docker Image) — same latent gap will recur for each; consider a one-line
+   comment in each service's `application.yml` near the `dev`/`prod` markers, or a shared
+   note in the `docker-compose` skill file, explaining the env-var-override workaround so
+   it isn't mistaken for dead config.
+
 ## From T030 (Request Lifecycle Endpoints) — surfaced in design discussion, not `/review-task`
 
 1. **`createConnection` only checks the requester's active-connection status, not the

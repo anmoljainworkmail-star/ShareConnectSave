@@ -65,7 +65,7 @@
 - [x] T031 — Request TTL Expiry Job _(@Scheduled every 1 min)_
 - [x] T032 — Kafka Producer: connection.accepted + connection.expired
 - [x] T033 — Kafka Consumer: trust.score.updated _(Caffeine cache for request limits)_
-- [ ] T034 — Connection Service Docker Image
+- [x] T034 — Connection Service Docker Image
 
 ---
 

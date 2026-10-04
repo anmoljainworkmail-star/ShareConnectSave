@@ -71,7 +71,7 @@
 
 ## Phase 6 — Chat Service (.NET)
 
-- [ ] T035 — Chat Service Setup + MongoDB _(TTL index on messages.sent_at)_
+- [x] T035 — Chat Service Setup + MongoDB _(TTL index on messages.sent_at)_
 - [ ] T036 — SignalR Hub + Real-time Messaging _(Redis backplane DB 1)_
 - [ ] T037 — Chat Lifecycle _(OPEN→CLOSING→CLOSED, 5-min grace, 2h auto-close)_
 - [ ] T038 — Kafka Consumer: connection.accepted _(open chat room)_
@@ -259,6 +259,24 @@ _Note: T073–T080 reserved — not currently assigned._
   future ticket: decide and implement a prod migration strategy across all Java services,
   likely alongside whatever ticket first defines real (non-Docker-Compose) deployment
   infrastructure.
+
+- **SQL Server connection-pool exhaustion resilience (.NET services).** Every .NET
+  service's `AppDbContext` is registered via plain `AddDbContext` + `UseSqlServer(...)`
+  (e.g. `user-service/Program.cs`), using ADO.NET's default connection pool (`Max Pool
+  Size=100`, `Connection Timeout=15s`) with no tuning, no `EnableRetryOnFailure()`, and
+  no monitoring. Under sustained load or a slow/locked query, the pool can exhaust: new
+  requests queue for a free connection, hit the 15s timeout, and throw
+  `SqlException: Timeout expired...` straight up through the scoped repository/service/
+  controller chain — with nothing to retry transient waits or fail fast on purpose. Java
+  services have an analogous protection already (Resilience4j circuit breaker around
+  Discovery Service's calls to User Service, T027) but nothing plays that role for a
+  .NET service's own database connections. Candidate future ticket: add
+  `EnableRetryOnFailure()` (EF Core's built-in transient-fault retry, the .NET-side
+  equivalent of the Resilience4j Decorator pattern already named in CLAUDE.md) across
+  all .NET services' `DbContext` registration, right-size `Max Pool Size`/
+  `Connection Timeout` per service based on measured concurrent DB load, and decide
+  whether pool-timeout failures should fail fast with a clear error vs. queue. Deliberately
+  deferred until the full 96-task list is done, same reasoning as the other entries above.
 
 ---
 

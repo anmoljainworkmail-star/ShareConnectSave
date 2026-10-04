@@ -7,4 +7,13 @@
     <RootNamespace>chat_service</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Official MongoDB .NET driver. 3.x line is the current stable major
+         compatible with .NET 9 (2.x is EOL/targets older TFMs). This is the
+         only package chat-service needs for Mongo access - no ORM layer on
+         top, since the Repository classes below talk to IMongoCollection<T>
+         directly. -->
+    <PackageReference Include="MongoDB.Driver" Version="3.1.0" />
+  </ItemGroup>
+
 </Project>

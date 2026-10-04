@@ -507,3 +507,40 @@ whose implementation or ticket should pick it up.
    Affects: no specific future task yet — candidate for T037 (Chat Lifecycle) if
    chat-closing ever needs a corresponding connection-side status transition, or a
    dedicated future ticket if SPECS.md gains a "cancel connection" requirement.
+
+## From T035 (Chat Service Setup + MongoDB)
+
+1. `Program.cs` reads `MONGO_TTL_SECONDS` via `int.TryParse` with a safe fallback for
+   non-numeric input, but a syntactically valid negative value (e.g. `-7200`) is not
+   rejected — it flows into `TimeSpan.FromSeconds(ttlSeconds)` and only fails deep inside
+   the MongoDB driver with an opaque `MongoCommandException`, not a clear guard-clause
+   message naming the misconfigured env var.
+   Affects: any future chat-service ticket that touches `Program.cs` startup config
+   (e.g. a later Phase 6 ticket wiring more env-driven options) should add
+   `if (ttlSeconds < 0) throw new InvalidOperationException(...)` alongside the existing
+   `TryParse` guard.
+
+2. `Infrastructure/MongoIndexInitializer.cs`'s drop+recreate TTL-index logic has a narrow
+   TOCTOU (check-then-act) race if two chat-service replicas cold-start at the same time
+   after `MONGO_TTL_SECONDS` changed across a redeploy: both instances can read the same
+   stale index name before either drops it, causing one replica's recreate to be
+   immediately dropped by the other. Self-heals within the same startup window (no data
+   loss), but the TTL index can be transiently absent. Not a risk today since chat-service
+   runs as a single replica in Docker Compose.
+   Affects: any future task that scales chat-service to multiple replicas (Docker Compose
+   `deploy.replicas` or a later Kubernetes/orchestration ticket) should harden this —
+   either pin an explicit `CreateIndexOptions.Name` and treat drop+recreate as best-effort,
+   or catch and swallow `IndexOptionsConflict` on a direct `CreateOneAsync` as proof another
+   replica already reconciled it.
+
+3. T035's own ticket text says "configure via `process.env.MONGO_CONNECTION_STRING`," but
+   the shipped code correctly follows the established `ConnectionStrings__ChatDb` /
+   `GetConnectionString("ChatDb")` convention from T007 and user-service instead (judged
+   correct in review — no code change needed). The same generic
+   `process.env.MONGO_CONNECTION_STRING` wording also appears verbatim in SPECS.md for
+   T051 (Report Service, Spring Boot + Spring Data MongoDB).
+   Affects: T051 — when its ticket is created, it should specify the actual Spring Boot
+   config convention (e.g. `spring.data.mongodb.uri` bound from an env var matching
+   whatever naming convention report-service's docker-compose block ends up using) rather
+   than reusing the same generic template phrase, so the ticket doesn't describe a
+   connection-string approach that gets silently overridden during implementation again.

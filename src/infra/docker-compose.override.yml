@@ -133,6 +133,16 @@ services:
       - ConnectionStrings__ChatDb=${CHAT_DB_CONNECTION:-mongodb://mongodb:27017/ChatServiceDb}
       - SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}
       - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      # T035 fix: without this, the `mongodb` container (which already reads
+      # MONGO_TTL_SECONDS for its own init-script TTL index, see this file's
+      # mongodb service above) and chat-service's own
+      # MongoIndexInitializer would silently disagree whenever a developer
+      # overrides MONGO_TTL_SECONDS in .env - the init script would use the
+      # override, chat-service would fall back to its 7200s default, and
+      # MongoIndexInitializer's drop+recreate guard would fight the init
+      # script's index on every restart. Same variable, same default,
+      # passed to both containers so there is exactly one value in play.
+      - MONGO_TTL_SECONDS=${MONGO_TTL_SECONDS:-7200}
 
   rating-service:
     environment:

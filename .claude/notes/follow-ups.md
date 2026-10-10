@@ -508,6 +508,32 @@ whose implementation or ticket should pick it up.
    chat-closing ever needs a corresponding connection-side status transition, or a
    dedicated future ticket if SPECS.md gains a "cancel connection" requirement.
 
+## From T036 (SignalR Hub + Real-time Messaging)
+
+1. **`ChatHub`'s error paths don't carry the project's `{ code, message, traceId }` error
+   envelope.** `HubException` (thrown from `JoinRoom` and `SendMessage` on missing identity
+   or a non-participant caller — `ChatHub.cs:42,47,69,79`) only carries a plain string
+   message, no machine-readable `code`, no `traceId` to correlate with a server log line —
+   unlike `ChatController`'s HTTP error paths (`NOT_A_PARTICIPANT`, `CHAT_ROOM_NOT_FOUND`,
+   etc.), which are machine-parseable by the Angular client and support tooling. Pre-existing
+   since `SendMessage`'s original error handling, not introduced by this ticket's fix cycle.
+   Fix direction: encode a `code` prefix in the `HubException` message (e.g.
+   `"NOT_A_PARTICIPANT: You are not a participant in this chat."`), or explicitly document
+   SignalR's `HubException` as a deliberate, accepted exception to the envelope rule for
+   this transport.
+   Affects: T037 (Chat Lifecycle — next ticket to touch `ChatHub.cs`/error handling in
+   chat-service).
+
+2. **No max-length guard on message `content` in `ChatService.SendMessageAsync`.** Only an
+   empty-check guard clause exists (`ChatService.cs:38-41`) — no upper bound. An
+   authenticated participant could repeatedly send a multi-megabyte `content` string,
+   inflating MongoDB storage and SignalR broadcast payload size before the TTL index reaps
+   it. Low-severity storage/bandwidth concern, not a confidentiality breach.
+   Fix: add a guard clause alongside the existing empty-check (e.g.
+   `if (content.Length > <limit>) return new SendMessageOutcome(SendMessageResult.InvalidRequest, ...)`).
+   Affects: T037 (Chat Lifecycle — next ticket to touch `ChatService.cs`'s message-sending
+   path).
+
 ## From T035 (Chat Service Setup + MongoDB)
 
 1. `Program.cs` reads `MONGO_TTL_SECONDS` via `int.TryParse` with a safe fallback for

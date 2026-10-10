@@ -79,7 +79,13 @@ services:
       # sensible default unlike a secret such as SA_PASSWORD.
       - MONGO_TTL_SECONDS=${MONGO_TTL_SECONDS:-7200}
     ports:
-      - "27017:27017"
+      # Mapped to a non-default host port because a native Windows MongoDB
+      # service can already own host 27017 on dev machines — this is only
+      # the HOST side of the mapping. Every service's connection string
+      # (docker-compose.override.yml) still uses `mongodb:27017` over the
+      # internal Docker network, so this change is invisible to them; it
+      # only affects tools like Compass connecting from the host machine.
+      - "27018:27017"
     volumes:
       - mongodb-data:/data/db
       # Mongo (unlike SQL Server) DOES support /docker-entrypoint-initdb.d/, so this

@@ -1,6 +1,9 @@
+using chat_service.Hubs;
 using chat_service.Infrastructure;
 using chat_service.Repositories;
 using chat_service.Repositories.Interfaces;
+using chat_service.Services;
+using chat_service.Services.Interfaces;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,11 +11,19 @@ var builder = WebApplication.CreateBuilder(args);
 // MVC Controllers (same reasoning as user-service's Program.cs, see that
 // file's comment): attribute-routed controllers, matching every other
 // service's routing style since several of them are Spring Boot
-// @RestController-based. No controllers exist yet in this ticket (see the
-// ticket's "Do NOT wire up ... in this ticket" note) - registering the
-// pipeline now means later tickets (SignalR hub, message endpoints) have
-// somewhere to land without touching Program.cs's shape again.
+// @RestController-based. T035 registered this pipeline before any
+// controller existed (see that ticket's own comment) specifically so this
+// ticket - the one that actually adds ChatController - could land without
+// touching Program.cs's shape again.
 builder.Services.AddControllers();
+
+// Global Exception Handling + Error Envelope (CLAUDE.md rule 6) - copied
+// from user-service's identical registration (see that file's comment for
+// the full reasoning). This is chat-service's first ticket with an actual
+// HTTP surface to protect; T035 had no controllers, so there was nothing
+// for an unhandled exception to happen in yet.
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 // No Hardcoded Config: the Mongo connection string is never a literal here.
 // docker-compose.override.yml sets ConnectionStrings__ChatDb (double
@@ -60,6 +71,50 @@ builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 // setup is split out from the repositories.
 builder.Services.AddSingleton<MongoIndexInitializer>();
 
+// Dependency Inversion (SOLID D): ChatHub and ChatController both ask the DI
+// container for IChatService, never for IChatRoomRepository/IMessageRepository
+// directly - see that interface's own comment. Scoped to match the
+// repositories it wraps (both already AddScoped above).
+builder.Services.AddScoped<IChatService, ChatService>();
+
+// No Hardcoded Config: same category as KAFKA_BOOTSTRAP's flat-key read in
+// user-service's Program.cs - one cross-cutting value, not a grouped
+// IOptions<T> section. docker-compose.override.yml already sets this for
+// chat-service as SIGNALR_REDIS_CONNECTION (deliberately NOT named
+// REDIS_CONNECTION - this service's Redis traffic is exclusively the
+// SignalR backplane, so the env var name says so rather than implying a
+// general-purpose Redis connection other code here might reach for).
+var signalRRedisConnection = builder.Configuration["SIGNALR_REDIS_CONNECTION"]
+    ?? throw new InvalidOperationException("SIGNALR_REDIS_CONNECTION is not set");
+
+// Cache-Aside boundary / Database-per-Service, applied to Redis DATABASE
+// INDEXES rather than separate Redis instances (system design, per ticket):
+// Discovery Service (T008) already uses Redis DB 0 for its profile cache.
+// Both services share the SAME Redis container in docker-compose.yml, so
+// without an explicit DefaultDatabase here, SignalR's backplane Pub/Sub
+// traffic would land in DB 0 too and could collide with Discovery's cached
+// keys - two unrelated concerns silently sharing one keyspace. DB 1 is
+// reserved, by convention (see the dotnet-mvc-controllers skill file), for
+// every service's SignalR backplane - Notification Service also sets
+// SIGNALR_REDIS_CONNECTION in docker-compose.override.yml for its own future
+// hub, even though its Program.cs is still a scaffold stub as of this
+// ticket and doesn't call AddStackExchangeRedis yet. Sharing DB 1 is safe
+// across services specifically because SignalR's backplane uses Redis
+// Pub/Sub channels, not keys, so two different services' hubs publishing
+// into the same DB 1 don't collide with each other the way two services
+// writing cache KEYS into the same DB would.
+//
+// Observer (GoF, via SignalR groups + this backplane): without this
+// package/configuration, Clients.Group(...).SendAsync(...) in ChatHub would
+// only reach connections held by the SAME process - a second chat-service
+// replica's connections would never see the broadcast. The Redis backplane
+// is what lets every replica subscribe to the same Pub/Sub channel and
+// relay each other's group broadcasts, regardless of which replica a given
+// client's WebSocket happens to be connected to.
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis(signalRRedisConnection, options =>
+        options.Configuration.DefaultDatabase = 1);
+
 var app = builder.Build();
 
 // No Hardcoded Config: TTL duration is a business rule (the actual privacy
@@ -86,7 +141,20 @@ using (var scope = app.Services.CreateScope())
     await indexInitializer.EnsureMessagesTtlIndexAsync(mongoDatabase, ttlSeconds);
 }
 
+// Registered as early as possible so it wraps every downstream middleware/
+// controller action - see the AddExceptionHandler registration above for
+// why this exists (chat-service's first ticket with real endpoints to
+// protect).
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 app.MapControllers();
+
+// SignalR hub endpoint (T036's real-time delivery layer). "/hubs/chat"
+// matches the dotnet-mvc-controllers skill's documented convention
+// (app.MapHub<T>("/path")) - hub mapping is its own ASP.NET Core primitive,
+// unaffected by this service's controllers-vs-minimal-API routing choice.
+app.MapHub<ChatHub>("/hubs/chat");
 
 // Health Endpoint as a Dependency Gate (same shape as user-service's
 // "/health", see that file's comment): liveness only. Docker Compose's

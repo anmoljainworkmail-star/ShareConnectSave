@@ -8,6 +8,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- T036: SignalR's default backplane only fans a broadcast out to
+         connections held by THIS process. Chat Service will eventually run
+         as more than one replica (same reasoning as every other service in
+         this project), so a message sent to a SignalR group must reach
+         every replica's connections, not just the one that happened to
+         receive the SendMessage call - this package is what lets every
+         instance subscribe to the same Redis Pub/Sub channel and relay each
+         other's broadcasts. Installed via `dotnet add package` (not a
+         scaffolding/codegen command per CLAUDE.md's CLI rule), so it was run
+         directly rather than handed to the Tech Lead. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.9" />
+
     <!-- Official MongoDB .NET driver. 3.x line is the current stable major
          compatible with .NET 9 (2.x is EOL/targets older TFMs). This is the
          only package chat-service needs for Mongo access - no ORM layer on

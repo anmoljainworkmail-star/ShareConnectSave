@@ -1,0 +1,29 @@
+{
+  "task_id": "T036",
+  "title": "SignalR Hub + Real-time Messaging",
+  "status": "completed",
+  "files_created": [
+    "src/services/chat-service/Entities/ChatRoomEntity.cs",
+    "src/services/chat-service/Repositories/Interfaces/IChatRoomRepository.cs",
+    "src/services/chat-service/Repositories/ChatRoomRepository.cs",
+    "src/services/chat-service/Repositories/Interfaces/IMessageRepository.cs",
+    "src/services/chat-service/Repositories/MessageRepository.cs",
+    "src/services/chat-service/Dtos/MessageDto.cs",
+    "src/services/chat-service/Dtos/MarkMetSuccessfullyResponse.cs",
+    "src/services/chat-service/Contracts/ErrorResponse.cs",
+    "src/services/chat-service/Extensions/HttpContextExtensions.cs",
+    "src/services/chat-service/Infrastructure/GlobalExceptionHandler.cs",
+    "src/services/chat-service/Services/Interfaces/IChatService.cs",
+    "src/services/chat-service/Services/ChatService.cs",
+    "src/services/chat-service/Controllers/ChatController.cs",
+    "src/services/chat-service/Hubs/ChatHub.cs",
+    "src/services/chat-service/Program.cs",
+    "src/services/chat-service/chat-service.csproj"
+  ],
+  "criteria_checked": {
+    "Two clients in same group receive messages in real-time": "PASS (by code review + build - ChatHub.SendMessage broadcasts via Clients.Group(\"chat:{id}\") to every connection that called JoinRoom, and AddStackExchangeRedis(DB 1) is wired so this fans out across replicas too; not live-tested against a running two-client WebSocket session, since bringing up the Docker stack is a user-run infra command per this project's convention - recommend validating with two SignalR clients after /docker-up as part of the QA checklist)",
+    "Messages persisted to MongoDB before broadcast": "PASS - ChatService.SendMessageAsync awaits IMessageRepository.CreateAsync(message) and returns the persisted MessageDto; ChatHub.SendMessage awaits that call and only then calls Clients.Group(...).SendAsync(...) - no parallel/fire-and-forget path",
+    "GET /chats/:id/messages returns messages sorted ascending by sent_at": "PASS - MessageRepository.FindRecentByChatIdAsync sorts descending + Limit(n) at the query level to get the most recent N efficiently, then reverses the small result set to ascending order before returning"
+  },
+  "last_note": "T036 complete: ChatHub (JoinRoom/SendMessage/LeaveRoom) + ChatController (GET messages, POST met) + IChatService layer shipped, SignalR Redis backplane on DB 1, dotnet build succeeds with 0 warnings/errors. Scope note: deliberately did NOT implement the OPEN/CLOSING/CLOSED state machine, grace timer, auto-close poller, connection.accepted consumer, or chat.closed Kafka/outbox publish - those are explicitly T037/T038/T039 per their own ticket files (already drafted in this repo). MarkMetSuccessfullyAsync only records each user's confirmation and returns both_users_met; a structured log line marks the hand-off point for T037/T039 to pick up, per T036's own 'do not implement the full saga' scope note."
+}

@@ -43,4 +43,26 @@ public sealed class ChatRoomEntity
 
     [BsonElement("closed_at")]
     public DateTime? ClosedAt { get; set; }
+
+    // T036 addition (not part of T007's original schema, but Mongo is
+    // schemaless so no migration/init-script change is needed to add a
+    // field going forward): per-user "Met Successfully" confirmation.
+    //
+    // Why two separate nullable timestamps instead of one bool or one
+    // "MetByUserId" field - the domain rule (REQUIREMENTS.md / CLAUDE.md's
+    // responsibility boundary) is "the chat closes once BOTH users confirm",
+    // which is inherently a two-party fact. A single field could only ever
+    // record the LAST caller, silently losing the first confirmer's
+    // timestamp - these two fields are what let ChatService answer "has
+    // each side confirmed, and when" without any extra state.
+    //
+    // T037 (not yet built) owns the actual OPEN -> CLOSING -> CLOSED state
+    // machine and grace timer that these two fields will drive; this ticket
+    // only records the confirmation, it deliberately does not transition
+    // Status itself.
+    [BsonElement("user_a_met_at")]
+    public DateTime? UserAMetAt { get; set; }
+
+    [BsonElement("user_b_met_at")]
+    public DateTime? UserBMetAt { get; set; }
 }

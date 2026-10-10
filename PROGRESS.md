@@ -72,7 +72,7 @@
 ## Phase 6 — Chat Service (.NET)
 
 - [x] T035 — Chat Service Setup + MongoDB _(TTL index on messages.sent_at)_
-- [ ] T036 — SignalR Hub + Real-time Messaging _(Redis backplane DB 1)_
+- [x] T036 — SignalR Hub + Real-time Messaging _(Redis backplane DB 1)_
 - [ ] T037 — Chat Lifecycle _(OPEN→CLOSING→CLOSED, 5-min grace, 2h auto-close)_
 - [ ] T038 — Kafka Consumer: connection.accepted _(open chat room)_
 - [ ] T039 — Kafka Producer: chat.closed

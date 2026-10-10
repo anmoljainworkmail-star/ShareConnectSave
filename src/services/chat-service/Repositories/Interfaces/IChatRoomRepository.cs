@@ -22,5 +22,22 @@ public interface IChatRoomRepository
 {
     Task<ChatRoomEntity?> FindByConnectionIdAsync(string connectionId);
 
+    // T036 addition: ChatHub/ChatController both look a room up by its own
+    // id (the chat_id a client already holds, e.g. from a future T038
+    // ChatOpened notification), not by the connection it was created from -
+    // a different access pattern than FindByConnectionIdAsync above, so it
+    // is its own method rather than overloading that one.
+    Task<ChatRoomEntity?> FindByIdAsync(string chatId);
+
     Task CreateAsync(ChatRoomEntity room);
+
+    // T036 addition: records ONE side's "Met Successfully" confirmation and
+    // returns the room as it stands immediately after that write, so the
+    // caller (ChatService) can check both UserAMetAt/UserBMetAt without a
+    // second round trip. `isUserA` is resolved by the CALLER (ChatService
+    // already fetched the room once to validate the caller is a
+    // participant) rather than this method re-deriving it from userId -
+    // that keeps "which field does this user map to" decided in exactly one
+    // place.
+    Task<ChatRoomEntity?> MarkUserMetSuccessfullyAsync(string chatId, bool isUserA, DateTime metAt);
 }

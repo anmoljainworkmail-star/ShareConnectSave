@@ -44,4 +44,12 @@ public sealed class MessageRepository : IMessageRepository
         descending.Reverse();
         return descending;
     }
+
+    public async Task DeleteByChatIdAsync(string chatId)
+    {
+        // DeleteManyAsync, not a per-message loop - one Mongo command
+        // removes every message for this room, scoped by the same chat_id
+        // index FindRecentByChatIdAsync already relies on above.
+        await _messages.DeleteManyAsync(m => m.ChatId == chatId);
+    }
 }

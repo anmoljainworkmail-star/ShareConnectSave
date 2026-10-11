@@ -1,3 +1,4 @@
+using chat_service.HostedServices;
 using chat_service.Hubs;
 using chat_service.Infrastructure;
 using chat_service.Repositories;
@@ -76,6 +77,27 @@ builder.Services.AddSingleton<MongoIndexInitializer>();
 // directly - see that interface's own comment. Scoped to match the
 // repositories it wraps (both already AddScoped above).
 builder.Services.AddScoped<IChatService, ChatService>();
+
+// T037 additions. Dependency Inversion (SOLID D): ChatController asks the DI
+// container for IChatLifecycleService, never for the concrete class; both
+// close triggers (ChatLifecycleService's grace timer, and
+// ChatAutoCloseHostedService's poll) ask for ICloseChatRoomService, never
+// for the concrete CloseChatRoomService - see that interface's comment for
+// why it is the one shared implementation of "what closing a room means".
+// Scoped (not Singleton) to match every repository both of these wrap -
+// their one Singleton-lifetime caller, ChatAutoCloseHostedService, resolves
+// them through a fresh IServiceScopeFactory-created scope per poll tick
+// rather than injecting them directly (see that class's own comment).
+builder.Services.AddScoped<IChatLifecycleService, ChatLifecycleService>();
+builder.Services.AddScoped<ICloseChatRoomService, CloseChatRoomService>();
+
+// IHostedService (background worker, CLAUDE.md's pattern table): the
+// 2-hour auto-close poller. AddHostedService<T>() is what tells the
+// generic host to call StartAsync once at app startup and StopAsync once
+// during graceful shutdown - this line is the only place in the whole
+// service that wires that lifecycle up; nothing else needs to know this
+// poller exists.
+builder.Services.AddHostedService<ChatAutoCloseHostedService>();
 
 // No Hardcoded Config: same category as KAFKA_BOOTSTRAP's flat-key read in
 // user-service's Program.cs - one cross-cutting value, not a grouped

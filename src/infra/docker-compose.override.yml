@@ -143,6 +143,16 @@ services:
       # script's index on every restart. Same variable, same default,
       # passed to both containers so there is exactly one value in play.
       - MONGO_TTL_SECONDS=${MONGO_TTL_SECONDS:-7200}
+      # T037 additions - No Hardcoded Config: the grace period, poll
+      # interval, and auto-close threshold are all business rules (how long
+      # a traveler has before the platform's involvement truly ends), not
+      # bare magic-number literals baked into ChatLifecycleService /
+      # ChatAutoCloseHostedService. Same ${VAR:-default} idiom as every
+      # other env var in this file; each default matches the ticket's spec
+      # (5-minute grace, 5-minute poll, 2-hour open-room threshold).
+      - CHAT_MET_GRACE_PERIOD_SECONDS=${CHAT_MET_GRACE_PERIOD_SECONDS:-300}
+      - CHAT_AUTO_CLOSE_POLL_INTERVAL_SECONDS=${CHAT_AUTO_CLOSE_POLL_INTERVAL_SECONDS:-300}
+      - CHAT_AUTO_CLOSE_THRESHOLD_HOURS=${CHAT_AUTO_CLOSE_THRESHOLD_HOURS:-2}
 
   rating-service:
     environment:

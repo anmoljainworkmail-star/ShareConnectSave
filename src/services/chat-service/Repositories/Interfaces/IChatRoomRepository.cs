@@ -40,4 +40,34 @@ public interface IChatRoomRepository
     // that keeps "which field does this user map to" decided in exactly one
     // place.
     Task<ChatRoomEntity?> MarkUserMetSuccessfullyAsync(string chatId, bool isUserA, DateTime metAt);
+
+    // T037 addition: atomic OPEN -> CLOSING transition, guarded by the
+    // room's CURRENT status in the filter (not read-then-write in C#) - the
+    // same optimistic-concurrency-flavored guarantee RowVersion gives a SQL
+    // UPDATE ... WHERE RowVersion = @expected (see this project's own
+    // rowversion-optimistic-concurrency-concept notes), just expressed as a
+    // Mongo filter instead of a column. Returns null if the room was NOT
+    // still OPEN at the instant Mongo evaluated the filter (already
+    // CLOSING/CLOSED, or never existed) - callers treat null as "someone
+    // else already handled this, do not start a second grace timer."
+    Task<ChatRoomEntity?> TransitionToClosingAsync(string chatId);
+
+    // T037 addition: the auto-close poller's query. CreatedAt doubles as
+    // "opened at" (see ChatRoomEntity's comment on why there is no separate
+    // OpenedAtUtc field) - a room is only ever created already OPEN.
+    Task<IReadOnlyList<ChatRoomEntity>> FindOpenRoomsOlderThanAsync(DateTime openedBeforeUtc);
+
+    // T037 addition: the single atomic write that closes a room - see
+    // CloseChatRoomService's comment for the full Mongo-native Outbox
+    // Pattern reasoning. Status/ClosedAt and all four outbox fields are set
+    // together via Builders<T>.Update.Combine(...) in ONE
+    // FindOneAndUpdateAsync call, filtered on Status != CLOSED so a second,
+    // racing close trigger (grace timer vs. auto-close poll) gets null back
+    // instead of silently overwriting an already-enqueued outbox entry.
+    Task<ChatRoomEntity?> CloseRoomAsync(
+        string chatId,
+        DateTime closedAtUtc,
+        string outboxEventType,
+        string outboxPayload,
+        DateTime outboxCreatedAtUtc);
 }

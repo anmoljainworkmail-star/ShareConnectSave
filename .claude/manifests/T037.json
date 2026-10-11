@@ -1,0 +1,30 @@
+{
+  "task_id": "T037",
+  "title": "Chat Lifecycle (Open / Auto-close)",
+  "status": "completed",
+  "files_created": [
+    "src/services/chat-service/Entities/ChatRoomStatus.cs",
+    "src/services/chat-service/Events/ChatClosedEvent.cs",
+    "src/services/chat-service/Events/ChatClosedReason.cs",
+    "src/services/chat-service/Services/Interfaces/IChatLifecycleService.cs",
+    "src/services/chat-service/Services/ChatLifecycleService.cs",
+    "src/services/chat-service/Services/Interfaces/ICloseChatRoomService.cs",
+    "src/services/chat-service/Services/CloseChatRoomService.cs",
+    "src/services/chat-service/HostedServices/ChatAutoCloseHostedService.cs",
+    "src/services/chat-service/Entities/ChatRoomEntity.cs (modified - outbox fields)",
+    "src/services/chat-service/Repositories/Interfaces/IChatRoomRepository.cs (modified)",
+    "src/services/chat-service/Repositories/ChatRoomRepository.cs (modified)",
+    "src/services/chat-service/Repositories/Interfaces/IMessageRepository.cs (modified)",
+    "src/services/chat-service/Repositories/MessageRepository.cs (modified)",
+    "src/services/chat-service/Controllers/ChatController.cs (modified)",
+    "src/services/chat-service/Program.cs (modified)",
+    "src/infra/docker-compose.override.yml (modified)"
+  ],
+  "criteria_checked": {
+    "Met Successfully -> room closes after 5-min grace, messages deleted": "PASS",
+    "Room open > 2 hours -> auto-closed": "PASS",
+    "chat.closed event published on all close paths": "PASS (durably enqueued via Mongo-native outbox fields per Tech Lead addendum; actual Kafka send deferred to T039)",
+    "Messages are explicitly deleted, not just left to TTL": "PASS"
+  },
+  "last_note": "Implementation complete, dotnet build succeeded with 0 warnings/0 errors. Outbox payload shaped to match the pre-existing contracts/kafka/chat.closed.schema.json exactly (event_id, chat_id, connection_id, user_a_id, user_b_id, closed_reason) rather than the ticket addendum's illustrative field list, since that checked-in schema is additionalProperties:false and is what /validate-contracts and T039 will actually rely on."
+}

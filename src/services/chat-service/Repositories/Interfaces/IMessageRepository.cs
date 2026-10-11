@@ -29,4 +29,15 @@ public interface IMessageRepository
     // see MessageRepository's implementation comment for why that ordering
     // is applied in two steps rather than one.
     Task<IReadOnlyList<MessageEntity>> FindRecentByChatIdAsync(string chatId, int limit);
+
+    // T037 addition: belt-and-suspenders explicit delete, used by
+    // CloseChatRoomService on every close path. REQUIREMENTS.md/CLAUDE.md
+    // both call out "no message history persists after chat closes" as a
+    // hard requirement, independent of the TTL index T035's
+    // MongoIndexInitializer already set up - a TTL index only guarantees
+    // EVENTUAL deletion (MongoDB's background reaper runs on its own
+    // ~60-second cadence, not instantly at expiry), not deletion AT the
+    // moment a chat actually closes. This method is what makes "closed"
+    // mean "gone now", not "gone eventually".
+    Task DeleteByChatIdAsync(string chatId);
 }

@@ -508,6 +508,45 @@ whose implementation or ticket should pick it up.
    chat-closing ever needs a corresponding connection-side status transition, or a
    dedicated future ticket if SPECS.md gains a "cancel connection" requirement.
 
+## From T037 (Chat Lifecycle (Open / Auto-close))
+
+1. **TOCTOU race lets the 2-hour auto-close poller close a room that is mid-way through
+   its 5-minute "met successfully" grace period, recording the wrong `closed_reason`.**
+   `ChatAutoCloseHostedService.PollOnceAsync` (`HostedServices/ChatAutoCloseHostedService.cs:89-95`)
+   selects stale rooms via `FindOpenRoomsOlderThanAsync` (filtered on `Status == Open`), but
+   by the time it calls `CloseChatRoomService.CloseRoomAsync` for a given room, both
+   participants may have since confirmed "met" and `ChatLifecycleService` may have already
+   flipped that same room to `CLOSING` via `TransitionToClosingAsync`. Neither
+   `CloseChatRoomService.CloseRoomAsync`'s in-code guard (`CloseChatRoomService.cs:51`,
+   checks `Status == Closed` only) nor `ChatRoomRepository.CloseRoomAsync`'s Mongo filter
+   (`ChatRoomRepository.cs:116`, `Status != Closed`) is strict enough to exclude `CLOSING` —
+   so the poller's write succeeds, finalizing the room with `closed_reason = "timeout"`
+   instead of letting the grace timer finish and record `"met_successfully"`. Not a
+   duplicate-close or data-corruption bug (the atomic idempotency guard still prevents two
+   closes), just an incorrect reason code and a skipped grace delay in a narrow timing
+   window.
+   Fix: give the auto-close path a stricter guard requiring `Status == Open` specifically
+   (matching what `FindOpenRoomsOlderThanAsync` actually verified), leaving the grace-timer
+   path's looser `!= Closed` filter as-is since it is expected to transition from `CLOSING`.
+   Affects: T039 (Kafka Producer: chat.closed — the `closed_reason` field this bug can
+   mis-populate is exactly what T039's relay will publish downstream to Rating Service).
+
+2. **A room that reaches `CLOSING` and then crashes before its grace timer completes has no
+   fallback recovery path.** `ChatLifecycleService.ScheduleGraceClose`'s `Task.Delay`-based
+   timer is in-process memory only (a known, ticket-accepted limitation) — if chat-service
+   restarts mid-grace-period, the timer is lost. Compounding this: `CloseChatRoomService
+   .CloseRoomAsync` deletes messages (`CloseChatRoomService.cs:72`) *before* the atomic
+   room-close write, so if the crash also happens to land in that exact window, the room is
+   stuck in `CLOSING` with its messages already gone — and `ChatAutoCloseHostedService`'s
+   poller only ever queries `Status == Open` (`ChatRoomRepository.cs:78-83`), so a
+   `CLOSING` room is invisible to it and never gets picked back up. Low-probability (two
+   separate failure windows have to both be hit), accepted as out of scope for this ticket,
+   but worth a recovery mechanism eventually.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — candidate for whichever
+   ticket next hardens chat-service's lifecycle (e.g. extending the auto-close poller to
+   also sweep `CLOSING` rooms stuck past some grace-period-plus-margin threshold), or a
+   dedicated ops/reliability pass.
+
 ## From T036 (SignalR Hub + Real-time Messaging)
 
 1. **`ChatHub`'s error paths don't carry the project's `{ code, message, traceId }` error

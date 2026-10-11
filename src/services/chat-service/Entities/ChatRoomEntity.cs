@@ -35,8 +35,14 @@ public sealed class ChatRoomEntity
     [BsonElement("user_b_id")]
     public long UserBId { get; set; }
 
+    // [BsonRepresentation(BsonType.String)] is what makes this a real,
+    // compile-time-checked enum (see ChatRoomStatus's own comment) while
+    // still writing/reading the wire field as the plain string "OPEN" /
+    // "CLOSING" / "CLOSED" - the same text format the T007 mongo-init
+    // script and any `mongosh`/Compass inspection already expect.
     [BsonElement("status")]
-    public string Status { get; set; } = null!;
+    [BsonRepresentation(BsonType.String)]
+    public ChatRoomStatus Status { get; set; }
 
     [BsonElement("created_at")]
     public DateTime CreatedAt { get; set; }
@@ -65,4 +71,45 @@ public sealed class ChatRoomEntity
 
     [BsonElement("user_b_met_at")]
     public DateTime? UserBMetAt { get; set; }
+
+    // T037 additions below - Mongo-native embedded Outbox Pattern (Tech Lead
+    // architecture decision, see T037 ticket addendum). Every other Outbox
+    // producer in this codebase (user-service, connection-service,
+    // discovery-service) writes its business row and its outbox row together
+    // in ONE SQL Server transaction. Chat Service has no SQL schema at all -
+    // Mongo is its only store - and a separate `outbox` collection would need
+    // a multi-document Mongo transaction to get that same durability
+    // guarantee, which in turn requires Mongo running as a replica set (this
+    // project's dev Mongo is a single standalone node). Folding exactly ONE
+    // pending outbox event directly onto this same document sidesteps that
+    // entirely: CloseChatRoomService sets these four fields AND Status AND
+    // ClosedAt in a single FindOneAndUpdateAsync call (see that class and
+    // ChatRoomRepository.CloseRoomAsync), so it is impossible for a room to
+    // end up CLOSED without its matching chat.closed event also being
+    // durably written, or vice versa - both land in the same atomic command.
+    // A future ticket (T039) polls for OutboxPublishedAt == null and does the
+    // actual Kafka send; that relay step is explicitly out of scope here.
+    [BsonElement("outbox_event_type")]
+    public string? OutboxEventType { get; set; }
+
+    [BsonElement("outbox_payload")]
+    public string? OutboxPayload { get; set; }
+
+    [BsonElement("outbox_created_at")]
+    public DateTime? OutboxCreatedAt { get; set; }
+
+    // Null means "not yet relayed to Kafka" - T039's BackgroundService will
+    // poll for exactly this condition. This ticket only ever writes this
+    // field as null (enqueueing); nothing in T037 ever sets it to non-null.
+    [BsonElement("outbox_published_at")]
+    public DateTime? OutboxPublishedAt { get; set; }
+
+    // Deliberately NOT adding a separate OpenedAtUtc field here even though
+    // the ticket's notes suggest one: CreatedAt (above) already IS the
+    // "opened at" timestamp, because a room only ever starts existing in the
+    // OPEN state (T038 creates it that way, on connection.accepted) - there
+    // is no distinct "opened later than created" moment to record. Adding a
+    // second field with the same value would duplicate state for no reason;
+    // ChatRoomRepository.FindOpenRoomsOlderThanAsync below filters on
+    // CreatedAt for the 2-hour auto-close check.
 }

@@ -20,8 +20,13 @@ using chat_service.Services.Interfaces;
 // Real-time (SendMessage) deliberately has NO controller action - see
 // ChatHub for that. This controller only exposes the two REST endpoints the
 // ticket calls for: recent history and the "Met Successfully" action.
+//
+// T037: MarkMetSuccessfully below now delegates to IChatLifecycleService,
+// not IChatService directly - Single Responsibility (SOLID S) split between
+// the two interfaces, see IChatLifecycleService's own comment. GetMessages
+// is untouched by T037 and still depends on IChatService alone.
 [ApiController]
-public class ChatController(IChatService chatService) : ControllerBase
+public class ChatController(IChatService chatService, IChatLifecycleService chatLifecycleService) : ControllerBase
 {
     [HttpGet("/chats/{id}/messages")]
     public async Task<IActionResult> GetMessages(string id, [FromQuery] int? limit)
@@ -50,7 +55,7 @@ public class ChatController(IChatService chatService) : ControllerBase
             return MissingIdentity();
         }
 
-        var outcome = await chatService.MarkMetSuccessfullyAsync(id, userId);
+        var outcome = await chatLifecycleService.MarkMetSuccessfullyAsync(id, userId);
 
         return outcome.Result switch
         {

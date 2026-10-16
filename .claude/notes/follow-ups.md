@@ -573,6 +573,37 @@ whose implementation or ticket should pick it up.
    Affects: T037 (Chat Lifecycle — next ticket to touch `ChatService.cs`'s message-sending
    path).
 
+## From T038 (Kafka Consumer: connection.accepted)
+
+1. **`ChatOpened` can be delivered twice to the same user in a narrow crash-then-redeliver
+   window, even though room creation itself is now correctly deduplicated.** The
+   `processed_events` idempotency record for a `connection.accepted` event is only written
+   *after* `ChatRoomService.OpenRoomAsync` and the SignalR notification both succeed
+   (`Messaging/Handlers/ConnectionAcceptedHandler.cs`). If the process crashes (or a
+   transient SignalR/Redis-backplane send failure throws) between the notification and the
+   `processed_events` write, Kafka redelivers the same event; the room-creation side
+   converges safely on the single existing room via the fix-cycle-1 guard
+   (`ChatRoomService.cs:35-43` existing-room check + the unique index/duplicate-key catch
+   at `ChatRoomService.cs:74-95`), but `NotifyBothUsersAsync` runs again regardless, so both
+   users' SignalR clients can receive a second `ChatOpened` event for the same chat room.
+   This is a deliberate, documented trade-off (avoiding a second idempotency mechanism just
+   for the notification step), not an oversight — but it means the Angular/Capacitor
+   client's `ChatOpened` handler must treat the event as safely re-deliverable (e.g.
+   "join/open this chat if not already joined," not "assume at-most-once delivery").
+   Affects: whichever future ticket builds the Angular chat-opened handler / SignalR client
+   integration (Phase 9+, Angular PWA chat UI — no specific task ID yet in PROGRESS.md/SPECS.md).
+
+2. **Two legitimate but easy-to-conflate shapes of the same duplicate-key-as-concurrency-backstop
+   pattern now exist side by side in chat-service, with no comment contrasting them.**
+   `ProcessedEventRepository`'s duplicate-key catch is a pure no-op (the record's existence
+   is the only thing that mattered), while `ChatRoomService`'s duplicate-key catch
+   re-fetches and returns the winning room (callers need an actual entity back). Both are
+   correct for what each caller needs, but a learner skimming both files side by side could
+   read the difference as an inconsistency rather than a deliberate choice.
+   Affects: no specific future task — optional one-line comment in `ChatRoomService.cs`
+   near the duplicate-key catch, next time that file is touched, contrasting it with
+   `ProcessedEventRepository`'s no-op shape.
+
 ## From T035 (Chat Service Setup + MongoDB)
 
 1. `Program.cs` reads `MONGO_TTL_SECONDS` via `int.TryParse` with a safe fallback for

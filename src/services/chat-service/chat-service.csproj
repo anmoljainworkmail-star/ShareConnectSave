@@ -26,6 +26,17 @@
          top, since the Repository classes below talk to IMongoCollection<T>
          directly. -->
     <PackageReference Include="MongoDB.Driver" Version="3.1.0" />
+
+    <!-- T038: chat-service's first Kafka consumer (ConnectionAcceptedConsumer).
+         Same package + version user-service's KafkaUserVerifiedEventPublisher
+         already references for its producer - one Kafka client library
+         version across every .NET service in this project, so the wire
+         protocol/behavior quirks a developer learns on one service's
+         producer carry over directly to another service's consumer. Added by
+         hand-editing this file (per CLAUDE.md's CLI-command rule) rather than
+         running `dotnet add package`, since that command itself is a plain
+         file write here, not a scaffolding/codegen step. -->
+    <PackageReference Include="Confluent.Kafka" Version="2.15.0" />
   </ItemGroup>
 
 </Project>

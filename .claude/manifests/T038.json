@@ -1,0 +1,26 @@
+{
+  "task_id": "T038",
+  "title": "Kafka Consumer: connection.accepted",
+  "status": "completed",
+  "files_created": [
+    "src/services/chat-service/Events/ConnectionAcceptedEvent.cs",
+    "src/services/chat-service/Entities/ProcessedEventEntity.cs",
+    "src/services/chat-service/Repositories/Interfaces/IProcessedEventRepository.cs",
+    "src/services/chat-service/Repositories/ProcessedEventRepository.cs",
+    "src/services/chat-service/Services/Interfaces/IChatRoomService.cs",
+    "src/services/chat-service/Services/ChatRoomService.cs",
+    "src/services/chat-service/Dtos/ChatOpenedNotification.cs",
+    "src/services/chat-service/Messaging/Handlers/IConnectionAcceptedHandler.cs",
+    "src/services/chat-service/Messaging/Handlers/ConnectionAcceptedHandler.cs",
+    "src/services/chat-service/Messaging/Consumers/ConnectionAcceptedConsumer.cs",
+    "src/services/chat-service/Hubs/SignalRGroupNames.cs",
+    "src/services/chat-service/Hubs/ChatHub.cs",
+    "src/services/chat-service/Program.cs",
+    "src/services/chat-service/chat-service.csproj"
+  ],
+  "criteria_checked": {
+    "AC1_kafka_event_creates_chat_room": "PASS",
+    "AC2_both_users_receive_chat_opened_notification": "PASS"
+  },
+  "last_note": "T038 complete. Added ConnectionAcceptedConsumer (BackgroundService, group-id 'chat-service', manual commit) -> IConnectionAcceptedHandler (processed_events idempotency check-then-act-then-record, mirrors connection-service's TrustScoreUpdatedConsumer) -> IChatRoomService.OpenRoomAsync (creates OPEN chat_room) -> SignalR ChatOpened notification to both participants' personal 'user:{id}' groups (ChatHub.OnConnectedAsync now joins that group; extracted SignalRGroupNames to avoid duplicating group-name strings between ChatHub and the handler). Added Confluent.Kafka 2.15.0 to chat-service.csproj by hand-editing (not `dotnet add package`, per CLI rule - though that specific command isn't on the restricted list anyway). No Kafka producer / outbound event added, no cross-service DB/API calls, build verified clean via `dotnet build` (0 warnings, 0 errors)."
+}

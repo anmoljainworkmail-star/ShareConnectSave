@@ -23,10 +23,44 @@ using chat_service.Services.Interfaces;
 public class ChatHub : Hub
 {
     private readonly IChatService _chatService;
+    private readonly ILogger<ChatHub> _logger;
 
-    public ChatHub(IChatService chatService)
+    public ChatHub(IChatService chatService, ILogger<ChatHub> logger)
     {
         _chatService = chatService;
+        _logger = logger;
+    }
+
+    // T038 addition: a PERSONAL per-user group, distinct from the per-chat
+    // groups JoinRoom manages below. A client has a user id the moment its
+    // WebSocket handshake carries the gateway-injected X-User-Id header - it
+    // does NOT yet have a chatId to JoinRoom with, because no chat room
+    // exists until a connection.accepted Kafka event creates one (see
+    // Messaging/Handlers/ConnectionAcceptedHandler). This personal group is
+    // what lets that handler push a "ChatOpened" notification to a client
+    // that has never heard of this chat room before this exact moment.
+    //
+    // Pattern: Observer (GoF), via SignalR groups - same mechanism this
+    // hub's own header comment already describes for per-chat broadcast,
+    // just keyed by user id instead of chat id.
+    //
+    // Deliberately does NOT throw on a missing/invalid X-User-Id, unlike
+    // JoinRoom/SendMessage below: a connection with no resolvable identity
+    // can still be useful for other purposes this hub may gain later, so
+    // this only logs and skips joining the personal group rather than
+    // tearing the whole connection down over one missing header.
+    public override async Task OnConnectedAsync()
+    {
+        if (TryGetCallerUserId(out var userId))
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, SignalRGroupNames.User(userId));
+        }
+        else
+        {
+            _logger.LogWarning("SignalR connection {ConnectionId} has no resolvable X-User-Id; it will not receive personal notifications.", Context.ConnectionId);
+        }
+
+        await base.OnConnectedAsync();
     }
 
     public async Task JoinRoom(string chatId)
@@ -47,12 +81,12 @@ public class ChatHub : Hub
             throw new HubException("You are not a participant in this chat.");
         }
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(chatId));
+        await Groups.AddToGroupAsync(Context.ConnectionId, SignalRGroupNames.Chat(chatId));
     }
 
     public async Task LeaveRoom(string chatId)
     {
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(chatId));
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, SignalRGroupNames.Chat(chatId));
     }
 
     public async Task SendMessage(string chatId, string content)
@@ -83,10 +117,8 @@ public class ChatHub : Hub
         // only exists because ChatService already awaited the MongoDB
         // insert before returning Success - there is no parallel "insert
         // and broadcast at the same time" path.
-        await Clients.Group(GroupName(chatId)).SendAsync("ReceiveMessage", outcome.Message);
+        await Clients.Group(SignalRGroupNames.Chat(chatId)).SendAsync("ReceiveMessage", outcome.Message);
     }
-
-    private static string GroupName(string chatId) => $"chat:{chatId}";
 
     private bool TryGetCallerUserId(out long userId)
     {

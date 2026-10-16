@@ -1,6 +1,8 @@
 using chat_service.HostedServices;
 using chat_service.Hubs;
 using chat_service.Infrastructure;
+using chat_service.Messaging.Consumers;
+using chat_service.Messaging.Handlers;
 using chat_service.Repositories;
 using chat_service.Repositories.Interfaces;
 using chat_service.Services;
@@ -66,6 +68,12 @@ builder.Services.AddSingleton(sp => sp.GetRequiredService<IMongoClient>().GetDat
 builder.Services.AddScoped<IChatRoomRepository, ChatRoomRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 
+// T038 addition: same Dependency Inversion/Interface Segregation reasoning
+// as the two registrations above - ConnectionAcceptedHandler asks the DI
+// container for IProcessedEventRepository, never for the concrete Mongo
+// class. Scoped to match every other Mongo-backed repository in this file.
+builder.Services.AddScoped<IProcessedEventRepository, ProcessedEventRepository>();
+
 // Registered as a plain service (not a static helper) so it can be
 // constructor-injected and swapped/mocked like anything else in this
 // project's DI-first style - see its own class comment for why TTL index
@@ -91,6 +99,14 @@ builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IChatLifecycleService, ChatLifecycleService>();
 builder.Services.AddScoped<ICloseChatRoomService, CloseChatRoomService>();
 
+// T038 additions. Dependency Inversion (SOLID D): ConnectionAcceptedHandler
+// asks the DI container for IChatRoomService (opening a room) and for
+// IConnectionAcceptedHandler itself (resolved fresh, per message, from a
+// scope ConnectionAcceptedConsumer creates - see that class's own comment),
+// never for either concrete class.
+builder.Services.AddScoped<IChatRoomService, ChatRoomService>();
+builder.Services.AddScoped<IConnectionAcceptedHandler, ConnectionAcceptedHandler>();
+
 // IHostedService (background worker, CLAUDE.md's pattern table): the
 // 2-hour auto-close poller. AddHostedService<T>() is what tells the
 // generic host to call StartAsync once at app startup and StopAsync once
@@ -98,6 +114,16 @@ builder.Services.AddScoped<ICloseChatRoomService, CloseChatRoomService>();
 // service that wires that lifecycle up; nothing else needs to know this
 // poller exists.
 builder.Services.AddHostedService<ChatAutoCloseHostedService>();
+
+// T038 addition: chat-service's first Kafka consumer. Event-Driven
+// Architecture (CLAUDE.md) - this is the ONLY thing that ever creates a
+// chat_room document; there is deliberately no HTTP route that can do it
+// (see ChatRoomService's own comment). AddHostedService<T>() here is the
+// one place in this service that wires up this consumer's lifecycle,
+// exactly like ChatAutoCloseHostedService's registration above - the
+// generic host calls StartAsync once at boot and StopAsync once during
+// graceful shutdown.
+builder.Services.AddHostedService<ConnectionAcceptedConsumer>();
 
 // No Hardcoded Config: same category as KAFKA_BOOTSTRAP's flat-key read in
 // user-service's Program.cs - one cross-cutting value, not a grouped

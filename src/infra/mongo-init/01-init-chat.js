@@ -107,7 +107,11 @@ chatDb.messages.createIndex({ sender_id: 1 });
 
 // chat_rooms is looked up by the connection it belongs to (Connection
 // Service's `connection.accepted` event carries a connection_id — Chat
-// Service uses this index to find or create the matching room).
-chatDb.chat_rooms.createIndex({ connection_id: 1 });
+// Service uses this index to find or create the matching room). The unique
+// constraint ensures that even with concurrent consumers, at most one room
+// can exist per connection_id - any race to create a second room will hit a
+// duplicate-key exception, which ChatRoomService catches and handles by
+// reusing the already-created room (see ChatRoomService.OpenRoomAsync).
+chatDb.chat_rooms.createIndex({ connection_id: 1 }, { unique: true });
 
 print('[mongo-init] ChatServiceDb ready — messages (TTL ' + ttlSeconds + 's), chat_rooms initialized.');

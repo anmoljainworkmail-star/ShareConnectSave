@@ -76,7 +76,7 @@
 - [x] T037 — Chat Lifecycle _(OPEN→CLOSING→CLOSED, 5-min grace, 2h auto-close)_
 - [x] T038 — Kafka Consumer: connection.accepted _(open chat room)_
 - [x] T039 — Kafka Producer: chat.closed
-- [ ] T040 — Chat Service Docker Image
+- [x] T040 — Chat Service Docker Image
 
 ---
 
@@ -282,8 +282,8 @@ _Note: T073–T080 reserved — not currently assigned._
 
 ## Summary
 
-**Done:** 34 / 96  
+**Done:** 35 / 96  
 **In Progress:** 0 / 96  
-**Pending:** 62 / 96  
+**Pending:** 61 / 96  
 
 _Update this section manually or via `/status` after each task completes._

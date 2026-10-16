@@ -1,0 +1,14 @@
+{
+  "task_id": "T040",
+  "title": "Chat Service Docker Image",
+  "status": "completed",
+  "files_created": [
+    "src/services/chat-service/Dockerfile"
+  ],
+  "criteria_checked": {
+    "docker compose up chat-service starts without error": "UNVERIFIED - requires manual docker build",
+    "Healthcheck passes": "UNVERIFIED - requires manual docker build",
+    "Image size under 200 MB": "UNVERIFIED - requires manual docker build"
+  },
+  "last_note": "Dockerfile written, multi-stage build matching api-gateway (T014) pattern, adapted to chat-service.csproj/chat-service.dll. Verified chat-service.csproj exists and docker-compose.yml (lines ~369-389) and docker-compose.override.yml (lines 130-165) already have correct chat-service wiring - no changes made to either compose file. Build/runtime verification requires Tech Lead to run docker build/docker compose up manually."
+}

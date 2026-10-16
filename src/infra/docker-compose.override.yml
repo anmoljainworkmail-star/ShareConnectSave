@@ -132,7 +132,16 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__ChatDb=${CHAT_DB_CONNECTION:-mongodb://mongodb:27017/ChatServiceDb}
       - SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      # Fix (T039, same class as T025/T028's fix for discovery-service and
+      # T020's fix for user-service): kafka:9092 is the PLAINTEXT listener
+      # published to the HOST, not reachable from container-to-container
+      # traffic — a client inside the compose network bootstraps against it
+      # successfully, but Kafka's metadata response then redirects it to
+      # "localhost:9092", which inside this container resolves to itself,
+      # not the broker. chat-service's ConnectionAcceptedConsumer (T038) and
+      # OutboxRelayHostedService (T039) both run inside the compose network,
+      # so the correct default is the internal listener, kafka:29092.
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:29092}
       # T035 fix: without this, the `mongodb` container (which already reads
       # MONGO_TTL_SECONDS for its own init-script TTL index, see this file's
       # mongodb service above) and chat-service's own
@@ -153,6 +162,13 @@ services:
       - CHAT_MET_GRACE_PERIOD_SECONDS=${CHAT_MET_GRACE_PERIOD_SECONDS:-300}
       - CHAT_AUTO_CLOSE_POLL_INTERVAL_SECONDS=${CHAT_AUTO_CLOSE_POLL_INTERVAL_SECONDS:-300}
       - CHAT_AUTO_CLOSE_THRESHOLD_HOURS=${CHAT_AUTO_CLOSE_THRESHOLD_HOURS:-2}
+      # T039 addition - No Hardcoded Config: OutboxRelayHostedService's poll
+      # cadence for relaying chat.closed events from the Mongo-native outbox
+      # fields to Kafka. 500ms default matches connection-service's Java
+      # OutboxRelay cadence (@Scheduled(fixedDelay = 500)), kept configurable
+      # here per this service's own established per-timing-value env var
+      # convention (see the T037 additions above).
+      - CHAT_OUTBOX_RELAY_POLL_INTERVAL_MS=${CHAT_OUTBOX_RELAY_POLL_INTERVAL_MS:-500}
 
   rating-service:
     environment:

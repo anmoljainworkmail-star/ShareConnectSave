@@ -117,4 +117,33 @@ public sealed class ChatRoomRepository : IChatRoomRepository
             update,
             new FindOneAndUpdateOptions<ChatRoomEntity> { ReturnDocument = ReturnDocument.After });
     }
+
+    public async Task<IReadOnlyList<ChatRoomEntity>> FindPendingOutboxRoomsAsync(int batchSize)
+    {
+        // Sort by OutboxCreatedAt ascending + Limit(batchSize): same
+        // oldest-first, bounded-batch shape as connection-service's
+        // OutboxRepository.findByStatusOrderByCreatedAtAsc(PENDING,
+        // PageRequest.of(0, BATCH_SIZE)) - oldest-first so one slow/stuck
+        // event can't starve newer ones indefinitely, bounded so one poll
+        // tick can't try to hand an unbounded result set to Kafka at once.
+        return await _chatRooms
+            .Find(room => room.OutboxEventType != null && room.OutboxPublishedAt == null)
+            .SortBy(room => room.OutboxCreatedAt)
+            .Limit(batchSize)
+            .ToListAsync();
+    }
+
+    public async Task<ChatRoomEntity?> MarkOutboxPublishedAsync(string chatId, DateTime publishedAtUtc)
+    {
+        var update = Builders<ChatRoomEntity>.Update.Set(r => r.OutboxPublishedAt, publishedAtUtc);
+
+        // OutboxPublishedAt == null guard - see IChatRoomRepository's comment:
+        // this is what keeps two relay replicas (or two overlapping ticks of
+        // the same relay) from both believing they were the one that marked
+        // this event published.
+        return await _chatRooms.FindOneAndUpdateAsync<ChatRoomEntity>(
+            room => room.Id == chatId && room.OutboxPublishedAt == null,
+            update,
+            new FindOneAndUpdateOptions<ChatRoomEntity> { ReturnDocument = ReturnDocument.After });
+    }
 }

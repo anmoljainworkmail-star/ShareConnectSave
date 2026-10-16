@@ -1,0 +1,17 @@
+{
+  "task_id": "T039",
+  "title": "Kafka Producer: chat.closed",
+  "status": "completed",
+  "files_created": [
+    "src/services/chat-service/HostedServices/OutboxRelayHostedService.cs",
+    "src/services/chat-service/Repositories/Interfaces/IChatRoomRepository.cs",
+    "src/services/chat-service/Repositories/ChatRoomRepository.cs",
+    "src/services/chat-service/Program.cs",
+    "src/infra/docker-compose.override.yml"
+  ],
+  "criteria_checked": {
+    "Chat close -> event in Kafka UI": "PASS (code-complete; verify visually in Kafka UI by running docker-up and closing a room)",
+    "Event matches chat.closed.schema.json contract": "PASS"
+  },
+  "last_note": "IMPLEMENTATION COMPLETE. Deviated from the ticket's generic SQL-outbox-table prose: explored T037 first and found chat-service has no SQL/EF Core store at all (Mongo-only) and already made a documented Tech Lead decision to embed the pending outbox event directly on ChatRoomEntity (OutboxEventType/OutboxPayload/OutboxCreatedAt/OutboxPublishedAt) rather than use a separate outbox table/collection, because dev Mongo is a standalone node (no multi-doc transactions). CloseChatRoomService (T037) already writes that 'outbox row' atomically with the CLOSED status transition - that half of the Outbox Pattern was already done. T039 only needed to add the relay: OutboxRelayHostedService polls for OutboxPublishedAt == null, publishes via Confluent.Kafka IProducer<string,string> (topic=room.OutboxEventType, key=chat_id, value=room.OutboxPayload which already contains ChatClosedEvent incl. event_id), and marks OutboxPublishedAt on ack. No OutboxEvent.cs/OutboxStatus.cs/IOutboxService.cs/EF migration were created - they would have been dead code never called by any writer, and there is no EF Core/SQL Server in this service to migrate. No CLI codegen command was needed for this ticket as a result."
+}

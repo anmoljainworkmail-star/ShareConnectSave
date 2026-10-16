@@ -7,6 +7,7 @@ using chat_service.Repositories;
 using chat_service.Repositories.Interfaces;
 using chat_service.Services;
 using chat_service.Services.Interfaces;
+using Confluent.Kafka;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -124,6 +125,34 @@ builder.Services.AddHostedService<ChatAutoCloseHostedService>();
 // generic host calls StartAsync once at boot and StopAsync once during
 // graceful shutdown.
 builder.Services.AddHostedService<ConnectionAcceptedConsumer>();
+
+// T039 addition: chat-service's first Kafka PRODUCER. Same flat-key read and
+// Singleton-via-DI registration as user-service's Program.cs (AddSingleton
+// over a hand-rolled static instance - Singleton via DI container, classic
+// pattern from CLAUDE.md's pattern table, because it is testable/swappable
+// the way a bare `private static readonly` field is not) - IProducer<> owns
+// a connection pool and internal batching buffer that is explicitly designed
+// to be built once and reused for the life of the process, the same reason
+// IMongoClient above is a Singleton rather than built per request.
+//
+// Unlike ConnectionAcceptedConsumer's inline KAFKA_BOOTSTRAP read (that class
+// builds its own ConsumerBuilder on its own long-running thread, not through
+// DI), this producer is resolved via the container because
+// OutboxRelayHostedService below needs the SAME shared instance DI gives it,
+// not a second connection pool of its own.
+var kafkaBootstrapServers = builder.Configuration["KAFKA_BOOTSTRAP"]
+    ?? throw new InvalidOperationException("KAFKA_BOOTSTRAP is not set");
+
+builder.Services.AddSingleton<IProducer<string, string>>(_ =>
+    new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = kafkaBootstrapServers }).Build());
+
+// T039 addition: the relay side of the Mongo-native Outbox Pattern T037
+// started (see OutboxRelayHostedService's own header comment for the full
+// "why no SQL outbox table here" reasoning). AddHostedService<T>() is the
+// one place in this service that wires up this poller's lifecycle, same as
+// ChatAutoCloseHostedService's and ConnectionAcceptedConsumer's registrations
+// above.
+builder.Services.AddHostedService<OutboxRelayHostedService>();
 
 // No Hardcoded Config: same category as KAFKA_BOOTSTRAP's flat-key read in
 // user-service's Program.cs - one cross-cutting value, not a grouped

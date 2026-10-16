@@ -573,6 +573,29 @@ whose implementation or ticket should pick it up.
    Affects: T037 (Chat Lifecycle — next ticket to touch `ChatService.cs`'s message-sending
    path).
 
+## From T040 (Chat Service Docker Image) — surfaced running a real `docker compose build`, not `/review-task`
+
+1. **T040's own ticket text incorrectly cited T028/T034 (Java/Maven) as precedent for
+   skipping a `.dockerignore`, when the actual .NET precedent it claims to copy —
+   `api-gateway` (T014) — ships one specifically to prevent this exact failure.** Without
+   it, `COPY . .` (`chat-service/Dockerfile:20`) copied the host's own locally-built
+   `obj/` folder (present because the project had been opened/restored in Visual Studio)
+   into the Linux build stage, overwriting the clean restore the container's own
+   `RUN dotnet restore` had just produced. Visual Studio's restore bakes a Windows-only
+   NuGet fallback path (`C:\Program Files (x86)\Microsoft Visual Studio\Shared\NuGetPackages`)
+   into `obj/chat-service.csproj.nuget.g.props`; `dotnet publish --no-restore` then fails
+   immediately inside the Linux container with `MSB4018: Unable to find fallback package
+   folder`. The adversarial review that approved T040 couldn't catch this — no Docker
+   engine was available in that environment, so AC1 was only verified by static analysis,
+   not an actual build. Fixed by adding `src/services/chat-service/.dockerignore`
+   (`bin/`, `obj/`, `.vs/`), matching `api-gateway/.dockerignore` and
+   `user-service/.dockerignore` exactly.
+   Affects: T050 (Notification Service Docker Image — the fourth and last .NET service
+   Dockerfile; `notification-service/` already has local `bin/`/`obj/` on disk and no
+   `.dockerignore` yet, so it will hit this identical failure on its first real
+   `docker compose build` unless the ticket is written to add the `.dockerignore`
+   upfront, copying `api-gateway`'s file rather than any Java service's deferral).
+
 ## From T038 (Kafka Consumer: connection.accepted)
 
 1. **`ChatOpened` can be delivered twice to the same user in a narrow crash-then-redeliver

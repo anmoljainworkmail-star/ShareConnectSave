@@ -1,0 +1,148 @@
+# application.yml — base (shared) config + dev/prod profile documents below,
+# separated by `---`. Everything environment-specific comes from an env var
+# placeholder (${VAR} or ${VAR:default}) per the java-spring-boot skill's
+# "always environment variables, never hardcoded" rule — this file has no
+# literal host, port, or credential anywhere.
+#
+# No Hardcoded Config: every ${VAR} below is read from the process
+# environment at startup, matching every other service in this platform and
+# the user's own process.env.*-for-config convention. `dev` gets sensible
+# localhost/port defaults (via the ${VAR:default} syntax) so a developer can
+# `mvn spring-boot:run` this service standalone against infra started by
+# docker-up without exporting anything by hand; `prod` intentionally has NO
+# defaults for anything security- or topology-sensitive, so a missing env var
+# fails startup loudly instead of silently connecting to the wrong place.
+#
+# Same structure as discovery-service's application.yml (T021) minus the
+# business-config blocks (discovery/ble/user-service) and the Redis +
+# Resilience4j sections — this ticket builds no cache and no outbound
+# circuit-broken HTTP calls, so there is nothing yet for either to wrap.
+spring:
+  application:
+    name: rating-service
+
+  # Virtual Threads (Java 21 / Project Loom) — applies to BOTH profiles, so it
+  # sits in this shared section rather than inside dev: or prod:. Spring MVC's
+  # default thread-per-request model holds a platform thread for a request's
+  # entire duration, including time spent idle while blocked on I/O (a future
+  # outbound call, a slow query). Virtual threads unmount from their carrier
+  # OS thread while blocked, so a burst of slow-but-live requests can't
+  # exhaust a fixed-size platform thread pool. No outbound calls exist yet in
+  # this ticket, but every Java service in this platform enables this at
+  # Spring Boot Setup time (T021/T029/T041/T051/T056), not retroactively.
+  threads:
+    virtual:
+      enabled: true
+
+  kafka:
+    # Declared now because this ticket's "What to build" list requires
+    # KAFKA_BROKERS as a configured env var (future Phase 7 tickets add the
+    # rating.submitted/trust.score.updated producers and chat.closed
+    # consumer) — but no consumer group-id/listener block is added yet since
+    # no @KafkaListener exists in this ticket. Adding that config now, ahead
+    # of the code that would use it, would be exactly the kind of
+    # speculative work this project's conventions avoid.
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+
+  flyway:
+    # Points Flyway at the already-existing
+    # V001__rating_service_initial_schema.sql (T006). classpath:db/migration
+    # is Boot's own default location for this property — spelled out
+    # explicitly anyway so the convention is documented in code, not left
+    # implicit.
+    locations: classpath:db/migration
+
+  jpa:
+    hibernate:
+      # Flyway (not Hibernate) owns schema changes in this project —
+      # ddl-auto: validate makes Hibernate compare @Entity mappings against
+      # the schema Flyway already applied and fail fast on drift, instead of
+      # "update" silently altering tables out from under a migration
+      # history, or "create-drop" wiping data.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          # Hibernate 6's default JDBC mapping for java.time.Instant is
+          # TIMESTAMP_UTC (SQL Server's `datetimeoffset`), but V001's
+          # created_at/updated_at columns are plain DATETIME2 (no offset) —
+          # same fix discovery-service's application.yml applies, for the
+          # same reason: without this override, ddl-auto: validate fails at
+          # startup with "wrong column type ... found [datetime2], but
+          # expecting [datetimeoffset(6)]" the first time it actually
+          # validates against a live, migrated database.
+          preferred_instant_jdbc_type: TIMESTAMP
+    # Prevents the Open Session In View anti-pattern: without this, Hibernate
+    # keeps a DB connection open for a request's entire lifetime, which
+    # quietly hides N+1 lazy-loading queries behind "it still works" until
+    # the connection pool runs out under load. Forcing it off makes any
+    # lazy-loading-outside-a-transaction bug fail immediately and visibly
+    # during development instead of in production.
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health (+ info) reachable over HTTP — never "*". An
+        # unauthenticated /actuator/env or /actuator/beans endpoint leaks
+        # connection strings and internal wiring to anyone who can reach
+        # this service, which is exactly the kind of surface a
+        # gateway-fronted microservice should not expose beyond its own
+        # liveness/readiness check.
+        include: health,info
+
+---
+# dev profile — sensible localhost defaults so a developer can run this
+# service directly against docker-up's infra without exporting env vars by
+# hand. Still no default for RATING_DB_PASSWORD: even in dev, a DB credential
+# is not something this file should be able to guess correctly by accident.
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    # 14330, not SQL Server's default 1433: src/infra/docker-compose.yml
+    # remaps the container's host port off 1433 (see discovery-service's
+    # application.yml for why) — all Java services share one SQL Server
+    # container on that same host port, each with its own database name.
+    url: jdbc:sqlserver://${RATING_DB_HOST:localhost}:${RATING_DB_PORT:14330};databaseName=${RATING_DB_NAME:RatingServiceDb};encrypt=true;trustServerCertificate=true
+    username: ${RATING_DB_USERNAME:sa}
+    password: ${RATING_DB_PASSWORD}
+
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.shareconnectsave.rating: DEBUG
+
+---
+# prod profile — deliberately NO defaults for host/port/name/credentials. A
+# missing env var here must fail the container at startup (Spring throws
+# "Could not resolve placeholder") rather than fall back to a dev-shaped
+# guess like localhost — the fast, loud failure is far cheaper than a prod
+# instance silently trying to reach a SQL Server that doesn't exist there.
+# trustServerCertificate is also flipped to false: dev's SQL Server container
+# uses a self-signed cert (trustServerCertificate=true is the accepted
+# shortcut for local-only traffic), but a real prod SQL Server should present
+# a certificate this driver can actually verify against a trusted CA.
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    url: jdbc:sqlserver://${RATING_DB_HOST}:${RATING_DB_PORT};databaseName=${RATING_DB_NAME};encrypt=true;trustServerCertificate=false
+    username: ${RATING_DB_USERNAME}
+    password: ${RATING_DB_PASSWORD}
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.shareconnectsave.rating: INFO

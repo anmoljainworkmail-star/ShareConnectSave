@@ -1,0 +1,31 @@
+{
+  "ticket": "T041",
+  "title": "Spring Boot Setup + DB Schema",
+  "service": "rating-service",
+  "status": "completed",
+  "files_created": [
+    "src/services/rating-service/pom.xml",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/RatingServiceApplication.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/Rating.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/TrustScore.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/BadgeLevel.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RequestLimit.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/ExceptionHandlingConfig.java",
+    "src/services/rating-service/src/main/resources/application.yml",
+    "src/services/rating-service/src/main/resources/db/migration/V001__rating_service_initial_schema.sql",
+    "src/services/rating-service/src/test/java/com/shareconnectsave/rating/RatingServiceApplicationTests.java"
+  ],
+  "files_removed": [
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating_service/RatingServiceApplication.java (moved to rating package)",
+    "src/services/rating-service/src/test/java/com/shareconnectsave/rating_service/RatingServiceApplicationTests.java (moved to rating package)",
+    "src/services/rating-service/src/main/resources/application.properties (replaced by application.yml)"
+  ],
+  "criteria_checked": {
+    "AC1_service_starts_flyway_runs_health_up": "PASS (static review only, see note)",
+    "AC2_rating_entity_maps_to_table": "PASS (static review + compiled)",
+    "AC3_trustscore_entity_maps_to_table": "PASS (static review + compiled)",
+    "AC4_enums_mapped_as_strings": "PASS"
+  },
+  "last_note": "Found a pre-existing Spring Initializr scaffold (pom.xml, mvnw wrapper, application.properties, RatingServiceApplication) in com.shareconnectsave.rating_service package, plus a V001 Flyway migration already shipped by T006. Moved application code to com.shareconnectsave.rating (matching discovery-service's convention, not the Initializr default). Rewrote pom.xml to T041's trimmed dependency set (no Redis/WebFlux/Resilience4j/AOP/spring-kafka-test). Rewrote application.yml from scratch (base + dev/prod profiles) matching discovery-service's T021 pattern minus business-config/Redis/circuit-breaker blocks. Kept V001 migration's ratings table as-is (already correct: logical-FK comments, JSON tags, indexes). Fixed trust_scores.request_limit from INT to NVARCHAR(20) DEFAULT 'UNLIMITED' in place (not yet applied to any live DB) because the ticket's explicit AC4 and its own Open/Closed pattern note require RequestLimit to be stored as a string enum, like badge_level, not a raw count. Created Rating/TrustScore entities and BadgeLevel/RequestLimit enums per the skill's Lombok conventions, and ExceptionHandlingConfig re-exporting shared-java-lib's GlobalExceptionHandler. Verified with `mvnw -o compile` and `mvnw -o test-compile` (offline, local repo already had shared-java-lib installed from earlier tickets) - both BUILD SUCCESS, 6 main sources + 1 test source compiled. Did not run `mvn spring-boot:run` or `flyway migrate` against a live DB (no SQL Server guaranteed running in this environment) - AC1's actual Flyway-run-against-live-DB and /actuator/health behavior is verified by code review only, not execution. No controller/calculator/Kafka consumer code added, per ticket scope. Did not run any Spring Initializr/mvn archetype/ng generate commands myself - the base scaffold already existed in the repo before this session started.",
+  "amendment_2026_10_17": "A /review-task pass initially found the ticket's own ACs (as originally drafted) demanded 'verify via test repository query' and added RatingRepository/TrustScoreRepository interfaces plus Testcontainers IT tests (RatingRepositoryIT, TrustScoreRepositoryIT) to satisfy them, through 3 review/fix cycles, ending APPROVED. Tech Lead then decided all test-writing beyond a ticket's own original scope should batch into Phase 12 (T081/T083) instead, consistent with T021/T029's lighter bar. Reverted: deleted both IT test files, deleted RatingRepository.java/TrustScoreRepository.java (unused once the IT tests were gone; T042/T044 will add their own repository interfaces when actually needed), reverted RatingServiceApplicationTests.java to a bare contextLoads() placeholder, reverted pom.xml's Testcontainers dependencies and maven-surefire-plugin <includes> block. T041.md's acceptance criteria were reworded to drop the test-proof requirement, matching T021/T029. Current state: AC1-AC4 verified by code review only, same bar as T021/T029 — this is correct and final, not a gap."
+}

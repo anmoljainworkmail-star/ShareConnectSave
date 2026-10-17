@@ -1,4 +1,4 @@
-package com.shareconnectsave.rating_service;
+package com.shareconnectsave.rating;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -64,7 +64,19 @@ CREATE TABLE trust_scores (
 
     score           DECIMAL(5,2)    NOT NULL DEFAULT 0,
     badge_level     NVARCHAR(20)    NOT NULL DEFAULT 'NONE',
-    request_limit   INT             NOT NULL DEFAULT 0,
+
+    -- T041 correction: originally modeled as a raw INT (a request-per-window
+    -- count). Open/Closed Principle (SOLID-O), same as badge_level directly
+    -- above: request_limit is a THROTTLING CATEGORY
+    -- (UNLIMITED/THROTTLED/SUSPENDED), stored as the Java enum's name via
+    -- @Enumerated(EnumType.STRING) on TrustScore.requestLimit, not a number
+    -- baked into the schema. Changing what "THROTTLED" actually allows per
+    -- window later is then a code-only change in the service that enforces
+    -- it (Connection Service), never a migration here. Edited in place
+    -- rather than added as a V002 — this schema has not been applied to any
+    -- live database yet (greenfield project, Flyway history table does not
+    -- exist), so there is no checksum to violate.
+    request_limit   NVARCHAR(20)    NOT NULL DEFAULT 'UNLIMITED',
     updated_at      DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME()
 );
 

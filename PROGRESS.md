@@ -82,7 +82,7 @@
 
 ## Phase 7 — Rating Service (Java)
 
-- [ ] T041 — Spring Boot Setup + DB Schema
+- [x] T041 — Spring Boot Setup + DB Schema
 - [ ] T042 — Rating Submission Endpoint _(tag validation, duplicate check)_
 - [ ] T043 — Trust Score Algorithm _(TrustScoreCalculator — pure function, no DB/Kafka)_
 - [ ] T044 — Kafka Consumer + Producer _(chat.closed → store; rating.submitted → recalculate → trust.score.updated)_

@@ -1089,17 +1089,20 @@ Persist to `ratings` table. Publish `rating.submitted` Kafka event.
 **Depends on:** T042  
 
 **Spec:**
-`TrustScoreCalculator` — pure domain service, no I/O. Inputs: full rating history for a user. Output: `TrustScoreResult { score, badgeLevel, requestLimit }`.
+`TrustScoreCalculator` — pure domain service, no I/O. Inputs: full rating history for a user. Output: `TrustScoreResult { score, badgeLevel, requestLimit }`, where `requestLimit` is the `RequestLimit` enum (`UNLIMITED`/`THROTTLED`/`SUSPENDED`) already persisted by T041 — not a raw number.
 
 Algorithm:
 - Base score: weighted average of last 50 ratings (recent ratings weighted higher).
 - Negative tag multipliers: `abusive` and `asked_for_money` count double.
 - Badge levels: `none` (< 4.0), `trusted` (≥ 4.5, ≥ 10 ratings).
-- Request limits: `unlimited` (score ≥ 3.5), `throttled: 3/day` (2.5–3.5), `suspended: 0` (< 2.5 or ≥ 3 `report.filed` events).
+- Request limits: `UNLIMITED` (score ≥ 3.5), `THROTTLED` (2.5–3.5) — caps at 3/day, `SUSPENDED` (< 2.5 or ≥ 3 `report.filed` events) — 0 allowed.
+
+**Boundary mapping (Tech Lead decision):** `RequestLimit` stays an internal category and never leaves Rating Service as a string — the `trust.score.updated` Kafka contract and `GET /trust/:userId` HTTP contract both already declare `request_limit` as a plain integer, and discovery-service (T025)/connection-service (T030, T033) already ship against that integer contract. This ticket adds `RequestLimit.wireValue()`: `UNLIMITED -> Integer.MAX_VALUE`, `THROTTLED -> 3`, `SUSPENDED -> 0`. T044 (Kafka producer) and T045 (HTTP endpoint) both call this method rather than each inventing their own mapping.
 
 **Acceptance criteria:**
 - [ ] Unit tests cover: new user (no ratings), high score, low score, suspension threshold
 - [ ] Algorithm is a pure function — no DB calls, fully unit testable
+- [ ] `RequestLimit.wireValue()` covers all three categories and is unit tested
 
 ---
 
@@ -1111,7 +1114,7 @@ Algorithm:
 
 **Spec:**
 - Consume `chat.closed`: store `{ connection_id, user_a_id, user_b_id }` locally — used to validate rating submissions.
-- Consume `rating.submitted` (self-published): recalculate trust score for `rated_user_id`, publish `trust.score.updated`.
+- Consume `rating.submitted` (self-published): recalculate trust score for `rated_user_id`, publish `trust.score.updated`. The published `request_limit` field is `TrustScoreResult.requestLimit().wireValue()` (T043) — a plain integer, never the enum's name — matching the existing `trust.score.updated.schema.json` contract that discovery-service/connection-service already consume.
 - Consume `report.filed`: if report count for target ≥ threshold (configurable, default 3), force recalculate — may push score to suspension.
 
 **Acceptance criteria:**
@@ -1128,7 +1131,7 @@ Algorithm:
 **Depends on:** T044  
 
 **Spec:**
-`GET /trust/:userId` — returns current trust score, badge level, and request limit for a user. Used by Admin Service and Connection Service.
+`GET /trust/:userId` — returns current trust score, badge level, and request limit for a user. Used by Admin Service and Connection Service. `request_limit` in the response is `TrustScoreResult.requestLimit().wireValue()` (T043) — a plain integer, same mapping T044's Kafka producer uses, matching `contracts/openapi/rating-service.yaml`'s `TrustScoreResponse.request_limit: integer`.
 
 Update `trust_scores` table on every recalculation.
 

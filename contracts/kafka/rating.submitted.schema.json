@@ -5,7 +5,7 @@
   "description": "Published by Rating Service when a user submits a rating. Consumed by Rating Service itself (self-consumption pattern) to trigger trust score recalculation asynchronously.",
 
   "_comment_self_consume": "Rating Service both produces and consumes this event. This is a deliberate decoupling of submission from calculation — the write side (accept rating) is separated from the read-side projection (recalculate trust score). Prevents the HTTP request from blocking on recalculation.",
-  "_comment_tags_enum": "Tags are constrained to a fixed vocabulary here. Adding a new tag means updating this enum — which forces a versioning conversation. Free-text tags would silently diverge between services.",
+  "_comment_tags_enum": "Tags are constrained to a fixed vocabulary here. Adding a new tag means updating this enum — which forces a versioning conversation. Free-text tags would silently diverge between services. Casing/wording here MUST match REQUIREMENTS.md §7 and contracts/openapi/rating-service.yaml's RatingTag schema exactly (Title Case, e.g. 'On time') — this is the single RatingTag vocabulary shared by both the HTTP and Kafka boundaries, not two independently-cased copies.",
 
   "type": "object",
   "required": ["event_id", "rating_id", "rater_id", "rated_id", "tags"],
@@ -37,16 +37,16 @@
       "items": {
         "type": "string",
         "enum": [
-          "friendly",
-          "respectful",
-          "on_time",
-          "good_communication",
-          "would_travel_again",
-          "didnt_show_up",
-          "fake_destination",
-          "abusive",
-          "spam",
-          "asked_for_money"
+          "Friendly",
+          "Respectful",
+          "On time",
+          "Good communication",
+          "Would travel again",
+          "Didn't show up",
+          "Fake destination",
+          "Abusive",
+          "Spam",
+          "Asked for money"
         ]
       },
       "uniqueItems": true

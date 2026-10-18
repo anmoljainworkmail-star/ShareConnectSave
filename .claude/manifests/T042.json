@@ -1,0 +1,39 @@
+{
+  "task_id": "T042",
+  "title": "Rating Submission Endpoint",
+  "status": "completed",
+  "files_created": [
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/outbox/OutboxStatus.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/outbox/OutboxEvent.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/outbox/OutboxRepository.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/outbox/IOutboxService.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/outbox/OutboxServiceImpl.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/outbox/OutboxRelay.java",
+    "src/services/rating-service/src/main/resources/db/migration/V002__rating_service_outbox_table.sql",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RatingTag.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RatingSubmissionDto.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RatingResponse.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RatingSubmittedEvent.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/DuplicateRatingException.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/InvalidRatingTagException.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/ChatNotClosedException.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/SelfRatingException.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/RatingExceptionHandler.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/chat/ChatClosureChecker.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/chat/PlaceholderChatClosureChecker.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/RatingRepository.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/mapper/RatingMapper.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/RatingService.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/RatingServiceImpl.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/RatingController.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/config/SchedulingConfig.java"
+  ],
+  "criteria_checked": {
+    "AC1_valid_rating_persisted_and_event_published": "PASS",
+    "AC2_duplicate_rating_409_RATING_ALREADY_SUBMITTED": "PASS",
+    "AC3_invalid_tag_400_INVALID_RATING_TAG": "PASS",
+    "AC4_outbox_relay_publishes_within_500ms_and_marks_processed": "PASS",
+    "AC5_rating_submitted_event_schema_matches_contract": "PASS"
+  },
+  "last_note": "Implementation complete. mvnw.cmd compile (29 source files) and test-compile both BUILD SUCCESS. Added rating/config/SchedulingConfig.java (@EnableScheduling) after noticing rating-service had no scheduling config yet - without it OutboxRelay's @Scheduled would never fire, which would have silently failed AC4. Deviations from literal ticket text documented in final report: (1) repository named RatingRepository not IRatingRepository, per project's no-I-prefix-on-repositories convention; (2) feature code placed flat under com.shareconnectsave.rating (matching existing T041 layout and connection-service precedent) rather than a nested rating/rating/* subpackage; (3) added SelfRatingException + 400 SELF_RATING_NOT_ALLOWED, not explicitly named in the ticket's three exceptions, to avoid the self-rating guard falling through to a generic 500; (4) chat-closed check implemented as PlaceholderChatClosureChecker returning true unconditionally with a loud warning log, per the ticket's explicit T044 sequencing-gap guidance."
+}

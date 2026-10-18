@@ -1,0 +1,19 @@
+{
+  "task_id": "T043",
+  "title": "Trust Score Algorithm",
+  "status": "completed",
+  "files_created": [
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RatingSnapshot.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/TrustScoreResult.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/TrustScoreCalculator.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/RequestLimit.java",
+    "src/services/rating-service/src/test/java/com/shareconnectsave/rating/domain/TrustScoreCalculatorTest.java",
+    "src/services/rating-service/src/test/java/com/shareconnectsave/rating/domain/RequestLimitTest.java"
+  ],
+  "criteria_checked": {
+    "AC1_unit_tests_cover_new_user_high_low_suspension": "PASS",
+    "AC2_algorithm_is_pure_function_no_db_calls_fully_unit_testable": "PASS",
+    "AC3_requestlimit_wirevalue_covers_all_three_categories_and_is_unit_tested": "PASS"
+  },
+  "last_note": "Implementation complete. mvnw.cmd compile + test-compile: BUILD SUCCESS. TrustScoreCalculatorTest: 8/8 pass. RequestLimitTest: 3/3 pass. Key design decision (not explicit in ticket, documented here): Rating entity (T041) has NO numeric 1-5 field, only a tags JSON string - so TrustScoreCalculator derives a per-rating numeric value from tags (baseline 5.0, minus penalties for negative tags, abusive/asked_for_money doubled), rather than averaging an existing score field. Introduced RatingSnapshot(occurredAt, List<RatingTag>) as the calculator's pure input type instead of depending on the Rating JPA entity directly or List<Rating> - keeps the calculator decoupled from persistence/JSON-parsing concerns (Dependency Inversion/Interface Segregation), per Rating.java's own comment that tag deserialization belongs to a mapper/service layer, not the entity. RequestLimit.wireValue() added to the existing enum exactly as specified (UNLIMITED->Integer.MAX_VALUE, THROTTLED->3, SUSPENDED->0), enum values/names unchanged. BadgeLevel.java untouched (no changes needed). No CLI codegen commands involved - plain file authoring only."
+}

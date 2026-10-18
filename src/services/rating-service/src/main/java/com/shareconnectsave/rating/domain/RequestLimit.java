@@ -23,5 +23,24 @@ package com.shareconnectsave.rating.domain;
 public enum RequestLimit {
     UNLIMITED,
     THROTTLED,
-    SUSPENDED
+    SUSPENDED;
+
+    // Boundary mapping (Tech Lead decision, T043) - the ONE place this enum is
+    // ever converted to the plain integer the Kafka trust.score.updated event
+    // and GET /trust/:userId response already contract for (see the class
+    // comment above). T044's Kafka producer and T045's HTTP controller both
+    // call this instead of each writing their own switch/if-chain: Open/Closed
+    // in practice - if a wire value ever needs to change, it changes here
+    // once, instead of in two call sites that could silently drift apart.
+    // Note the "3/day" and "0" numbers live ONLY here, never in the enum
+    // constant names themselves (CLAUDE.md: THROTTLED, not
+    // THROTTLED_3_PER_DAY) - the policy number is allowed to change without
+    // renaming a value every caller pattern-matches on.
+    public int wireValue() {
+        return switch (this) {
+            case UNLIMITED -> Integer.MAX_VALUE;
+            case THROTTLED -> 3;
+            case SUSPENDED -> 0;
+        };
+    }
 }

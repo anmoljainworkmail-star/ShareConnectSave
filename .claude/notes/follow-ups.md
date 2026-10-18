@@ -508,6 +508,28 @@ whose implementation or ticket should pick it up.
    chat-closing ever needs a corresponding connection-side status transition, or a
    dedicated future ticket if SPECS.md gains a "cancel connection" requirement.
 
+## From T043 (Trust Score Algorithm)
+
+1. **Missing null-guard on `RatingSnapshot.tags()` — `TrustScoreCalculator.ratingValue()`
+   throws an uncaught `NullPointerException` for the whole calculation if any single
+   rating's tag list is `null` rather than empty.** `TrustScoreCalculator` only has an
+   existing test proving an *empty* tag list is treated as neutral
+   (`emptyTagListOnARatingIsNeutralNotNegative`) — there is no equivalent coverage or guard
+   for `tags() == null`. Today nothing in the codebase can actually construct a `null`-tags
+   `RatingSnapshot` (the type doesn't exist outside this ticket's own tests yet), so this is
+   latent, not yet reachable. It becomes reachable the moment T044's `RatingService` writes
+   the mapper that deserializes `Rating.tags` (a raw `NVARCHAR(MAX)` JSON string) into
+   `List<RatingTag>` and builds the real `RatingSnapshot` list — if that mapper ever returns
+   `null` for a malformed/legacy JSON row (instead of `List.of()`), one bad historical rating
+   would poison that user's entire trust-score recalculation with an unhandled exception
+   instead of a usable score.
+   Fix: either null-coalesce in `RatingSnapshot`'s compact constructor (`tags = tags == null
+   ? List.of() : tags;`) or guard at the top of `ratingValue()` — the compact-constructor
+   fix is stronger since it makes the invariant hold for every future caller, not just this
+   one call site.
+   Affects: T044 (Kafka Consumer + Producer — the ticket that writes the `Rating` →
+   `RatingSnapshot` mapping and is the first real caller of `TrustScoreCalculator.calculate()`).
+
 ## From T037 (Chat Lifecycle (Open / Auto-close))
 
 1. **TOCTOU race lets the 2-hour auto-close poller close a room that is mid-way through

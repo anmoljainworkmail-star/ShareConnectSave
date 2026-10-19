@@ -35,6 +35,11 @@
 		     spring-boot-starter-parent BOM already pins compatible versions of
 		     those. -->
 		<mapstruct.version>1.6.3</mapstruct.version>
+		<!-- T045: first Resilience4j usage in this service (RatingServiceClientImpl's
+		     @CircuitBreaker) - same pinned-version-as-a-property convention
+		     discovery-service's pom.xml already established for its own
+		     UserServiceClientImpl circuit breaker. -->
+		<resilience4j.version>2.2.0</resilience4j.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -68,6 +73,37 @@
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
+		</dependency>
+
+		<!-- T045: WebClient - this service's first OUTBOUND HTTP client
+		     (RatingServiceClientImpl calling Rating Service's
+		     GET /trust/:userId). Same starter discovery-service's T023 used
+		     for UserServiceClientConfig: the starter (not a bare spring-webflux
+		     dependency) is what auto-configures the WebClient.Builder bean this
+		     service's own RatingServiceClientConfig injects. Bringing in the
+		     reactive stack here is intentional and HTTP-CLIENT-ONLY: this app
+		     stays on Spring MVC + virtual threads (see application.yml's
+		     Virtual Threads note for why .block() is safe). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+
+		<!-- T045: Circuit Breaker (Decorator pattern under the hood, per
+		     CLAUDE.md) - wraps RatingServiceClientImpl.getTrustData so a
+		     slow/down Rating Service can no longer block every connection-request
+		     throttle check behind it. resilience4j-spring-boot3 auto-configures
+		     the AOP proxies its @CircuitBreaker annotation needs, which is why
+		     spring-boot-starter-aop is declared alongside it - same pairing as
+		     discovery-service's pom.xml. -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>${resilience4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
 		</dependency>
 
 		<!-- Flyway: version-controlled, one-way-forward schema migrations

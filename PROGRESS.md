@@ -86,7 +86,7 @@
 - [x] T042 — Rating Submission Endpoint _(tag validation, duplicate check)_
 - [x] T043 — Trust Score Algorithm _(TrustScoreCalculator — pure function, no DB/Kafka)_
 - [x] T044 — Kafka Consumer + Producer _(chat.closed → store; rating.submitted → recalculate → trust.score.updated)_
-- [ ] T045 — Trust Score Badges + Throttle Enforcement _(badge ≥4.5+10 ratings, suspended <2.5)_
+- [x] T045 — Trust Score Badges + Throttle Enforcement _(badge ≥4.5+10 ratings, suspended <2.5)_
 - [ ] T046 — Rating Service Docker Image
 
 ---

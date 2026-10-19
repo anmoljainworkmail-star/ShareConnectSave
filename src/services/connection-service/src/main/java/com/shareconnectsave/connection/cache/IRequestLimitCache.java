@@ -7,11 +7,14 @@ package com.shareconnectsave.connection.cache;
 // survives a pod restart / is shared across replicas — swapping the @Service
 // bean behind this interface is the only change either evolution requires.
 //
-// Event-Driven Architecture: this cache's values are never fetched
-// synchronously from Trust/Rating Service. TrustScoreUpdatedConsumer (T033)
-// is the only writer (via update()); createConnection's read path
-// (getLimit()) was written against that eventual-consistency contract from
-// day one (T030), before that consumer existed to populate it.
+// Cache-Aside Pattern (T045 rework): values are fetched synchronously from
+// Rating Service (via RatingServiceClient) on a cache miss, not only via
+// event-driven updates. TrustScoreUpdatedConsumer (T033) remains an
+// independent WRITER (via update()) whenever a trust.score.updated event
+// arrives, providing event-driven refresh alongside the cache-miss
+// synchronous fetch. This closes the T033 failure modes: pod restart no
+// longer silently resets low-trust users, and scale-out replicas missing
+// a partition now re-fetch on their first getLimit() call.
 public interface IRequestLimitCache {
 
     int getLimit(Long userId);

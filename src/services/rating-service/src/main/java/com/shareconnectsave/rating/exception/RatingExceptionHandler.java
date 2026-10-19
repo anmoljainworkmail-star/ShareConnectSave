@@ -45,6 +45,15 @@ public class RatingExceptionHandler {
                 .body(new ErrorResponse("SELF_RATING_NOT_ALLOWED", ex.getMessage(), traceId()));
     }
 
+    // T045 addition: TrustScoreController's GET /trust/:userId. 404, not a
+    // generic 500 - see TrustScoreNotFoundException's own class comment for
+    // why "no row yet" is an expected outcome, not a bug.
+    @ExceptionHandler(TrustScoreNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTrustScoreNotFound(TrustScoreNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("TRUST_SCORE_NOT_FOUND", ex.getMessage(), traceId()));
+    }
+
     // Belt-and-suspenders with the submitRating() existsByConnectionIdAndRaterId()
     // guard above: V001's unique index (idx_ratings_connection_id_rater_id) is
     // the actual source of truth that stops two concurrent raters both inserting

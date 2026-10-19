@@ -130,6 +130,32 @@ spring:
     # "it still works" until the connection pool runs out under load.
     open-in-view: false
 
+# T045: Rating Service base URL for this service's first-ever outbound
+# WebClient call (RatingServiceClientImpl, closing the Cache-Aside read gap
+# T033 left open). Port 8080, not whatever host port docker-compose maps it
+# to: container-to-container traffic uses the container's own internal port,
+# never the host-side mapping — same reasoning as discovery-service's
+# user-service.base-url default.
+rating-service:
+  base-url: ${RATING_SERVICE_BASE_URL:http://rating-service:8080}
+
+# Circuit Breaker (Decorator pattern under the hood, CLAUDE.md): first
+# Resilience4j instance in this service, wrapping RatingServiceClientImpl's
+# getTrustData. Same shape and same tuned minimum-number-of-calls fix
+# discovery-service's userService instance applies (T027) — see that
+# service's application.yml comment for the full "100 is Resilience4j's
+# own independent default, totally unrelated to sliding-window-size"
+# rationale; reproduced here from the start so this instance doesn't have to
+# rediscover the same bug discovery-service already found.
+resilience4j:
+  circuitbreaker:
+    instances:
+      ratingService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 10
+
 management:
   endpoints:
     web:
@@ -139,6 +165,21 @@ management:
         # connection strings and internal wiring to anyone who can reach this
         # service.
         include: health,info
+  endpoint:
+    health:
+      # T045: makes the ratingService circuit breaker's CLOSED/OPEN/HALF_OPEN
+      # state visible on GET /actuator/health — "always", not the more
+      # cautious "when-authorized", for the same reason discovery-service's
+      # application.yml gives: this service has no Spring Security principal
+      # to authorize against, and this endpoint is Docker-network-only, never
+      # routed through the public-facing YARP gateway.
+      show-details: always
+  health:
+    circuitbreakers:
+      # resilience4j-spring-boot3's own actuator integration: without this,
+      # the dependency being on the classpath is not enough to add a
+      # "circuitBreakers" component to /actuator/health.
+      enabled: true
 
 ---
 # dev profile — sensible localhost defaults so a developer can run this

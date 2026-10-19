@@ -1,0 +1,30 @@
+{
+  "task_id": "T045",
+  "title": "Trust Score Badges + Throttle Enforcement",
+  "status": "completed",
+  "files_created": [
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/TrustScoreNotFoundException.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/exception/RatingExceptionHandler.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/domain/TrustScoreQueryResponse.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/RatingRepository.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/trustscore/TrustScoreReadService.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/trustscore/TrustScoreReadServiceImpl.java",
+    "src/services/rating-service/src/main/java/com/shareconnectsave/rating/TrustScoreController.java",
+    "src/services/connection-service/pom.xml",
+    "src/services/connection-service/src/main/resources/application.yml",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceApplication.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/config/RatingServiceProperties.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/client/RatingServiceClient.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/client/config/RatingServiceClientConfig.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/client/impl/RatingServiceClientImpl.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/cache/InMemoryRequestLimitCache.java"
+  ],
+  "criteria_checked": {
+    "Response matches current trust_scores table record": "PASS",
+    "trusted badge only returned when conditions met (>= 4.5, >= 10 ratings)": "PASS",
+    "connection-service getLimit() calls GET /trust/:userId on cache miss and caches result": "PASS",
+    "Simulated Rating Service outage (circuit open) falls back to DEFAULT_REQUEST_LIMIT, createConnection still succeeds": "PASS",
+    "Restart no longer resets a known low-trust user's limit - fresh getLimit() re-fetches real limit": "PASS"
+  },
+  "last_note": "Implementation complete: rating-service GET /trust/{userId} (TrustScoreController -> TrustScoreReadService -> TrustScoreRepository/RatingRepository.countByRatedId), connection-service RatingServiceClient (WebClient + Resilience4j circuit breaker 'ratingService', fallback returns a fromFallback-flagged TrustData so the fallback value is never cached), InMemoryRequestLimitCache reworked to genuine Cache-Aside (cache-first, synchronous fetch-and-cache on miss, never caches a fallback value), pom.xml + application.yml updated additively (webflux, resilience4j-spring-boot3, spring-boot-starter-aop; rating-service.base-url; resilience4j.circuitbreaker.instances.ratingService; health indicator). No codegen/CLI commands used - all changes are additive source/config edits within the two existing Maven modules, matching the ticket's constraint."
+}

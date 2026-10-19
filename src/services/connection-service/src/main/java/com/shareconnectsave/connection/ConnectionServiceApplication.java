@@ -2,6 +2,7 @@ package com.shareconnectsave.connection;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 // Pattern: Single Responsibility (SOLID-S) — this class does exactly one job,
@@ -19,7 +20,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 // rather than on ConnectionExpiryScheduler itself; this is also the FIRST
 // @Scheduled job anywhere in the platform, so this annotation is new to
 // connection-service as of this ticket, not carried over from T029/T030.
+//
+// @ConfigurationPropertiesScan (Options pattern, T045): auto-registers every
+// @ConfigurationProperties-annotated record found under this package
+// (RatingServiceProperties) as a bean, the same way .NET's
+// builder.Services.Configure<T>(...) registers an IOptions<T> - one
+// annotation here instead of an explicit @Bean method per properties class.
+// Same addition discovery-service's own application class made at T023.
 @EnableScheduling
+@ConfigurationPropertiesScan
 @SpringBootApplication
 public class ConnectionServiceApplication {
 

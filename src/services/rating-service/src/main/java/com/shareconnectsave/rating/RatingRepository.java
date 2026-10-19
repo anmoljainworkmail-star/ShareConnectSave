@@ -32,4 +32,14 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     // Responsibility, SOLID-S) and this service owns its own `ratings` table
     // directly (Database per Service).
     List<Rating> findByRatedId(Long ratedId);
+
+    // T045 addition: TrustScoreReadServiceImpl's ratingCount field on
+    // GET /trust/:userId. A dedicated COUNT query, not
+    // findByRatedId(userId).size() - the read path for "how many ratings
+    // does this user have" should never have to load every rating ROW
+    // (tags JSON, comment, timestamps) into memory just to report a number,
+    // the same reasoning TrustScoreRecalculationServiceImpl's own
+    // findByRatedId call does NOT apply here (that one genuinely needs the
+    // full snapshot for TrustScoreCalculator's weighted average).
+    long countByRatedId(Long ratedId);
 }

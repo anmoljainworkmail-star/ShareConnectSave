@@ -86,13 +86,15 @@ public class ConnectionServiceImpl implements ConnectionService {
             throw new SelfConnectionRequestException(requesterId);
         }
 
-        // Guard 1: request-limit throttle. Event-Driven Architecture — the
-        // limit itself is never fetched with a synchronous call to
-        // Rating/Trust Service; IRequestLimitCache holds a value T033's
-        // trust.score.updated consumer will (eventually) keep current. A
-        // possibly-stale local read is the deliberate trade-off event-driven
-        // systems make in exchange for never blocking this request on
-        // another service's availability.
+        // Guard 1: request-limit throttle. Cache-Aside Pattern (T045) — on a
+        // cache miss, getLimit() synchronously calls Rating Service via
+        // RatingServiceClient; on a cache hit or circuit-breaker fallback, it
+        // returns the cached/default value. Event-driven updates from
+        // TrustScoreUpdatedConsumer (T033) still refresh the cache
+        // independently. This eliminates silent resets on restart and
+        // scale-out misses, while RatingServiceClient's circuit breaker
+        // ensures this request never blocks indefinitely on Rating Service
+        // outages.
         long pendingOutboundCount = connectionRequestRepository
                 .countByRequesterIdAndStatus(requesterId, ConnectionStatus.PENDING);
         int limit = requestLimitCache.getLimit(requesterId);

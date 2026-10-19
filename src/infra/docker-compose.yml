@@ -398,8 +398,18 @@ services:
   rating-service:
     image: shareconnectsave/rating-service:dev
     build:
-      context: ../../src/services/rating-service
-      dockerfile: Dockerfile
+      # T046 fix: rating-service's pom.xml depends on shared-java-lib
+      # (ErrorResponse + GlobalExceptionHandler), a sibling module with no
+      # reactor/parent pom tying it to rating-service — the same reason
+      # discovery-service and connection-service's own build contexts (above)
+      # are scoped to the services PARENT directory, not the service's own
+      # folder alone. A context scoped to rating-service/ alone cannot COPY
+      # ../shared-java-lib/src, so the Dockerfile's `mvnw install` step for
+      # shared-java-lib would fail with "could not resolve dependency" on a
+      # clean build. Context is the services parent dir; dockerfile is given
+      # relative to it, same shape as discovery-service/connection-service.
+      context: ../../src/services
+      dockerfile: rating-service/Dockerfile
     container_name: rating-service
     depends_on:
       sqlserver:

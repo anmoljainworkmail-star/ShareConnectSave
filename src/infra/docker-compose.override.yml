@@ -174,7 +174,37 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=${RATING_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=RatingServiceDb;encrypt=true;trustServerCertificate=true}
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+      # Bug fix (T046, same class as T028's fix for discovery-service and
+      # T034's fix for connection-service, see those blocks' comments above):
+      # application.yml only declares dev/prod profile documents, not docker —
+      # so activating SPRING_PROFILES_ACTIVE=docker skips the
+      # spring.datasource.username/password ${RATING_DB_USERNAME}/
+      # ${RATING_DB_PASSWORD} placeholders in both of those profile blocks
+      # entirely. Spring Boot's DataSource autoconfig then connects with an
+      # EMPTY username (SQL Server error 18456, "Login failed for user ''"),
+      # not a missing-property failure — exactly the bug T028/T034 already
+      # hit and fixed, caught here proactively before rating-service is ever
+      # run in a container. Setting these two directly as OS env vars works
+      # regardless of active profile (Spring's relaxed env-var binding, same
+      # mechanism SPRING_DATASOURCE_URL above already relies on), and reuses
+      # the same SA_PASSWORD the sqlserver service itself requires, rather
+      # than inventing a second credential.
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=${SA_PASSWORD:?SA_PASSWORD must be set — copy .env.example to .env and fill in values}
+      # Fix (same class as T025/T038's fix for discovery-service/chat-service,
+      # applied here before it was ever caught live): kafka:9092 is the
+      # PLAINTEXT listener, published to the HOST for tools like a developer's
+      # own CLI — it is NOT reachable the way it looks from container-to-
+      # container traffic on this Docker network. rating-service's own Kafka
+      # consumers (ChatClosedConsumer, RatingSubmittedConsumer,
+      # ReportFiledConsumer, T044) and Actuator's Kafka health indicator both
+      # run INSIDE the compose network, so the correct default is the
+      # INTERNAL listener, kafka:29092 — see the kafka service's own
+      # KAFKA_CFG_ADVERTISED_LISTENERS comment for the full two-phase-connect
+      # explanation. Left at kafka:9092, /actuator/health would report the
+      # kafka health indicator DOWN, which is this ticket's own healthcheck
+      # acceptance criterion failing.
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:29092}
 
   notification-service:
     environment:

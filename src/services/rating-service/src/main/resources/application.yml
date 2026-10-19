@@ -153,6 +153,22 @@ management:
         include: health,info
 
 ---
+# docker profile intentionally omitted; datasource creds injected via env
+# vars in docker-compose.override.yml (T046). Only `dev` and `prod` profile
+# documents exist below — there is no third `on-profile: docker` document,
+# even though docker-compose.yml sets SPRING_PROFILES_ACTIVE=docker on this
+# service. That is deliberate, not an oversight: Spring's relaxed env-var
+# binding (SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD, set
+# directly as container env vars) resolves spring.datasource.username/
+# password regardless of which profile is active, bypassing the profile
+# system entirely. A future cleanup that adds a `docker:` profile block here
+# "to make it official," or that removes the override env vars assuming a
+# real docker profile already handles credentials, would reintroduce the
+# exact SQL Server error 18456 ("Login failed for user ''") that
+# discovery-service (T028) and connection-service (T034) already hit and
+# fixed this same way — see docker-compose.override.yml's rating-service
+# block for where the actual values are set.
+#
 # dev profile — sensible localhost defaults so a developer can run this
 # service directly against docker-up's infra without exporting env vars by
 # hand. Still no default for RATING_DB_PASSWORD: even in dev, a DB credential

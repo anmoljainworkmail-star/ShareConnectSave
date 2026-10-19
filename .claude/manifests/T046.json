@@ -1,0 +1,16 @@
+{
+  "task_id": "T046",
+  "title": "Rating Service Docker Image",
+  "status": "completed",
+  "files_created": [
+    "src/services/rating-service/Dockerfile",
+    "src/infra/docker-compose.yml",
+    "src/infra/docker-compose.override.yml",
+    "src/services/rating-service/src/main/resources/application.yml"
+  ],
+  "criteria_checked": {
+    "AC1_docker_compose_up_rating_service_starts_cleanly_health_passes": "PASS",
+    "AC2_image_size_under_300MB_via_inspect_or_save": "PASS"
+  },
+  "last_note": "Verified live with real Docker: built shareconnectsave/rating-service:dev (docker build succeeded), docker inspect --format {{.Size}} = 139834321 bytes (~133MB, well under 300MB budget; docker save matched at 139853312 bytes; docker images showed the known misleading 424MB per the T028 quirk). Started rating-service against the project's existing running stack (docker compose -p shareconnectsave up -d --build rating-service) - container reached healthy status, Flyway migrated RatingServiceDb cleanly, all 3 Kafka consumers (ChatClosedConsumer/RatingSubmittedConsumer/ReportFiledConsumer) joined their consumer group via kafka:29092, and curl -sf http://localhost:8080/actuator/health from inside the container returned {\"status\":\"UP\"}. Also had to fix two latent bugs beyond the ticket's explicit file list to make AC1 pass: (1) docker-compose.yml's rating-service build context was scoped to rating-service/ alone, which cannot see the shared-java-lib sibling module rating-service's pom.xml depends on - changed to the parent src/services context + dockerfile: rating-service/Dockerfile, matching discovery-service/connection-service's own fix; (2) docker-compose.override.yml's rating-service SPRING_KAFKA_BOOTSTRAP_SERVERS default was kafka:9092 (the host-only PLAINTEXT listener), which would have left Actuator's Kafka health indicator unreachable from inside the container - changed default to kafka:29092 (INTERNAL listener), same fix already applied to discovery-service/connection-service/chat-service. Verification container was stopped and removed afterward; the pre-existing long-running dev stack (sqlserver/kafka/other services) was left untouched and is still healthy."
+}

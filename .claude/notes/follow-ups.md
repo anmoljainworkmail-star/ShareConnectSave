@@ -685,3 +685,34 @@ whose implementation or ticket should pick it up.
    whatever naming convention report-service's docker-compose block ends up using) rather
    than reusing the same generic template phrase, so the ticket doesn't describe a
    connection-string approach that gets silently overridden during implementation again.
+
+## From T046 (Rating Service Docker Image)
+
+1. **Ticket's own "What to build"/"Agent implementation notes" sections describe the
+   pre-existing `docker-compose.yml` rating-service build block as
+   `context: ../../src/services/rating-service` + `dockerfile: Dockerfile` — a narrow,
+   non-shared-lib-aware context.** The implementer found this claim was already stale
+   relative to what the service actually needs (rating-service's `pom.xml` depends on
+   `shared-java-lib`, a sibling module the Dockerfile must `COPY`/`mvn install` before
+   rating-service's own build — impossible from a context scoped to `rating-service/`
+   alone) and corrected `docker-compose.yml` to `context: ../../src/services` +
+   `dockerfile: rating-service/Dockerfile`, matching the discovery-service (T028) and
+   connection-service (T034) precedent. The fix is correct and verified working; only the
+   ticket file's prose is now out of sync with the shipped code. Per this project's
+   no-retroactive-docs convention, T046.md itself is not being edited after the fact.
+   Affects: T055 (Report Service Docker Image), T061 (Admin Service Docker Image) — both
+   tickets likely carry the same templated "context already scoped to the service's own
+   folder" claim; whoever implements them should verify the actual `docker-compose.yml`
+   build block (and whether that service's `pom.xml` depends on `shared-java-lib`) rather
+   than trusting the ticket text, to avoid a `docker build` dependency-resolution failure
+   on first run.
+
+2. **Final image size (~133MB via `docker inspect`/`docker save`) is the implementer's
+   self-reported figure from `.claude/manifests/T046.json`, not independently re-executed
+   by the `/review-task` reviewer** (Docker commands are reserved for manual/human
+   execution in this project, not run by review agents). Low risk — the same metric choice
+   (inspect/save, not `docker images`) already proved reliable for T028/T034 — but AC2
+   should get one human spot-check via the QA checklist (`.claude/qa/T046.qa.md` steps 6-7)
+   before being treated as fully closed.
+   Affects: none currently — closed out by the QA checklist itself; no downstream task
+   needed unless the spot-check turns up a discrepancy.

@@ -2,17 +2,16 @@ package com.shareconnectsave.rating.chat;
 
 // Dependency Inversion (SOLID-D): RatingServiceImpl depends on THIS
 // interface, never on whichever implementation currently backs the "is this
-// chat closed" check. Liskov Substitution (SOLID-L): this ticket's
-// always-true placeholder and T044's real chat.closed-consumer-backed
-// implementation must be swappable with zero change to any caller.
+// chat closed" check. Liskov Substitution (SOLID-L): T042's since-removed
+// always-true placeholder and T044's real
+// ClosedChatBackedChatClosureChecker (reading the chat.closed-populated
+// closed_chats table) were swappable with zero change to RatingServiceImpl -
+// exactly the guarantee this seam was built for.
 //
-// Ticket-sequencing gap (Tech Lead-flagged, same shape as T031's own
-// "OutboxRelay doesn't exist yet" gap): the chat.closed Kafka consumer that
-// would populate a local closed_chats table is T044's job, a later ticket.
-// T042 depends only on T041, so no real data source to check against exists
-// yet. This interface exists now so the 400 CHAT_NOT_CLOSED path has a real
-// seam in the code - T044 only has to swap the implementation bound here,
-// never touch RatingServiceImpl or add new wiring.
+// Resolved ticket-sequencing gap: T042 shipped against
+// PlaceholderChatClosureChecker (always true, loudly logged) because the
+// chat.closed consumer and closed_chats table did not exist yet. T044 is
+// what closes that gap - see ClosedChatBackedChatClosureChecker.
 public interface ChatClosureChecker {
 
     boolean isChatClosed(Long connectionId);

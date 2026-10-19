@@ -112,10 +112,12 @@ public class RatingServiceImpl implements RatingService {
                 dto.ratedId().toString(),
                 tags
         );
-        // Partition key = connection_id (this event's aggregate), matching
-        // connection-service's own "partition by the aggregate the event
-        // describes" convention.
-        outboxService.publish("rating.submitted", dto.connectionId().toString(), eventId, event);
+        // Partition key = rated_id (the user whose trust score will be
+        // recalculated), ensuring all ratings against the same user land in
+        // the same partition for ordered processing by a single consumer
+        // thread — matching this platform's "partition by the aggregate"
+        // convention applied to the scoring entity, not the rating.
+        outboxService.publish("rating.submitted", dto.ratedId().toString(), eventId, event);
 
         List<String> wireTags = tags.stream().map(RatingTag::toWireValue).toList();
         return ratingMapper.toResponse(saved, wireTags, dto.comment());

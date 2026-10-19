@@ -1,5 +1,6 @@
 package com.shareconnectsave.rating.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
@@ -11,7 +12,15 @@ import java.util.List;
 // Jackson naming strategy; ObjectMapper.writeValueAsString(this) in
 // OutboxServiceImpl therefore already produces the exact wire shape
 // Rating Service's own self-consuming trust-score recalculation listener
-// (a later Phase 7 ticket) expects, with zero extra configuration.
+// (T044's RatingSubmittedConsumer) expects, with zero extra configuration -
+// this record is deserialized by that same consumer, not just serialized by
+// OutboxServiceImpl, so it is genuinely used on both sides of the wire.
+//
+// @JsonIgnoreProperties(ignoreUnknown = true): added in T044 now that this
+// record is also a deserialization target (Postel's Law at a service
+// boundary) - same reasoning as connection-service's TrustScoreUpdatedEvent,
+// even though here the producer and consumer are the same service and
+// therefore always in lockstep on this one field set today.
 //
 // Per this platform's established convention (see RequestLimit's own class
 // comment on the UNLIMITED/THROTTLED/SUSPENDED -> integer boundary
@@ -26,6 +35,7 @@ import java.util.List;
 // this record produces the schema's Title Case strings ("On time") directly
 // - there is no manual string-building step for the service layer to get
 // wrong.
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record RatingSubmittedEvent(
         @JsonProperty("event_id") String eventId,
         @JsonProperty("rating_id") String ratingId,

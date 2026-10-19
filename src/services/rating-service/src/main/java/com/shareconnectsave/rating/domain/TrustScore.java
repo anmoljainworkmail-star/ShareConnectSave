@@ -63,10 +63,36 @@ public class TrustScore {
     @Column(name = "request_limit", nullable = false, length = 20)
     private RequestLimit requestLimit;
 
+    // T044 addition (V003 migration): the last report_count_for_target this
+    // service was ever told about for this user. TrustScoreCalculator.calculate
+    // requires a reportCount on EVERY call, but a rating.submitted event never
+    // carries one (Database per Service - Report Service alone owns that
+    // number; Rating Service only learns it secondhand via report.filed). This
+    // column is what lets RatingSubmittedConsumer recalculate using the most
+    // recently known report count instead of silently assuming zero, which
+    // would otherwise lift a report-driven suspension the next time any new
+    // rating arrived. ReportFiledConsumer is the only writer of a fresh value;
+    // RatingSubmittedConsumer only ever reads this column back unchanged.
+    @Column(name = "report_count", nullable = false)
+    private Long reportCount;
+
     // insertable/updatable = false: SQL Server's own
     // `DEFAULT SYSUTCDATETIME()` is the row's ground truth for "when was
     // this last written", not this app server's clock — matches Rating's
     // createdAt and discovery-service's ScanSession.startedAt.
     @Column(name = "updated_at", insertable = false, updatable = false)
     private Instant updatedAt;
+
+    // Tell, Don't Ask (encapsulation) - same shape as OutboxEvent.markProcessed:
+    // TrustScoreRecalculationServiceImpl asks this row to apply a freshly
+    // computed result rather than reaching in with raw setters at its one call
+    // site. Works identically whether this instance is a brand-new row (about
+    // to be INSERTed) or an existing one being upserted - the caller does not
+    // need to know which.
+    public void applyRecalculation(BigDecimal score, BadgeLevel badgeLevel, RequestLimit requestLimit, Long reportCount) {
+        this.score = score;
+        this.badgeLevel = badgeLevel;
+        this.requestLimit = requestLimit;
+        this.reportCount = reportCount;
+    }
 }

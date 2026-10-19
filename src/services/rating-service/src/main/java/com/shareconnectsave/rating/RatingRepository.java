@@ -3,6 +3,8 @@ package com.shareconnectsave.rating;
 import com.shareconnectsave.rating.domain.Rating;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 // Pattern: Repository - plain JpaRepository, no "I" prefix. The ticket text
 // names this IRatingRepository, but this project's established convention
 // (documented in CLAUDE.md's Java Rules and already applied to
@@ -22,4 +24,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface RatingRepository extends JpaRepository<Rating, Long> {
 
     boolean existsByConnectionIdAndRaterId(Long connectionId, Long raterId);
+
+    // T044 addition: TrustScoreRecalculationServiceImpl's entire "ratings about
+    // me" read - the full history TrustScoreCalculator needs is fetched here,
+    // never recomputed from an in-memory running total, since the calculator
+    // itself is a pure function with no state of its own (Single
+    // Responsibility, SOLID-S) and this service owns its own `ratings` table
+    // directly (Database per Service).
+    List<Rating> findByRatedId(Long ratedId);
 }

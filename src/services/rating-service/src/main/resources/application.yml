@@ -35,14 +35,60 @@ spring:
       enabled: true
 
   kafka:
-    # Declared now because this ticket's "What to build" list requires
-    # KAFKA_BROKERS as a configured env var (future Phase 7 tickets add the
-    # rating.submitted/trust.score.updated producers and chat.closed
-    # consumer) — but no consumer group-id/listener block is added yet since
-    # no @KafkaListener exists in this ticket. Adding that config now, ahead
-    # of the code that would use it, would be exactly the kind of
-    # speculative work this project's conventions avoid.
+    # T044: this service's first three @KafkaListener methods
+    # (ChatClosedConsumer, RatingSubmittedConsumer, ReportFiledConsumer) all
+    # share one consumer group id, "rating-service", set directly on each
+    # @KafkaListener annotation rather than here as spring.kafka.consumer.
+    # group-id - same per-listener-annotation convention connection-service's
+    # TrustScoreUpdatedConsumer already uses, so this property only ever
+    # needs to carry the broker address.
     bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    # Spring Boot leaves these null unless set explicitly - it does NOT
+    # default to StringSerializer the way some tutorials assume. Without
+    # this, the first real kafkaTemplate.send() (OutboxRelay.java) throws
+    # "Missing required configuration 'key.serializer' which has no
+    # default value" from the underlying Kafka client, since our outbox
+    # payload is already a JSON string (OutboxServiceImpl serializes it)
+    # and the partition key is also a plain String (user_id).
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+    # T044: this service's first three Kafka CONSUMERS (ChatClosedConsumer,
+    # RatingSubmittedConsumer, ReportFiledConsumer). Same shape as
+    # connection-service and discovery-service's own consumer blocks — see
+    # those services' application.yml comments for the full rationale; this
+    # block applies here unchanged.
+    consumer:
+      # One group for the whole service, shared by all @KafkaListener methods
+      # (ChatClosedConsumer, RatingSubmittedConsumer, ReportFiledConsumer all
+      # consume with group-id rating-service set on their @KafkaListener
+      # annotations).
+      group-id: rating-service
+      auto-offset-reset: earliest
+      # Consumer Idempotency (kafka-outbox skill) — paired with
+      # spring.kafka.listener.ack-mode below. With auto-commit OFF, an offset
+      # is committed ONLY after a @KafkaListener method returns without
+      # throwing; if it throws, the same record is redelivered on the next
+      # poll, and each consumer's processed_events check is what makes
+      # that redelivery safe rather than a duplicate side effect.
+      enable-auto-commit: false
+      # Plain String deserializers, not Spring Kafka's JsonDeserializer:
+      # RatingSubmittedConsumer, ChatClosedConsumer, and ReportFiledConsumer
+      # each deserialize the raw JSON string itself via an injected
+      # ObjectMapper instead. Without this, Spring Boot leaves the
+      # deserializer unset (it does NOT default to StringDeserializer),
+      # and the consumer fails at startup the same way the producer's
+      # key/value serializer would above.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # BATCH (Spring Kafka's own default, spelled out explicitly so the
+      # convention is visible in this file, not left implicit): the
+      # container commits offsets once per poll batch, after every record in
+      # it has been handed to the listener without an exception escaping —
+      # never on a background timer independent of processing outcome.
+      ack-mode: BATCH
 
   flyway:
     # Points Flyway at the already-existing
@@ -79,6 +125,20 @@ spring:
     # lazy-loading-outside-a-transaction bug fail immediately and visibly
     # during development instead of in production.
     open-in-view: false
+
+# T044: ReportFiledConsumer's own suspension threshold - how many
+# report.filed events against one user force an immediate trust score
+# recalculation. SUSPENSION_REPORT_THRESHOLD in TrustScoreCalculator (3) is
+# the SAME default, kept in sync deliberately: this property controls WHEN
+# ReportFiledConsumer bothers to recalculate at all, while TrustScoreCalculator's
+# own constant controls what recalculation actually decides (SUSPENDED once
+# reportCount hits 3) - two different concerns that happen to share a number
+# today. No Hardcoded Config (Architecture Rule #3): a plain int in
+# ReportFiledConsumer would require a redeploy to change; this does not.
+rating:
+  report:
+    suspension:
+      threshold: ${RATING_REPORT_SUSPENSION_THRESHOLD:3}
 
 management:
   endpoints:

@@ -716,3 +716,53 @@ whose implementation or ticket should pick it up.
    before being treated as fully closed.
    Affects: none currently — closed out by the QA checklist itself; no downstream task
    needed unless the spot-check turns up a discrepancy.
+
+## From T047 (FCM Setup)
+
+1. **`FcmNotificationService` sends via `FirebaseMessaging.DefaultInstance` (an SDK-internal
+   static global) instead of the `FirebaseApp` singleton already registered in DI via
+   `AddSingleton` in `Program.cs`.** The registration is currently decorative — nothing
+   resolves it. This blocks unit-testing `SendAsync` later, since there is no constructor
+   seam to swap in a fake Firebase instance; CLAUDE.md explicitly prefers DI-container
+   singletons over hand-rolled/implicit statics for exactly this reason.
+   Fix: inject `FirebaseApp` into `FcmNotificationService`'s constructor and call
+   `FirebaseMessaging.GetMessaging(firebaseApp).SendAsync(message)` instead.
+   Affects: T082 (Unit Tests: .NET Services — the first ticket that will actually need to
+   mock Firebase to test this class).
+
+2. **`UserServiceClient.GetFcmDeviceTokenAsync` has no try/catch around the HTTP call** —
+   only an error-status-code response is handled; a network failure or timeout against User
+   Service (`HttpRequestException`/`TaskCanceledException`) propagates uncaught. No caller
+   exists yet so nothing breaks today, but once a Kafka consumer drives `SendAsync`, an
+   unhandled exception here during a User Service outage could crash or poison that
+   consumer's processing loop.
+   Fix: wrap the HTTP call in try/catch, return `null` on failure (same "can't push right
+   now" treatment already given to a non-success status code), and add a short explicit
+   `HttpClient` timeout (e.g. 5s) rather than relying on the 100s default.
+   Affects: T049 (Kafka Consumers, notification-service — the first real caller of
+   `IFcmNotificationService.SendAsync`).
+
+3. **AC2 ("`SendAsync` with a real FCM token delivers a notification") cannot be exercised
+   end-to-end through the real `UserServiceClient` path today, because User Service's
+   `GET /users/{id}` does not serialize an `fcm_token` field yet** — confirmed by reading
+   `PublicUserProfileDto` directly. `UserServiceClient` correctly calls the real, verified
+   endpoint and reads the right property name (documented in its own code comment), so this
+   will start working automatically once the field is added — this is a sequencing gap, not
+   a bug, and verified via a stubbed client in `.claude/qa/T047.qa.md` step 4 in the
+   meantime.
+   **Decision (2026-10-20): the `fcm_token` column + a device-registration endpoint on User
+   Service will be added alongside T049's own implementation**, not as a separate ticket —
+   T049 is the first ticket that actually needs a real token to flow end-to-end (it's the
+   first real caller of `IFcmNotificationService.SendAsync`), so the two land together.
+   Affects: T049 (Kafka Consumers — Connection Lifecycle Fan-Out to SignalR + FCM) — see
+   open question logged there about whether this goes into T049.md's own scope or a
+   same-session companion change to User Service.
+
+4. **`docker-compose.override.yml`'s notification-service block sets
+   `KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}`, the host-facing PLAINTEXT listener,
+   instead of `kafka:29092`** (the internal container-to-container listener correctly used
+   by rating-service's own block a few lines above). Inert today since T047 adds no Kafka
+   code, but if copied forward unnoticed it will silently fail to connect once a consumer
+   is added.
+   Affects: T049 (Kafka Consumers, notification-service — the ticket that will actually
+   read this env var).

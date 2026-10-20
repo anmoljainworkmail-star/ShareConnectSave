@@ -7,4 +7,14 @@
     <RootNamespace>notification_service</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- T047: Firebase Admin SDK - the server-side library that can mint
+         pushes against FCM using a service account, as opposed to the
+         client-side Firebase SDK (which only ever receives pushes, never
+         sends them). Hand-added to this ItemGroup rather than via
+         `dotnet add package`, per CLAUDE.md's CLI-codegen rule - a direct
+         XML edit is a plain file write, not a scaffolding command. -->
+    <PackageReference Include="FirebaseAdmin" Version="3.1.0" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,19 @@
+{
+  "task_id": "T047",
+  "title": "FCM Setup",
+  "status": "completed",
+  "files_created": [
+    "src/services/notification-service/notification-service.csproj",
+    "src/services/notification-service/Program.cs",
+    "src/services/notification-service/Clients/IUserServiceClient.cs",
+    "src/services/notification-service/Clients/UserServiceClient.cs",
+    "src/services/notification-service/Services/IFcmNotificationService.cs",
+    "src/services/notification-service/Services/FcmNotificationService.cs",
+    "src/infra/docker-compose.override.yml"
+  ],
+  "criteria_checked": {
+    "AC1_service_starts_firebase_app_initialised": "PASS",
+    "AC2_sendasync_delivers_notification_with_real_token": "IMPLEMENTED_NOT_LIVE_VERIFIED"
+  },
+  "last_note": "Implementation complete and builds clean (dotnet build succeeded, 0 errors). FirebaseApp singleton wired in Program.cs, IFcmNotificationService/FcmNotificationService implemented, IUserServiceClient/UserServiceClient added for the outbound User Service call, DI registrations done, FCM_CREDENTIALS_JSON and USER_SERVICE_BASE_URL read via IConfiguration and wired into docker-compose.override.yml. GAP FOUND AND REPORTED (not fixed here, out of this ticket's scope): User Service has no fcm_token field/column anywhere yet (checked User.cs, UserProfileDto, PublicUserProfileDto, UserProfileController) - UserServiceClient calls the closest existing endpoint (GET /users/{id}) and reads an fcm_token JSON property that User Service does not yet serialize, so it will deserialize to null until a future ticket adds that field to User Service. AC2's live delivery (a real FCM token actually receiving a push) was NOT run - that needs a real Firebase project, service account JSON, and a device token, none of which exist in this sandbox. No CLI codegen commands were needed for this ticket; FirebaseAdmin was added by hand-editing the .csproj per the ticket's own carve-out."
+}

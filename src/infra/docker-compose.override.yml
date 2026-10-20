@@ -211,7 +211,20 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
       - FCM_PROJECT_ID=${FCM_PROJECT_ID:-}
+      # T047: path to the Firebase service account JSON, mounted into the
+      # container (see volumes below) - never the JSON contents inline here.
+      # No Hardcoded Config (CLAUDE.md): the one human-edited value lives in
+      # .env, same convention as USER_DB_CONNECTION etc.
+      - FCM_CREDENTIALS_JSON=${FCM_CREDENTIALS_JSON:-/run/secrets/fcm-service-account.json}
+      # T047: kafka:9092 above is the host-tool PLAINTEXT listener (see the
+      # user-service block's comment on the same split) - user-service
+      # itself is a sibling container, so notification-service must reach it
+      # by container name + the port it actually listens on inside the
+      # Docker network (8080, not the host-mapped 8081).
+      - USER_SERVICE_BASE_URL=${USER_SERVICE_BASE_URL:-http://user-service:8080}
       - SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}
+    volumes:
+      - ${FCM_CREDENTIALS_JSON_HOST_PATH:-./secrets/fcm-service-account.json}:/run/secrets/fcm-service-account.json:ro
 
   report-service:
     environment:

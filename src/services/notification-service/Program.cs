@@ -1,6 +1,7 @@
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using notification_service.Clients;
+using notification_service.Hubs;
 using notification_service.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,9 +62,41 @@ builder.Services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
 
 builder.Services.AddScoped<IFcmNotificationService, FcmNotificationService>();
 
+// T048: No Hardcoded Config - same flat-key category as FCM_CREDENTIALS_JSON
+// above and chat-service's identical read (see that Program.cs's comment
+// for the full "why DB 1" reasoning). docker-compose.override.yml already
+// sets this for notification-service as SIGNALR_REDIS_CONNECTION - the
+// exact same env var name chat-service reads - so both services' hubs
+// resolve to the same Redis config entry without either one needing to
+// know the other service exists.
+var signalRRedisConnection = builder.Configuration["SIGNALR_REDIS_CONNECTION"]
+    ?? throw new InvalidOperationException("SIGNALR_REDIS_CONNECTION is not set");
+
+// Observer (GoF, via SignalR groups + this backplane) - identical reasoning
+// to chat-service's AddStackExchangeRedis call: without this, Clients.Group
+// pushes from a future Kafka consumer (resolved via IHubContext<NotificationHub>)
+// would only reach connections held by the SAME process. DB 1 is the
+// convention this project reserves for every service's SignalR backplane
+// (Discovery Service already owns DB 0 on this same Redis container for its
+// profile cache) - chat-service and notification-service sharing DB 1 is
+// safe specifically because SignalR's backplane multiplexes over Pub/Sub
+// channels, not keys, so the two hubs' broadcasts never collide the way two
+// services writing cache KEYS into the same DB would.
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis(signalRRedisConnection, options =>
+        options.Configuration.DefaultDatabase = 1);
+
 var app = builder.Build();
 
 app.MapControllers();
+
+// SignalR hub endpoint (T048's real-time delivery layer - Notification
+// Service's foreground-channel counterpart to T047's FCM background
+// channel). "/hubs/notifications" mirrors chat-service's "/hubs/chat"
+// mapping convention exactly (dotnet-mvc-controllers skill: hub mapping is
+// its own ASP.NET Core primitive, unaffected by this service's
+// controllers-vs-minimal-API routing choice).
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Left over from the T001 scaffold - harmless liveness placeholder, not a
 // business endpoint, so it is not worth moving into a controller for this

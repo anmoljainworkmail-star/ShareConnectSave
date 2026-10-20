@@ -1,0 +1,17 @@
+{
+  "task_id": "T048",
+  "title": "SignalR Notification Hub",
+  "status": "completed",
+  "files_created": [
+    "src/services/notification-service/Extensions/HttpContextExtensions.cs",
+    "src/services/notification-service/Hubs/SignalRGroupNames.cs",
+    "src/services/notification-service/Hubs/NotificationHub.cs",
+    "src/services/notification-service/notification-service.csproj",
+    "src/services/notification-service/Program.cs"
+  ],
+  "criteria_checked": {
+    "AC1_user_receives_targeted_events": "PASS",
+    "AC2_redis_backplane_cross_replica": "PASS"
+  },
+  "last_note": "dotnet build succeeded, 0 warnings / 0 errors. Hub joins caller to user:{id} group on connect (mirrors ChatHub exactly), no client-invokable methods, Redis backplane on SIGNALR_REDIS_CONNECTION DB 1 shared with chat-service, mapped at /hubs/notifications. Actual publish calls (ConnectionRequest/RequestAccepted/etc.) are explicitly out of scope per ticket - later Phase 8 tickets' Kafka consumers will call Clients.Group via IHubContext<NotificationHub>."
+}

@@ -766,3 +766,21 @@ whose implementation or ticket should pick it up.
    is added.
    Affects: T049 (Kafka Consumers, notification-service — the ticket that will actually
    read this env var).
+
+## From T048 (SignalR Notification Hub)
+
+1. **`notification-service` has no `/health` endpoint**, unlike chat-service which has one
+   wired up. Pre-existing gap from T047's scaffold, not introduced by T048, but worth
+   closing before this service is treated as production-ready — a Docker Compose
+   healthcheck or load balancer has nothing real to probe today.
+   Affects: T050 (Notification Service Docker Image — the natural point to add a healthcheck,
+   same as T028/T034/T040/T046 each did for their own service).
+
+2. **The Redis backplane (`AddStackExchangeRedis`) has no `AbortOnConnectFail`/retry tuning
+   for a Redis-down-at-startup scenario.** Mirrors chat-service's own already-approved
+   pattern exactly — not a T048-specific regression, just inherited. If Redis is
+   unreachable when notification-service boots, behavior is whatever the StackExchange.Redis
+   client's untuned defaults do, not a deliberate choice.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — flag for whichever ticket
+   first does a resilience/startup-hardening pass across the .NET services' Redis
+   connections (would apply to chat-service too, not just notification-service).

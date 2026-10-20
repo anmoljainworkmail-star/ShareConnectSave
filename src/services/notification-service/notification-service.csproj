@@ -15,6 +15,17 @@
          `dotnet add package`, per CLAUDE.md's CLI-codegen rule - a direct
          XML edit is a plain file write, not a scaffolding command. -->
     <PackageReference Include="FirebaseAdmin" Version="3.1.0" />
+
+    <!-- T048: Redis backplane for NotificationHub. Same package + version
+         chat-service's ChatHub already references for its own backplane
+         (see that csproj's comment) - one SignalR-Redis client version
+         across every .NET service sharing this backplane, so there is no
+         risk of two incompatible wire behaviors between the two hubs that
+         publish into the same Redis Pub/Sub channels. Hand-added to this
+         ItemGroup rather than via `dotnet add package`, per CLAUDE.md's
+         CLI-codegen rule and chat-service's own precedent (a direct XML
+         edit is a plain file write, not a scaffolding command). -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.9" />
   </ItemGroup>
 
 </Project>

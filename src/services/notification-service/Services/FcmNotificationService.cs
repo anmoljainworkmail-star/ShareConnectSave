@@ -26,11 +26,11 @@ public class FcmNotificationService(IUserServiceClient userServiceClient, ILogge
 
         var deviceToken = await userServiceClient.GetFcmDeviceTokenAsync(parsedUserId);
 
-        // Not an error path: a user with no registered device - or, today,
-        // every user, since User Service has no fcm_token field yet (see
-        // UserServiceClient's comment) - simply cannot receive a push right
-        // now. SignalR remains the only realtime channel until that field
-        // exists; this method degrades to a safe no-op instead of throwing.
+        // Not an error path: a user with no registered device token simply
+        // cannot receive a push right now. This is routine/expected on mobile
+        // apps or if a user hasn't gone through the onboarding flow (see T047).
+        // SignalR remains the only realtime channel for such users; this method
+        // degrades to a safe no-op instead of throwing.
         if (string.IsNullOrWhiteSpace(deviceToken))
         {
             logger.LogInformation("No FCM device token available for user {UserId}; push skipped.", userId);
@@ -51,11 +51,38 @@ public class FcmNotificationService(IUserServiceClient userServiceClient, ILogge
             Data = new Dictionary<string, string>(data),
         };
 
-        // FirebaseMessaging.DefaultInstance resolves against the
-        // FirebaseApp.DefaultInstance built once in Program.cs (see that
-        // file's Singleton comment) - this class never constructs or holds
-        // its own FirebaseApp, so every call in the process shares the same
-        // underlying credentials/connection.
-        await FirebaseMessaging.DefaultInstance.SendAsync(message);
+        // Idempotency (kafka-outbox skill): FCM sends can fail for expected,
+        // non-retryable reasons (permanently invalid device token, credential
+        // issues, rate limiting, etc.). A thrown exception here would propagate
+        // to the Kafka consumer, which would then never commit the offset,
+        // stalling that partition forever — a single dead device would block
+        // delivery to everyone else subscribed to the same topic.
+        //
+        // Instead, catch any FCM exception, log it, and return normally so the
+        // consumer still records this event as processed and commits the offset.
+        // A failed push to one device is not an error state that should block
+        // the pipeline — it's a delivery problem to that one device only.
+        try
+        {
+            // FirebaseMessaging.DefaultInstance resolves against the
+            // FirebaseApp.DefaultInstance built once in Program.cs (see that
+            // file's Singleton comment) - this class never constructs or holds
+            // its own FirebaseApp, so every call in the process shares the same
+            // underlying credentials/connection.
+            await FirebaseMessaging.DefaultInstance.SendAsync(message);
+        }
+        catch (Exception ex)
+        {
+            // Redact the full device token in logs — logging PII or sensitive
+            // credentials (even indirectly via FCM tokens) violates privacy and
+            // security best practices. Log only the last 6 characters as a debug
+            // aid without exposing the full token.
+            var tokenSuffix = deviceToken.Length > 6 ? deviceToken[^6..] : "???";
+            logger.LogError(
+                ex,
+                "Failed to send FCM notification to user {UserId} (token ending in {TokenSuffix}); delivery skipped. This device may be permanently unavailable.",
+                userId,
+                tokenSuffix);
+        }
     }
 }

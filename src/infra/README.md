@@ -7,7 +7,7 @@ application service stubs). See `docker-compose.yml` for the full topology and
 
 ## Redis (T008)
 
-One Redis 7 container serves two unrelated purposes for the platform:
+One Redis 7 container serves three unrelated purposes for the platform:
 
 1. **Discovery Service cache** — cache-aside storage for nearby-scan results,
    so repeated scans don't re-hit SQL Server / re-run geospatial queries on
@@ -16,18 +16,24 @@ One Redis 7 container serves two unrelated purposes for the platform:
    Notification service instances, so a message sent by one instance reaches
    a WebSocket client connected to a *different* instance. Without this,
    horizontally scaling either service breaks realtime delivery.
+3. **Notification Service idempotency + online-presence tracking (T049)** —
+   Notification Service has no database of its own (no SQL/Mongo), so its
+   Kafka consumer dedup ledger (`processed_events`) and its "is this user
+   connected to the hub right now" lookup both live here instead, as two
+   differently-prefixed key families sharing one logical DB (see below).
 
-Running these on **one Redis instance** (instead of two separate containers)
-keeps the dev stack lighter to run and reason about. What keeps them from
-colliding is **logical database separation** — Redis's built-in support for
-up to 16 independent numbered databases inside a single server process.
-Think of it as one filing cabinet with two labeled drawers, rather than two
+Running these on **one Redis instance** (instead of three separate
+containers) keeps the dev stack lighter to run and reason about. What keeps
+them from colliding is **logical database separation** — Redis's built-in
+support for up to 16 independent numbered databases inside a single server
+process. Think of it as one filing cabinet with labeled drawers, rather than
 separate cabinets:
 
 | DB index | Owner | Purpose |
 |---|---|---|
 | `0` | Discovery Service | Nearby-scan result cache (cache-aside pattern) |
 | `1` | Chat + Notification Services | SignalR backplane (shared WebSocket/group state) |
+| `2` | Notification Service | Kafka consumer idempotency ledger (`processed_events:{eventId}`, TTL = Kafka's 7-day retention — replaces a SQL/Mongo-style pruning cron job) **and** the online-connection presence Set (`notif:online:{userId}`, members = that user's live SignalR connection ids) that drives the "SignalR if connected, else FCM" fan-out decision. Two unrelated concerns, kept apart by key prefix, not by DB index — deliberately never DB `1`, so idempotency/presence keys can never collide with SignalR's own backplane Pub/Sub state. |
 
 **This table is the contract.** There is no Redis config directive that
 enforces it — each service's Redis client must connect with the matching

@@ -767,6 +767,64 @@ whose implementation or ticket should pick it up.
    Affects: T049 (Kafka Consumers, notification-service — the ticket that will actually
    read this env var).
 
+## From T049 (Kafka Consumers — Connection Lifecycle Fan-Out to SignalR + FCM) — surfaced in conversation, not `/review-task`
+
+1. **The API gateway's `JwtValidationMiddleware` only ever read the JWT from the
+   `Authorization` header, which cannot work for a browser-initiated SignalR hub
+   connection.** A browser's WebSocket upgrade request cannot carry a custom
+   `Authorization` header — that's a platform restriction, not something this codebase
+   controls — which is why the official SignalR JS client's `accessTokenFactory` instead
+   sends the token as a `?access_token=` query-string parameter on the negotiate/connect
+   requests. Both `notification-service`'s `/hubs/notifications` and `chat-service`'s
+   `/hubs/chat` proxy through this same gateway (`notification-route`/`chat-route` in
+   `api-gateway/appsettings.json`), so every real hub connection attempt would have 401'd
+   at the gateway before ever reaching either hub's `OnConnectedAsync`. Fixed directly
+   (`JwtValidationMiddleware.cs`'s `ExtractBearerToken`/new `IsHubRoute` helper): falls
+   back to `?access_token=` only for paths containing `/hubs/`, so every other route still
+   requires a real `Authorization` header (query strings end up in access logs/browser
+   history far more than headers do, so this fallback is deliberately scoped narrow, not
+   applied gateway-wide).
+   **When T067 (Connection Request Flow) builds `NotificationService` (Angular) and its
+   SignalR hub subscription, and T068 (Chat UI) builds the equivalent for `ChatHub`: use
+   `accessTokenFactory` in `HubConnectionBuilder`, pointed at the real JWT from T063's
+   `AuthService`/token storage — the gateway now expects exactly that query-string
+   convention and will reject a hub connection that omits it.**
+   Affects: T063 (Auth Flow — whatever token-access method `AuthService` exposes should be
+   easy to pass into `accessTokenFactory`), T067 (Connection Request Flow — first real
+   caller of this hub-auth convention for notification-service), T068 (Chat UI — same
+   convention needed for chat-service's hub).
+
+2. **`ProcessedEventRepository.RecordAsync` (`notification-service/Repositories/ProcessedEventRepository.cs:44-50`)
+   uses a plain `StringSetAsync`, not `StringSetAsync(..., When.NotExists)`.** Compared
+   against chat-service's Mongo equivalent (`ProcessedEventRepository.cs:42-59`), which
+   uses `EventId` as the document `_id` and relies on Mongo's own unique-index
+   `DuplicateKeyException` as a genuine database-enforced backstop if two consumer
+   instances ever race past the `ExistsAsync` check at the same moment — notification-service's
+   Redis version has no equivalent: if that same race happened here, both racers would
+   silently overwrite the same key with no error, no detection, and (per the T049 review's
+   Probe 4) a second duplicate push. Fix: use Redis's `SETNX` semantics
+   (`When.NotExists`) so a losing racer's write visibly fails instead of silently
+   succeeding, matching the strength chat-service's unique index already gives it.
+   Affects: T049 itself (cheap one-line fix next time this file is touched).
+
+3. **`processed_events` (Redis DB 2) now lives on the same Redis instance whose
+   `redis.conf` (`src/infra/redis.conf:26-40`) explicitly disables persistence (`save ""`,
+   no AOF) — a decision made for T008 on the premise that everything this instance holds
+   is "derived data," safely rebuildable or meaningless after a restart (Discovery's scan
+   cache, SignalR's backplane state).** T049's idempotency ledger doesn't fit that
+   original justification: it isn't derived, and losing it on a restart/OOM-evict means
+   Kafka messages still inside their 7-day retention window look "never processed" again
+   and get re-handled — bounded today to "a duplicate push notification," which is why
+   this was an acceptable trade-off for this specific use case, but it's a justification
+   `redis.conf`'s own comment doesn't currently account for (it still only names the
+   original two use cases).
+   Affects: whichever future ticket next revisits Redis persistence/HA configuration for
+   this instance (no specific task ID yet in PROGRESS.md/SPECS.md) — consider either
+   updating `redis.conf`'s comment to acknowledge this third, non-derived tenant, or
+   (if this ledger's durability ever matters more, e.g. a future consumer whose duplicate
+   processing isn't harmless) moving `processed_events` to a persistence-enabled Redis
+   instance/namespace rather than the shared cache-and-backplane one.
+
 ## From T048 (SignalR Notification Hub)
 
 1. **`notification-service` has no `/health` endpoint**, unlike chat-service which has one

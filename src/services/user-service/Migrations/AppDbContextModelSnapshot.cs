@@ -116,6 +116,10 @@ namespace user_service.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
+                    b.Property<string>("FcmToken")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<string>("Gender")
                         .IsRequired()
                         .HasMaxLength(20)

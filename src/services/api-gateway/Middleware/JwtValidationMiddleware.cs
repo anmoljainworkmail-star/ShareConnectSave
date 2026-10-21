@@ -210,15 +210,41 @@ public class JwtValidationMiddleware
         HttpMethods.IsPost(request.Method) &&
         PublicRoutePaths.Contains(request.Path.Value ?? string.Empty);
 
+    // SignalR hub paths — notification-service's /hubs/notifications and
+    // chat-service's /hubs/chat — both proxy through this gateway (see
+    // notification-route / chat-route in appsettings.json), so they hit this
+    // same JWT validation as any REST call. The catch: a browser's WebSocket
+    // upgrade request cannot carry a custom Authorization header (that's a
+    // WebSocket/fetch platform restriction, not something this codebase
+    // controls), which is exactly why the SignalR JS client's
+    // `accessTokenFactory` sends the token as a `?access_token=` query string
+    // parameter on the negotiate/connect requests instead of a header.
+    // Without this fallback, every hub connection attempt would 401 at the
+    // gateway before ever reaching the hub's OnConnectedAsync.
+    private static bool IsHubRoute(HttpRequest request) =>
+        request.Path.Value?.Contains("/hubs/", StringComparison.OrdinalIgnoreCase) == true;
+
     private static string? ExtractBearerToken(HttpRequest request)
     {
         var header = request.Headers.Authorization.ToString();
-        if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return header["Bearer ".Length..].Trim();
         }
 
-        return header["Bearer ".Length..].Trim();
+        // Guard clause above handles the normal REST-call shape (Authorization
+        // header); this fallback is intentionally scoped to hub paths only —
+        // query strings end up in access logs and browser history far more
+        // often than headers do, so every other route keeps requiring a real
+        // Authorization header rather than silently accepting a token here too.
+        if (IsHubRoute(request) &&
+            request.Query.TryGetValue("access_token", out var queryToken) &&
+            !string.IsNullOrWhiteSpace(queryToken))
+        {
+            return queryToken.ToString().Trim();
+        }
+
+        return null;
     }
 
     private ClaimsPrincipal ValidateToken(string token, IReadOnlyList<SecurityKey> signingKeys)

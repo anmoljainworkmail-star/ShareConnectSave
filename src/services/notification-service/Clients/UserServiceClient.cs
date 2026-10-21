@@ -3,31 +3,41 @@ namespace notification_service.Clients;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-// KNOWN GAP (call this out, do not silently paper over it - T047 scope is
-// notification-service only):
-// As of T047, User Service's public-profile surface (GetPublicProfile ->
-// PublicUserProfileDto, see src/services/user-service/Controllers/
-// UserProfileController.cs and Dtos/PublicUserProfileDto.cs) has NO fcm
-// device token field anywhere - not on the User entity, not in any DTO. No
-// endpoint in User Service exists whose job is "give me this user's device
-// token" today.
+// T049: Calls User Service's INTERNAL-ONLY endpoint GET /users/internal/{id}/fcm-token
+// (excluded from YARP gateway routing, reachable only via direct inter-service HTTP
+// calls inside the Docker network) rather than the public GET /users/{id} endpoint.
+// This keeps device tokens out of the discovery card API that any authenticated user
+// can query for any other user's id.
 //
-// GET /users/{id} is still the closest existing endpoint SHAPE for this
-// lookup - "fetch data about some OTHER user by id", exactly what a
-// device-token lookup needs (as opposed to GET /users/me, which only ever
-// resolves the CALLER's own identity from a JWT-derived header and can't
-// take an arbitrary target userId at all). So this client calls that
-// endpoint and reads a "fcm_token" property that User Service does not
-// serialize yet. Until a future ticket adds that column/field to User
-// Service, UserLookupResponse.FcmToken always deserializes to null here,
-// and FcmNotificationService.SendAsync no-ops accordingly - this is a
-// structurally complete call wired to a real endpoint, not a stub, but it
-// cannot deliver a real push until that follow-up ticket lands.
-public class UserServiceClient(HttpClient httpClient) : IUserServiceClient
+// Even though both endpoints query by user id, they serve different concerns:
+// - GET /users/{id} (public, gateway-routed): returns discovery-card data visible
+//   to all authenticated clients, structured as PublicUserProfileDto
+// - GET /users/internal/{id}/fcm-token (internal, backend-only): returns device
+//   tokens for Notification Service's dispatch decision, reachable only by
+//   Notification Service calling http://user-service:8080 directly
+//
+// A client-local response shape, not user-service's DTO reused: a caller of an HTTP
+// dependency should define the shape IT expects back, never bind directly to the
+// producer's internal DTO type. That keeps notification-service's compile-time
+// contract decoupled from whatever user-service's internal structure looks like today.
+public class UserServiceClient(HttpClient httpClient, IConfiguration config) : IUserServiceClient
 {
     public async Task<string?> GetFcmDeviceTokenAsync(long userId, CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync($"/users/{userId}", cancellationToken);
+        // Defense in depth (security review fix, cycle 2): attach the internal
+        // service key header to every call, so the endpoint can verify this call
+        // came from an authorized internal service, not an external/compromised
+        // client. The key is read from IConfiguration (set via env vars in
+        // docker-compose.override.yml — see INTERNAL_SERVICE_KEY). This matches
+        // user-service's GetInternalFcmToken's own X-Internal-Service-Key check.
+        var internalServiceKey = config["InternalServiceKey"];
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/users/internal/{userId}/fcm-token");
+        if (!string.IsNullOrEmpty(internalServiceKey))
+        {
+            request.Headers.Add("X-Internal-Service-Key", internalServiceKey);
+        }
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
 
         // Guard clause over nested ifs (CLAUDE.md rule): an unknown user or
         // an unreachable User Service both collapse to "no token available"
@@ -38,18 +48,13 @@ public class UserServiceClient(HttpClient httpClient) : IUserServiceClient
             return null;
         }
 
-        var profile = await response.Content.ReadFromJsonAsync<UserLookupResponse>(cancellationToken: cancellationToken);
-        return profile?.FcmToken;
+        var token = await response.Content.ReadFromJsonAsync<InternalFcmTokenResponse>(cancellationToken: cancellationToken);
+        return token?.FcmToken;
     }
 
-    // A client-local response shape, not user-service's PublicUserProfileDto
-    // reused: a caller of an HTTP dependency should define the shape IT
-    // expects back, never bind directly to the producer's internal DTO type.
-    // That keeps notification-service's compile-time contract decoupled from
-    // whatever user-service's DTO happens to look like today - the same
-    // discipline a hand-rolled response record for a Spring WebClient/Feign
-    // call would apply on the Java side.
-    private sealed record UserLookupResponse(
-        [property: JsonPropertyName("id")] long Id,
+    // A response DTO matching User Service's InternalFcmTokenResponse shape.
+    // See this class's file comment for why this is defined locally rather than
+    // reusing user-service's DTO directly.
+    private sealed record InternalFcmTokenResponse(
         [property: JsonPropertyName("fcm_token")] string? FcmToken);
 }

@@ -50,6 +50,14 @@ public class AppDbContext : DbContext
             // (every new user, until they pass OTP), not an absence of data.
             entity.Property(u => u.PhoneVerifiedAt).HasColumnType("datetime2");
 
+            // T049: FCM device tokens observed in practice run well under 1KB
+            // (Firebase's own registration tokens), but this column is never
+            // queried/filtered on — it is only ever read back by primary key
+            // (GET /users/{id}) — so no index is added for it, unlike
+            // GoogleId/Phone/Status above, which all exist to make a WHERE
+            // clause fast.
+            entity.Property(u => u.FcmToken).HasMaxLength(4000);
+
             // Optimistic Concurrency Token (see User.RowVersion's class
             // comment for the full "why"): IsRowVersion() tells EF Core this
             // column is a SQL Server `rowversion` — include it in every

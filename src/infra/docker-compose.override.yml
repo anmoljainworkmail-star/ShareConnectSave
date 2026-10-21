@@ -56,6 +56,13 @@ services:
       - IDENTITY_VERIFY_STUB=${IDENTITY_VERIFY_STUB:-true}
       - AzureFace__Endpoint=${AzureFace__Endpoint:-}
       - AzureFace__Key=${AzureFace__Key:-}
+      # T049 (fix cycle 2): Shared secret for internal-only endpoints accessed
+      # by other services. GET /users/internal/{id}/fcm-token requires this
+      # header (X-Internal-Service-Key) to guard against misconfigured routing
+      # that might expose it through the API gateway. Defaults to
+      # "dev-internal-key-123" for local dev (see .env.example) — in production,
+      # this must be a strong, randomly-generated value set via env vars.
+      - InternalServiceKey=${INTERNAL_SERVICE_KEY:-dev-internal-key-123}
 
   discovery-service:
     environment:
@@ -209,7 +216,7 @@ services:
   notification-service:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:29092}
       - FCM_PROJECT_ID=${FCM_PROJECT_ID:-}
       # T047: path to the Firebase service account JSON, mounted into the
       # container (see volumes below) - never the JSON contents inline here.
@@ -223,6 +230,14 @@ services:
       # Docker network (8080, not the host-mapped 8081).
       - USER_SERVICE_BASE_URL=${USER_SERVICE_BASE_URL:-http://user-service:8080}
       - SIGNALR_REDIS_CONNECTION=${REDIS_CONNECTION:-redis:6379}
+      # T049 (fix cycle 2): Shared secret for calling user-service's internal-only
+      # endpoint (GET /users/internal/{id}/fcm-token). This must match the
+      # InternalServiceKey configured on user-service — they must agree on a
+      # single secret value for inter-service authentication. Defaults to
+      # "dev-internal-key-123" for local dev (see .env.example) — in production,
+      # this must be a strong, randomly-generated value set via env vars, same
+      # as on user-service.
+      - InternalServiceKey=${INTERNAL_SERVICE_KEY:-dev-internal-key-123}
     volumes:
       - ${FCM_CREDENTIALS_JSON_HOST_PATH:-./secrets/fcm-service-account.json}:/run/secrets/fcm-service-account.json:ro
 

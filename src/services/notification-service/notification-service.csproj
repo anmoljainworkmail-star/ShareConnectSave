@@ -26,6 +26,18 @@
          CLI-codegen rule and chat-service's own precedent (a direct XML
          edit is a plain file write, not a scaffolding command). -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.9" />
+
+    <!-- T049: notification-service's first three Kafka consumers
+         (connection.requested/.accepted/.expired). Same package + version
+         every other .NET service in this project already references for
+         Kafka (chat-service's T038 consumer, user-service's producer) - one
+         Kafka client library version across the whole project, so there is
+         no risk of two incompatible wire behaviors between services'
+         producers/consumers. Hand-added to this ItemGroup rather than via
+         `dotnet add package`, per CLAUDE.md's CLI-codegen rule and
+         chat-service's own precedent (a direct XML edit is a plain file
+         write, not a scaffolding command). -->
+    <PackageReference Include="Confluent.Kafka" Version="2.15.0" />
   </ItemGroup>
 
 </Project>

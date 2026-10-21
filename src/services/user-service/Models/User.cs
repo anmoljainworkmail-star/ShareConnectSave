@@ -136,6 +136,19 @@ public class User
     // IdentityVerificationService, can never start out looking verified.
     public bool IdentityBadge { get; set; }
 
+    // T049: the device token FCM needs to push to this user's phone/browser
+    // when they are not connected to Notification Service's SignalR hub.
+    // Nullable, no default — "never registered a device" is the normal state
+    // for a brand-new user and for anyone who has only ever used a browser
+    // tab that never asked for push permission; absence here is not an error
+    // condition anywhere that reads it (see notification-service's
+    // IUserServiceClient, which already treats a null/missing value as "no
+    // push available, fall back silently"). Caller-scoped write only: the
+    // ONLY mutation path is PATCH /users/me/fcm-token, resolved from
+    // X-User-Id — never a route/body-supplied target id (see
+    // UserProfileController.UpdateMyFcmToken).
+    public string? FcmToken { get; set; }
+
     // Optimistic Concurrency Token: two concurrent writes to the same user row
     // (e.g. PATCH /users/me racing POST /users/me/photo, or a double-submitted
     // PATCH) can both read this row before either writes it back. Without a

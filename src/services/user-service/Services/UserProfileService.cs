@@ -297,6 +297,71 @@ public class UserProfileService : IUserProfileService
         return user is null ? null : PublicUserProfileDto.FromUser(user);
     }
 
+    // T049: caller's own id ONLY — userId here is always resolved by
+    // UserProfileController from X-User-Id, never from this method's own
+    // parameters being callable with an arbitrary target. This method itself
+    // has no way to tell "am I being called for the caller's own id" — that
+    // guarantee lives entirely at the controller boundary (see
+    // UserProfileController.UpdateMyFcmToken's comment) — but it is worth
+    // repeating here because this is exactly the kind of method a future
+    // edit could carelessly expose through a second, id-taking endpoint.
+    public async Task<FcmTokenUpdateOutcome> UpdateFcmTokenAsync(long userId, string? fcmToken)
+    {
+        // Guard Clause: a blank token can never be "registered" — FCM has no
+        // concept of an empty device token, so treating one as valid input
+        // would let a client silently erase a working token with nothing by
+        // mistake, with no way for that difference to show up later.
+        if (string.IsNullOrWhiteSpace(fcmToken))
+        {
+            return new FcmTokenUpdateOutcome(FcmTokenUpdateResult.InvalidRequest, "fcm_token must not be blank.");
+        }
+
+        if (fcmToken.Length > 4000)
+        {
+            return new FcmTokenUpdateOutcome(FcmTokenUpdateResult.InvalidRequest, "fcm_token must not exceed 4000 characters.");
+        }
+
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user is null)
+        {
+            return new FcmTokenUpdateOutcome(FcmTokenUpdateResult.NotFound, null);
+        }
+
+        user.FcmToken = fcmToken;
+
+        try
+        {
+            await _userRepository.UpdateAsync(user);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Optimistic Concurrency — same reasoning as UpdateProfileAsync's
+            // and UploadPhotoAsync's identical catch above: a device re-
+            // registering its token while another PATCH/photo-upload races
+            // it against the same row throws here instead of one write
+            // silently clobbering the other's change.
+            return new FcmTokenUpdateOutcome(
+                FcmTokenUpdateResult.Conflict,
+                "User profile was modified concurrently. Please retry.");
+        }
+
+        return new FcmTokenUpdateOutcome(FcmTokenUpdateResult.Success, null);
+    }
+
+    // T049 (fix cycle 2): Internal-only lookup for notification-service.
+    // Single Responsibility (SOLID S): this method does one thing only —
+    // retrieve the device token for a given user id — without validating,
+    // transforming, or orchestrating around it. The narrow contract (just a
+    // nullable string, no profile object) and the separate method name make
+    // it clear this is for internal infrastructure (backend-only HTTP calls),
+    // not the public API. The controller wraps this in its own auth guard
+    // (see GetInternalFcmToken's X-Internal-Service-Key check).
+    public async Task<string?> GetFcmTokenAsync(long userId)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        return user?.FcmToken;
+    }
+
     private static UpdateProfileOutcome Invalid(string message) =>
         new(ProfileUpdateResult.InvalidRequest, message, null, null);
 

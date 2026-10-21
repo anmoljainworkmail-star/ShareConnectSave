@@ -1,8 +1,14 @@
+using Confluent.Kafka;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using notification_service.Clients;
 using notification_service.Hubs;
+using notification_service.Messaging.Consumers;
+using notification_service.Messaging.Handlers;
+using notification_service.Repositories;
+using notification_service.Repositories.Interfaces;
 using notification_service.Services;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -85,6 +91,56 @@ var signalRRedisConnection = builder.Configuration["SIGNALR_REDIS_CONNECTION"]
 builder.Services.AddSignalR()
     .AddStackExchangeRedis(signalRRedisConnection, options =>
         options.Configuration.DefaultDatabase = 1);
+
+// T049: a SECOND, independent connection to the SAME Redis container as the
+// SignalR backplane above — same connection string (SIGNALR_REDIS_CONNECTION,
+// per this ticket's own decision to reuse it rather than wire up a brand new
+// env var), but NOT the same connection object. AddStackExchangeRedis
+// manages its backplane connection internally and does not hand this app's
+// own DI container a reusable IConnectionMultiplexer, so
+// ProcessedEventRepository and ConnectionTrackingService need their own.
+//
+// Pattern: Singleton (via DI container) — a ConnectionMultiplexer, like
+// IMongoClient in chat-service's Program.cs, owns its own internal
+// connection pool and is explicitly documented by StackExchange.Redis as
+// expensive to create and safe/intended to be shared for the life of the
+// process. Building it once here and letting both Redis-backed classes
+// resolve IDatabase from it (via GetDatabase(2) in each of their own
+// constructors) is the same "one shared instance, never rebuilt per
+// request" guarantee CLAUDE.md's Singleton pattern entry calls for.
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect(signalRRedisConnection));
+
+// Dependency Inversion (SOLID D): every Connection*Handler below asks the DI
+// container for IProcessedEventRepository / IConnectionTrackingService /
+// INotificationDispatcher, never for these concrete Redis-backed classes.
+// Scoped for the repository/dispatcher (resolved fresh per Kafka message,
+// same lifetime shape chat-service uses for its own Mongo-backed
+// IProcessedEventRepository); Singleton for the connection-tracking service
+// since NotificationHub (itself transient-per-connection but long-lived in
+// effect) and every Kafka consumer's per-message scope all need to agree on
+// the SAME underlying IDatabase handle - there is no per-request state here
+// to isolate, only a thin wrapper around a Singleton IConnectionMultiplexer.
+builder.Services.AddScoped<IProcessedEventRepository, ProcessedEventRepository>();
+builder.Services.AddSingleton<IConnectionTrackingService, ConnectionTrackingService>();
+builder.Services.AddScoped<INotificationDispatcher, NotificationDispatchService>();
+
+// T049 additions: Dependency Inversion (SOLID D) - each BackgroundService
+// consumer resolves its own IConnectionXxxHandler from a per-message DI
+// scope (see each consumer's own comment), never a concrete handler class.
+builder.Services.AddScoped<IConnectionRequestedHandler, ConnectionRequestedHandler>();
+builder.Services.AddScoped<IConnectionAcceptedHandler, ConnectionAcceptedHandler>();
+builder.Services.AddScoped<IConnectionExpiredHandler, ConnectionExpiredHandler>();
+
+// Event-Driven Architecture (CLAUDE.md) - this is notification-service's
+// FIRST set of Kafka consumers (see T049's own "why this ticket exists").
+// AddHostedService<T>() per consumer is the one place that wires each one's
+// lifecycle into the generic host: StartAsync once at boot, StopAsync once
+// during graceful shutdown - same registration shape as chat-service's own
+// ConnectionAcceptedConsumer (T038).
+builder.Services.AddHostedService<ConnectionRequestedConsumer>();
+builder.Services.AddHostedService<ConnectionAcceptedConsumer>();
+builder.Services.AddHostedService<ConnectionExpiredConsumer>();
 
 var app = builder.Build();
 

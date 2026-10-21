@@ -29,6 +29,14 @@ using user_service.Models;
 // someone else's card. Unlike gender/phone, it carries no privacy risk by
 // design: knowing a stranger is identity-verified is the whole point of the
 // badge.
+//
+// T049: fcm_token is EXCLUDED from this public endpoint (even though User
+// has the column) — device tokens, even when only exposed to authenticated
+// callers, should never be returned via a public discovery endpoint
+// accessible by any authenticated user for any other user's id. An internal-
+// only endpoint (GET /users/internal/{id}/fcm-token) is provided instead,
+// reachable only via direct inter-service calls inside the Docker network
+// (by notification-service), not through the YARP gateway.
 public record PublicUserProfileDto(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("name")] string Name,

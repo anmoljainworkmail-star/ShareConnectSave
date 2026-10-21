@@ -2,6 +2,7 @@ namespace notification_service.Hubs;
 
 using Microsoft.AspNetCore.SignalR;
 using notification_service.Extensions;
+using notification_service.Services;
 
 // Pattern: Hub as thin coordinator (Single Responsibility, SOLID S) - this
 // class's only job is connection/group lifecycle management: who is in
@@ -33,10 +34,12 @@ using notification_service.Extensions;
 // notifications meant for someone else.
 public class NotificationHub : Hub
 {
+    private readonly IConnectionTrackingService _connectionTracking;
     private readonly ILogger<NotificationHub> _logger;
 
-    public NotificationHub(ILogger<NotificationHub> logger)
+    public NotificationHub(IConnectionTrackingService connectionTracking, ILogger<NotificationHub> logger)
     {
+        _connectionTracking = connectionTracking;
         _logger = logger;
     }
 
@@ -45,11 +48,21 @@ public class NotificationHub : Hub
     // resolvable identity can still be useful for other purposes, so this
     // only logs a warning and skips joining the personal group rather than
     // tearing the whole connection down over one missing header.
+    //
+    // T049: also records this connection in the shared Redis "online" set
+    // (see IConnectionTrackingService's own comment for why that has to be
+    // Redis, not an in-memory flag) — this is the ONLY write path that ever
+    // adds a connection id to notif:online:{userId}; the group-join above and
+    // this call are two independent effects of the same event (one feeds
+    // SignalR's own group routing, the other feeds
+    // NotificationDispatchService's SignalR-vs-FCM decision), so both must
+    // happen together or neither should.
     public override async Task OnConnectedAsync()
     {
         if (TryGetCallerUserId(out var userId))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, SignalRGroupNames.User(userId));
+            await _connectionTracking.AddConnectionAsync(userId, Context.ConnectionId);
         }
         else
         {
@@ -59,6 +72,25 @@ public class NotificationHub : Hub
         }
 
         await base.OnConnectedAsync();
+    }
+
+    // T049: the mirror image of OnConnectedAsync's AddConnectionAsync call
+    // above — without this override, a closed tab/dropped connection would
+    // leave a stale connection id in notif:online:{userId} forever, and
+    // IsUserOnlineAsync would keep reporting this user "online" (and
+    // NotificationDispatchService would keep trying SignalR, silently
+    // dropping every notification) long after they actually left. Same
+    // graceful-degradation shape as OnConnectedAsync: an unresolvable
+    // identity here means there was never anything recorded for this
+    // connection to begin with, so this is a safe no-op, not an error.
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (TryGetCallerUserId(out var userId))
+        {
+            await _connectionTracking.RemoveConnectionAsync(userId, Context.ConnectionId);
+        }
+
+        await base.OnDisconnectedAsync(exception);
     }
 
     // JWT Identity rule: read X-User-Id from the header the gateway already

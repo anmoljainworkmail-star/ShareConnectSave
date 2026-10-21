@@ -1,0 +1,20 @@
+{
+  "task_id": "T051",
+  "title": "Spring Boot + Spring Data MongoDB Setup",
+  "status": "completed",
+  "files_created": [
+    "src/services/report-service/pom.xml",
+    "src/services/report-service/src/main/resources/application.yml",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/model/Report.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/model/ReportReason.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/repository/ReportRepository.java"
+  ],
+  "files_deleted": [
+    "src/services/report-service/src/main/resources/application.properties"
+  ],
+  "criteria_checked": {
+    "AC1": "PASS",
+    "AC2": "STRUCTURALLY_VERIFIED"
+  },
+  "last_note": "AC1 PASS with real evidence: ran `mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--server.port=8087` against the already-running Docker mongodb container (host port 27018). Startup log shows 'Found 1 MongoDB repository interface', then 'Monitor thread successfully connected to server with description ServerDescription{address=localhost:27018, type=STANDALONE, state=CONNECTED, ok=true, ...}', then 'Started ReportServiceApplication in 5.096 seconds'. curl -i http://localhost:8087/actuator/health returned HTTP/1.1 200 with {\"status\":\"UP\"} (Mongo health indicator rolled into the aggregate status). AC2 (ReportRepository.findByReportedId) is structurally correct -- derived query method name matches Spring Data MongoDB's naming convention against the reportedId field, and Spring Data's repository scan picked it up at boot -- but cannot be functionally exercised yet since no REST endpoint exists to insert/query real documents (that's T052's scope, by this ticket's own explicit boundary). Not forcing a throwaway test to close this, per the project's no-piecemeal-test-retrofits convention."
+}

@@ -28,15 +28,24 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Same "pin third-party versions as a property" convention as
+		     discovery-service's/rating-service's pom.xml. -->
+		<mapstruct.version>1.6.3</mapstruct.version>
 	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+
+		<!-- Database per Service: report-service is the only Java service on
+		     MongoDB instead of SQL Server + JPA. spring-boot-starter-data-mongodb
+		     replaces spring-boot-starter-data-jpa here (and there is no mssql-jdbc/
+		     flyway pair to go with it — Mongo is schemaless, so there is nothing
+		     for a migration tool to version). -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa</artifactId>
+			<artifactId>spring-boot-starter-data-mongodb</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -46,9 +55,29 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+
+		<!-- Spring Kafka: no producer/consumer code exists in THIS ticket
+		     (T051 is connection + repository + startup health only), but it is
+		     declared now because a later Phase 9 ticket (report.filed producer)
+		     needs it, same reasoning as rating-service's pom.xml for its own
+		     Kafka dependency at setup time. spring-kafka-test is intentionally
+		     OMITTED (removed from the Initializr default) for the same "no
+		     speculative test dependency for code that doesn't exist yet" reason
+		     rating-service's pom.xml documents — add it back in the ticket that
+		     actually writes a Kafka consumer/producer test. -->
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
+		<!-- MapStruct: compile-time-generated DTO mapping. No DTOs exist yet in
+		     this setup-only ticket, but declared now (per the ticket's explicit
+		     dependency list) so the annotation-processor wiring below is already
+		     correct for the first feature ticket that adds one. -->
+		<dependency>
+			<groupId>org.mapstruct</groupId>
+			<artifactId>mapstruct</artifactId>
+			<version>${mapstruct.version}</version>
 		</dependency>
 
 		<dependency>
@@ -59,11 +88,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.kafka</groupId>
-			<artifactId>spring-kafka-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -85,6 +109,11 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<!-- Pattern: annotation processor ORDER matters — Lombok must run
+				     before MapStruct (see discovery-service's/rating-service's
+				     pom.xml comment on this exact point). lombok-mapstruct-binding
+				     is the shim that pins that ordering across javac/IDE
+				     combinations. -->
 				<executions>
 					<execution>
 						<id>default-compile</id>
@@ -97,6 +126,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>
@@ -112,6 +151,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>

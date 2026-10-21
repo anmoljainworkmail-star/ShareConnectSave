@@ -1,0 +1,100 @@
+# application.yml — base (shared) config + dev/prod profile documents below,
+# separated by `---`. Everything environment-specific comes from an env var
+# placeholder (${VAR} or ${VAR:default}) per the java-spring-boot skill's
+# "always environment variables, never hardcoded" rule — this file has no
+# literal host, port, or credential anywhere.
+#
+# No Hardcoded Config: every ${VAR} below is read from the process
+# environment at startup, matching every other service in this platform.
+# `dev` gets a sensible localhost/port default (via the ${VAR:default}
+# syntax) so a developer can `mvn spring-boot:run` this service standalone
+# against infra started by docker-up without exporting anything by hand;
+# `prod` intentionally has NO default for the Mongo URI, so a missing env
+# var fails startup loudly instead of silently connecting to the wrong
+# place.
+#
+# Database per Service: report-service owns the ReportServiceDb Mongo
+# database exclusively. chat-service's ChatServiceDb lives on the same
+# physical Mongo container (src/infra/docker-compose.yml) but is a
+# completely separate logical database — no other service is allowed to
+# query either one directly.
+#
+# Same overall shape as rating-service's application.yml (T041) minus the
+# JPA/Flyway/SQL-Server blocks, which don't apply here — this is the only
+# Java service in the platform backed by MongoDB instead of SQL Server, so
+# `spring.data.mongodb.uri` replaces `spring.datasource.*` entirely rather
+# than sitting alongside it.
+spring:
+  application:
+    name: report-service
+
+  # Virtual Threads (Java 21 / Project Loom) — applies to BOTH profiles, so
+  # it sits in this shared section rather than inside dev: or prod:. Every
+  # Java service in this platform enables this at Spring Boot Setup time
+  # (T021/T029/T041/T051/T056), not retroactively.
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health (+ info) reachable over HTTP — never "*". An
+        # unauthenticated /actuator/env or /actuator/beans endpoint leaks
+        # connection strings and internal wiring to anyone who can reach
+        # this service, which is exactly the kind of surface a
+        # gateway-fronted microservice should not expose beyond its own
+        # liveness/readiness check.
+        include: health,info
+
+---
+# docker profile intentionally omitted — same reasoning as rating-service's
+# application.yml: only `dev` and `prod` profile documents exist below, even
+# though docker-compose.yml sets SPRING_PROFILES_ACTIVE=docker on this
+# service. docker-compose.override.yml sets SPRING_DATA_MONGODB_URI directly
+# as a container env var, and Spring's relaxed env-var binding resolves
+# spring.data.mongodb.uri from that regardless of which profile is active —
+# bypassing the profile system entirely. A future "cleanup" that adds a
+# `docker:` profile block here, or removes the override env var assuming a
+# real docker profile already handles it, would silently break container
+# startup for no visible reason.
+#
+# dev profile — sensible localhost default so a developer can run this
+# service directly against docker-up's infra without exporting env vars by
+# hand. 27018, not Mongo's default 27017: src/infra/docker-compose.yml maps
+# the mongodb container's host port off 27017 (a native Windows MongoDB
+# service can already own that port on dev machines) — `mongodb:27017` is
+# only reachable from inside the Compose network, which is why a developer
+# running this service outside Docker needs the host-mapped 27018 instead.
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27018/ReportServiceDb}
+
+logging:
+  level:
+    com.shareconnectsave.report_service: DEBUG
+
+---
+# prod profile — deliberately NO default for the Mongo URI. A missing env
+# var here must fail the container at startup (Spring throws "Could not
+# resolve placeholder") rather than fall back to a dev-shaped guess like
+# localhost — the fast, loud failure is far cheaper than a prod instance
+# silently trying to reach a Mongo server that doesn't exist there.
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI}
+
+logging:
+  level:
+    com.shareconnectsave.report_service: INFO

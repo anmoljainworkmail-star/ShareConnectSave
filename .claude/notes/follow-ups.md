@@ -825,6 +825,39 @@ whose implementation or ticket should pick it up.
    processing isn't harmless) moving `processed_events` to a persistence-enabled Redis
    instance/namespace rather than the shared cache-and-backplane one.
 
+## From T050 (Notification Service Docker Image)
+
+1. **`.env.example` has no `FCM_CREDENTIALS_JSON_HOST_PATH` entry, so a fresh clone will
+   reproduce the exact empty-directory bind-mount crash this ticket just fixed.** This
+   ticket was the first time `notification-service` ever actually ran in Docker, and
+   discovered that `docker-compose.override.yml`'s
+   `${FCM_CREDENTIALS_JSON_HOST_PATH:-./secrets/fcm-service-account.json}:/run/secrets/...:ro`
+   mount auto-creates an empty directory (not a file) if the host path doesn't already
+   exist — causing `GoogleCredential.FromFile` to throw `UnauthorizedAccessException` at
+   startup. The fix this session was host-local (manually creating a syntactically-valid
+   dummy service-account JSON at `src/infra/secrets/fcm-service-account.json`, now
+   gitignored) — it does not travel with the repo. The only documentation of this
+   one-time setup step today is one line buried in `.claude/qa/T047.qa.md:5`, not
+   surfaced anywhere a developer starting from T050 alone would see it.
+   Fix: add a commented `FCM_CREDENTIALS_JSON_HOST_PATH=` line (or an explicit setup
+   note) to `.env.example`, and/or call this out in `src/infra/README.md`'s "getting
+   started" steps.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — flag for whichever
+   ticket next revisits onboarding docs / `.env.example` completeness, or fix directly
+   next time either file is touched.
+
+2. **`/health` (added this ticket) reports healthy regardless of whether the FCM
+   credentials are real or the dummy placeholder — "healthy" means "the process is up,"
+   not "push notifications actually work."** This is the correct scope for a liveness
+   probe (matches the same deliberate liveness-only convention already documented on
+   `chat-service`'s own `/health`), but it does mean a real deployment that forgets to
+   swap the dummy credential for a production one would boot green and only fail
+   silently the first time an actual push hits Firebase, with no startup-time signal
+   distinguishing the two cases.
+   Affects: no specific future task yet — informational only, worth a comment at the
+   `/health` endpoint or a future readiness-vs-liveness hardening pass if this project
+   ever adds a separate `/ready` check per service.
+
 ## From T048 (SignalR Notification Hub)
 
 1. **`notification-service` has no `/health` endpoint**, unlike chat-service which has one

@@ -154,6 +154,17 @@ app.MapControllers();
 // controllers-vs-minimal-API routing choice).
 app.MapHub<NotificationHub>("/hubs/notifications");
 
+// Health Endpoint as a Dependency Gate (same shape as chat-service's
+// "/health", see that file's comment): liveness only. T050's Docker Compose
+// healthcheck for notification-service polls this route, and every service
+// that depends_on notification-service with condition: service_healthy
+// relies on it being a real "the process is up" signal. This endpoint was
+// missing since T047's original scaffold (flagged as a known follow-up
+// affecting this exact ticket) - without it, the healthcheck's
+// `curl -f http://localhost:8080/health` 404s every time, and Compose never
+// considers the container healthy no matter how long it runs.
+app.MapGet("/health", () => Results.Ok());
+
 // Left over from the T001 scaffold - harmless liveness placeholder, not a
 // business endpoint, so it is not worth moving into a controller for this
 // ticket's scope.

@@ -1,0 +1,7 @@
+# Build-context hygiene for the Docker build — same reasoning as
+# api-gateway/.dockerignore (T014): without this, the local dev tree's own
+# bin/obj output gets copied into the build context and can shadow/collide
+# with what `dotnet publish` produces inside the container.
+bin/
+obj/
+.vs/

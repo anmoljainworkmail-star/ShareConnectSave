@@ -96,7 +96,7 @@
 - [x] T047 — FCM Setup _(Firebase Admin SDK)_
 - [x] T048 — SignalR Notification Hub _(Redis backplane DB 1, shared with Chat)_
 - [x] T049 — Kafka Consumers _(connection.requested, connection.accepted, connection.expired)_
-- [ ] T050 — Notification Service Docker Image
+- [x] T050 — Notification Service Docker Image
 
 ---
 

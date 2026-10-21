@@ -127,4 +127,11 @@ logs/
 *.crt
 appsettings.*.json
 !appsettings.json
+
+# T050: FCM service-account JSON (Firebase Admin SDK credentials), bind-mounted
+# into notification-service per docker-compose.override.yml's
+# FCM_CREDENTIALS_JSON_HOST_PATH default — whether a real credential or the
+# syntactically-valid dummy used for local dev, this directory's contents are
+# per-developer local state, never committed, same reasoning as .env above.
+src/infra/secrets/
 !appsettings.Development.json

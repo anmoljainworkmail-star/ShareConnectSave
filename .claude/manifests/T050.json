@@ -1,0 +1,20 @@
+{
+  "task_id": "T050",
+  "title": "Notification Service Docker Image",
+  "status": "completed",
+  "files_created": [
+    "src/services/notification-service/.dockerignore",
+    "src/services/notification-service/Dockerfile",
+    "src/infra/secrets/fcm-service-account.json",
+    "src/services/notification-service/Program.cs",
+    ".gitignore"
+  ],
+  "criteria_checked": {
+    "AC1": "PASS",
+    "AC2": "PASS",
+    "AC3": "PASS",
+    "AC4": "PASS",
+    "AC5": "PASS"
+  },
+  "last_note": "All ACs verified with real docker command output. Along the way found and fixed two real environment/code gaps uncovered by this being notification-service's first-ever real container run: (1) FCM_CREDENTIALS_JSON_HOST_PATH's default (./secrets/fcm-service-account.json) had never been created on this host, so Docker auto-created it as an empty directory on first mount, causing GoogleCredential.FromFile to throw UnauthorizedAccessException at startup -- fixed by generating a syntactically-valid dummy service-account JSON (throwaway RSA key, not tied to any real project) and gitignoring src/infra/secrets/ so a real credential file never gets committed. (2) notification-service had no /health endpoint at all (pre-existing gap from T047's scaffold, already flagged in follow-ups.md as affecting T050) -- the compose healthcheck's curl -f http://localhost:8080/health 404'd every cycle, keeping the container permanently (unhealthy); fixed by adding app.MapGet(\"/health\", () => Results.Ok()) to Program.cs, same shape as chat-service's. Final verification: docker compose ps shows notification-service Up (healthy); curl.exe -i http://localhost:8086/health returns HTTP/1.1 200 OK; docker inspect --format='{{.Size}}' returns 141108134 bytes, under the 200MB budget. user-service and api-gateway were also rebuilt and restarted during this session (their own code changed in T049/follow-up work) and both show (healthy)."
+}

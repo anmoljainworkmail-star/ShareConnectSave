@@ -208,7 +208,7 @@ Format: `{TASK_ID}: {ticket title} — {one-line teaching note}`
 
 **`/validate-contracts`** — after any task that adds a Kafka topic or HTTP endpoint, run this. Checks that Kafka schemas, the error envelope shape, JWT header usage, and outbox pattern coverage are consistent across all services.
 
-**`/docker-up`** — starts the full infrastructure stack (SQL Server, MongoDB, Kafka, Redis, Kafka UI, Jaeger). Shows a health summary and local dev URLs when ready.
+**`/docker-up`** — starts the full infrastructure stack (SQL Server, MongoDB, Kafka, Redis, Kafka UI). Shows a health summary and local dev URLs when ready. Jaeger is not part of this stack yet — it ships in Phase 13 (T089).
 
 ---
 

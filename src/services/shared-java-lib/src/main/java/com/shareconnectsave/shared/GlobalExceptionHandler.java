@@ -60,11 +60,15 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("INTERNAL_ERROR", "An unexpected error occurred.", traceId));
     }
 
-    // Pattern: Distributed Tracing integration. traceId is read from MDC — populated
-    // by OpenTelemetry's Spring instrumentation on the current request thread — never
-    // minted here as a random UUID. A generated ID would not exist in Jaeger, which
-    // defeats the entire purpose of putting it in the error envelope: correlating a
+    // Pattern: Distributed Tracing integration. traceId is read from MDC, never minted
+    // here as a random UUID — a generated ID would not exist in Jaeger, which defeats
+    // the entire purpose of putting it in the error envelope: correlating a
     // client-visible error back to the exact trace that produced it.
+    // Current state: no Java service has an OpenTelemetry dependency yet, and nothing
+    // anywhere calls MDC.put("traceId", ...) — that's T087 (Phase 13). Until it lands,
+    // this always returns "" for every Java service. The field stays in the envelope
+    // now (shape-correct, contract-stable) so T087 only has to populate MDC once, in
+    // one place, rather than retrofitting the envelope shape across five services.
     private String traceId() {
         String traceId = MDC.get("traceId");
         return traceId != null ? traceId : "";

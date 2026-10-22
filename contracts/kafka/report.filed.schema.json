@@ -5,7 +5,7 @@
   "description": "Published by Report Service when a user files a report against another user. Report Service itself computes and publishes the escalation decision (see the `escalated` property) synchronously, before this event is even built — Admin Service (Phase 10) only ever reads the already-decided flag, it does not derive escalation itself.",
 
   "_comment_threshold": "report_count_for_target is denormalised into this event so Admin Service can apply its OWN independent logic (e.g. queue aggregation) without querying Report Service's database. Each service owns its data — Admin reads a summary, not raw rows (Database per Service principle).",
-  "_comment_dlq": "If the outbox relay fails to publish this event after 3 retries, it routes to report.filed.dlq for manual inspection. Safety reports must not be silently lost.",
+  "_comment_dlq": "If the outbox relay fails to publish this event after 3 retries (200ms/400ms backoff), it is NOT routed to a second Kafka topic — report-service's Mongo-folded outbox has no status field to flip to DLQ, and a second topic on the same broker would share Kafka's own failure mode. Instead, the relay logs the complete event at ERROR level under the DEAD_LETTER_REPORT_FILED marker; outboxPublishedAt stays null so the relay's normal next-tick query retries it again once Kafka recovers. Safety reports must not be silently lost, but the mechanism here is a greppable log line, not a second queue.",
 
   "type": "object",
   "required": ["event_id", "report_id", "reporter_id", "reported_id", "reason", "report_count_for_target", "escalated"],

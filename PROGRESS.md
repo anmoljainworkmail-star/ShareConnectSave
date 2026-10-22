@@ -103,7 +103,7 @@
 ## Phase 9 — Report Service (Java)
 
 - [x] T051 — Spring Boot + Spring Data MongoDB Setup
-- [ ] T052 — Report Submission _(reason categories, store to MongoDB)_
+- [x] T052 — Report Submission _(reason categories, store to MongoDB)_
 - [ ] T053 — Escalation Threshold Logic _(count reports per target, threshold trigger)_
 - [ ] T054 — Kafka Producer: report.filed _(with DLQ on failure)_
 - [ ] T055 — Report Service Docker Image

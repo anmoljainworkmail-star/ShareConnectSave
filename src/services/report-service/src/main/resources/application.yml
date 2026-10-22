@@ -36,6 +36,30 @@ spring:
     virtual:
       enabled: true
 
+  kafka:
+    # T052: ReportOutboxRelay is this service's first-ever Kafka producer
+    # (no consumer exists yet in this service, unlike rating-service's three
+    # @KafkaListener methods) — same bootstrap-servers property, same
+    # ${VAR:default} shape as rating-service's application.yml.
+    # docker-compose.override.yml sets SPRING_KAFKA_BOOTSTRAP_SERVERS
+    # directly as a container env var (Spring's relaxed env-var binding),
+    # which resolves spring.kafka.bootstrap-servers regardless of active
+    # profile — same bypass-the-profile-system mechanism this file's own
+    # header comment already documents for spring.data.mongodb.uri. KAFKA_BROKERS
+    # only matters for a developer running `mvnw spring-boot:run` directly
+    # against docker-up's infra, outside the compose network.
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    # Spring Boot leaves these null unless set explicitly — it does NOT
+    # default to StringSerializer the way some tutorials assume. Without
+    # this, the first real kafkaTemplate.send() (ReportOutboxRelay.java)
+    # throws "Missing required configuration 'key.serializer' which has no
+    # default value", since ReportServiceImpl already serializes the outbox
+    # payload to a JSON string and the partition key (reportedId) is also a
+    # plain String.
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
 management:
   endpoints:
     web:

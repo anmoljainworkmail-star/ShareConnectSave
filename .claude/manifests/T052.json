@@ -1,0 +1,32 @@
+{
+  "task_id": "T052",
+  "title": "Report Submission",
+  "status": "completed",
+  "files_created": [
+    "src/services/report-service/pom.xml",
+    "src/services/report-service/src/main/resources/application.yml",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/model/Report.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/model/ReportStatus.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/model/ReportReason.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/repository/ReportRepository.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/dto/ReportCreateDto.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/dto/ReportResponse.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/mapper/ReportMapper.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/controller/ReportController.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/service/ReportService.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/service/ReportServiceImpl.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/kafka/event/ReportFiledEvent.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/kafka/ReportOutboxRelay.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/SelfReportException.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/InvalidReportReasonException.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/ReportExceptionHandler.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/ExceptionHandlingConfig.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/config/SchedulingConfig.java"
+  ],
+  "criteria_checked": {
+    "AC1": "PASS",
+    "AC2": "PASS",
+    "AC3": "PASS"
+  },
+  "last_note": "Verified end-to-end against real docker-up infra (Mongo localhost:27018, Kafka localhost:9092), not just a code read: `mvnw -q -DskipTests package` compiled clean; `mvnw spring-boot:run -Dspring-boot.run.profiles=dev --server.port=8087` started and connected to Mongo ('Found 1 MongoDB repository interface', 'Monitor thread successfully connected ... STANDALONE, CONNECTED'). POST /reports with X-User-Id header filed two reports against the same reported_id ('target-user-abc') -- first returned 201 with report_count_for_target implicitly 1 (verified via the stored eventPayload), second returned 201 with report_count_for_target=2 in its eventPayload, confirming AC3's count-includes-this-one accuracy across sequential calls. AC1: both Report documents found in ReportServiceDb.reports via mongosh, each with outboxPublishedAt stamped (not null), confirming ReportOutboxRelay's 500ms tick picked them up. AC2: both exact eventPayload JSON strings consumed off the real report.filed Kafka topic via kafka-console-consumer --from-beginning, byte-for-byte matching report.filed.schema.json's required fields (event_id, report_id, reporter_id, reported_id, reason, report_count_for_target) with reason in the OpenAPI contract's Title Case ('Harassment', 'Asked for money'), not the Kafka schema file's lowercase/drifted enum -- confirming the deliberate 'OpenAPI + T051 enum are authoritative' decision from the ticket. Self-report guard verified: POST with X-User-Id == reported_id returned 409 {code: SELF_REPORT_NOT_ALLOWED} via the shared ErrorResponse envelope (shared-java-lib dependency + ExceptionHandlingConfig's @Import, which T051 had omitted -- this ticket's POST /reports is report-service's first controller, so that gap would otherwise have surfaced as a missing error envelope here). Test documents cleaned up from Mongo afterward (db.reports.deleteMany); the two already-published report.filed messages remain in the Kafka topic log as harmless test data, same as any dev-topic traffic. Local mvnw process stopped after verification."
+}

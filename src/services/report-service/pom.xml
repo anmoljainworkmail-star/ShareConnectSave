@@ -38,6 +38,24 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!-- shared-java-lib: the shared ErrorResponse + GlobalExceptionHandler
+		     error-envelope contract every other Java service already depends
+		     on. T051 omitted this (it shipped no controller, so the gap was
+		     never exercised) — T052's POST /reports is report-service's FIRST
+		     controller, so this dependency + exception/ExceptionHandlingConfig's
+		     @Import are what make Architecture Rule #6 (error envelope on
+		     every error) actually true here, instead of every error silently
+		     falling through as a framework-default error body. Same
+		     groupId/artifactId/version as connection-service's and
+		     rating-service's pom.xml — the envelope shape is byte-for-byte
+		     identical across every Java service, instead of a copy-pasted
+		     @ControllerAdvice drifting apart over time. -->
+		<dependency>
+			<groupId>com.shareconnectsave</groupId>
+			<artifactId>shared-java-lib</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+
 		<!-- Database per Service: report-service is the only Java service on
 		     MongoDB instead of SQL Server + JPA. spring-boot-starter-data-mongodb
 		     replaces spring-boot-starter-data-jpa here (and there is no mssql-jdbc/

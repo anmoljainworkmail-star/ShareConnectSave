@@ -34,6 +34,17 @@ public class ReportExceptionHandler {
                 .body(new ErrorResponse("INVALID_REPORT_REASON", ex.getMessage(), traceId()));
     }
 
+    // T053 — 403, not 401: X-User-Id/X-User-Role being present and
+    // well-formed means the API Gateway already validated identity; this is
+    // purely an authorization failure (a known, authenticated caller who is
+    // just not an admin), which is what 403 Forbidden means as opposed to
+    // 401 Unauthorized's "who even are you".
+    @ExceptionHandler(NotAdminException.class)
+    public ResponseEntity<ErrorResponse> handleNotAdmin(NotAdminException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse("ADMIN_ROLE_REQUIRED", ex.getMessage(), traceId()));
+    }
+
     // Same MDC-read convention as shared-java-lib's GlobalExceptionHandler
     // and every other service's local handler: traceId is only ever READ
     // from the OpenTelemetry-populated request-thread context, never minted

@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.shareconnectsave.report_service.model.Report;
+import com.shareconnectsave.report_service.model.ReportStatus;
 
 /**
  * Repository (via Spring Data): a plain interface, no implementation class
@@ -35,4 +36,12 @@ public interface ReportRepository extends MongoRepository<Report, String> {
     // findByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING, PageRequest.of(0,
     // BATCH_SIZE)).
     List<Report> findByOutboxPublishedAtIsNullOrderByCreatedAtAsc(Pageable pageable);
+
+    // T053 — GET /reports/queue's entire query. Repository (via Spring
+    // Data), same "framework writes the query from the method name" idea as
+    // findByReportedId above: the admin review queue is every ESCALATED
+    // report, ordered by the reportCountAtEscalation snapshot stamped at
+    // escalation time (descending — worst offenders first), with no
+    // live aggregation pipeline written by hand.
+    List<Report> findByStatusOrderByReportCountAtEscalationDesc(ReportStatus status);
 }

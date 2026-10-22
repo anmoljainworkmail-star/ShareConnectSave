@@ -22,12 +22,23 @@ import com.shareconnectsave.report_service.model.ReportReason;
 // reason reuses ReportReason's own @JsonValue/@JsonCreator mapping — ONE
 // enum, ONE source of truth, serialized identically on both this Kafka
 // payload and the HTTP ReportResponse (see ReportReason's class comment).
+//
+// T053 — escalated is computed by THIS service (ReportServiceImpl, before
+// this record is even constructed), not re-derived by a consumer. Folding a
+// decision into the event itself — rather than shipping report_count_for_target
+// alone and making every downstream consumer repeat "count >= threshold" with
+// its own copy of the threshold — is what lets Admin Service's future queue
+// aggregation (T057) trust escalated as a fact, the same way it already
+// trusts reason or reported_id: Report Service made the call once, Admin
+// Service never has to re-derive it (or risk disagreeing with it because its
+// own copy of the threshold config drifted from this service's).
 public record ReportFiledEvent(
         @JsonProperty("event_id") String eventId,
         @JsonProperty("report_id") String reportId,
         @JsonProperty("reporter_id") String reporterId,
         @JsonProperty("reported_id") String reportedId,
         @JsonProperty("reason") ReportReason reason,
-        @JsonProperty("report_count_for_target") int reportCountForTarget
+        @JsonProperty("report_count_for_target") int reportCountForTarget,
+        @JsonProperty("escalated") Boolean escalated
 ) {
 }

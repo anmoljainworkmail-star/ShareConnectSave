@@ -60,6 +60,21 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+# T053: ReportServiceImpl's own escalation threshold — how many report.filed
+# documents against one reportedId trigger this service's bulk ESCALATED
+# status flip and the `escalated: true` flag on the Kafka event. Deliberately
+# a SEPARATE property from rating-service's rating.report.suspension.threshold
+# (same placement precedent: a business-policy value, not infra wiring, so it
+# sits in this shared top-level section rather than per-profile) — two
+# services independently decide what to do with the same raw
+# report_count_for_target signal, and unifying them into one shared property
+# would couple two unrelated policies together for no benefit. No Hardcoded
+# Config (Architecture Rule #3): a literal `3` in ReportServiceImpl would
+# require a redeploy to change; this does not.
+report:
+  escalation:
+    threshold: ${REPORT_ESCALATION_THRESHOLD:3}
+
 management:
   endpoints:
     web:

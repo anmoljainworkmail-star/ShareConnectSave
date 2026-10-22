@@ -4,6 +4,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -39,6 +44,28 @@ public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
     private final ObjectMapper objectMapper;
 
+    // MongoTemplate injected the same way ReportOutboxRelay already does for
+    // its own targeted partial update — this is the second (and, for this
+    // ticket, last) place in report-service that needs anything beyond
+    // plain MongoRepository CRUD: a bulk, multi-document status flip that
+    // Spring Data's derived-query methods have no vocabulary for.
+    private final MongoTemplate mongoTemplate;
+
+    // Field injection for this one primitive config value, not constructor
+    // injection — same mixed-injection-style reasoning as rating-service's
+    // ReportFiledConsumer.reportSuspensionThreshold: @RequiredArgsConstructor
+    // only generates parameters for `final` fields, so a non-final @Value
+    // field is how a plain config value rides alongside constructor-injected
+    // collaborators on one class. Open/Closed (SOLID-O): this threshold is a
+    // property (report.escalation.threshold), not a literal `3` buried in an
+    // if — raising or lowering it later is a config/env change, never a
+    // redeploy. Deliberately a SEPARATE property from rating-service's own
+    // rating.report.suspension.threshold: two services, two independently
+    // configurable policies reacting to the same raw report_count_for_target
+    // signal — not one shared value.
+    @Value("${report.escalation.threshold}")
+    private int escalationThreshold;
+
     @Override
     public ReportResponse fileReport(String reporterId, ReportCreateDto dto) {
         // Guard clause, checked first and without touching the DB at all —
@@ -71,6 +98,15 @@ public class ReportServiceImpl implements ReportService {
         List<Report> existingReportsAgainstTarget = reportRepository.findByReportedId(dto.reportedId());
         int reportCountForTarget = existingReportsAgainstTarget.size() + 1;
 
+        // Open/Closed (SOLID-O): the escalation decision is "count vs. a
+        // config value", never a hardcoded `>= 3` — see escalationThreshold's
+        // own field comment for why it is injected via @Value rather than a
+        // literal here. Computed BEFORE the event is built (not after
+        // save()) so it can be folded into eventPayload in the same
+        // single-document write T052 already performs — Admin Service reads
+        // this as an already-decided fact, never re-derives it.
+        boolean escalated = reportCountForTarget >= escalationThreshold;
+
         // App-assigned id (UUID.randomUUID(), not Mongo-generated) — minted
         // BEFORE the document exists so it can be embedded in its own
         // eventPayload below. Reused as BOTH report_id and event_id in
@@ -85,7 +121,8 @@ public class ReportServiceImpl implements ReportService {
                 reporterId,
                 dto.reportedId(),
                 reason,
-                reportCountForTarget
+                reportCountForTarget,
+                escalated
         );
 
         // Outbox Pattern, Mongo-adapted: build the COMPLETE Report document
@@ -111,7 +148,47 @@ public class ReportServiceImpl implements ReportService {
 
         Report saved = reportRepository.save(report);
 
+        // Plain mutable-state write, NOT part of the outbox invariant (it
+        // never touches eventPayload/outboxPublishedAt) — safe as a second,
+        // separate write for the same reason this method's own
+        // report_count_for_target read-then-write above is "acceptable, not
+        // exactly-once-critical": a standalone Mongo node gives no
+        // multi-document transaction either way, so there is no atomicity
+        // this second write could violate that the first one didn't already
+        // risk. Runs AFTER the triggering report's own save() and matches on
+        // reportedId, so it naturally re-covers the document just saved —
+        // no need to special-case its initial OPEN status.
+        //
+        // updateMulti (not updateFirst, unlike ReportOutboxRelay's targeted
+        // single-document update above it): "mark the user's reports as
+        // escalated" means EVERY historical Report for this reportedId, not
+        // just the one that crossed the threshold — otherwise GET
+        // /reports/queue would show one ESCALATED row sitting next to N
+        // OPEN rows for the same repeat offender, defeating the point of a
+        // review queue.
+        if (escalated) {
+            mongoTemplate.updateMulti(
+                    Query.query(Criteria.where("reportedId").is(dto.reportedId())),
+                    Update.update("status", ReportStatus.ESCALATED)
+                            .set("reportCountAtEscalation", reportCountForTarget),
+                    Report.class
+            );
+        }
+
         return reportMapper.toResponse(saved);
+    }
+
+    // T053 — GET /reports/queue's read path. The admin-role guard clause
+    // lives in ReportController, not here (Single Responsibility, SOLID-S):
+    // this method only ever answers "what is currently escalated", the same
+    // way ReportOutboxRelay only ever knows how to relay, never who is
+    // allowed to trigger it.
+    @Override
+    public List<ReportResponse> getEscalatedQueue() {
+        return reportRepository.findByStatusOrderByReportCountAtEscalationDesc(ReportStatus.ESCALATED)
+                .stream()
+                .map(reportMapper::toResponse)
+                .toList();
     }
 
     private String serialize(ReportFiledEvent event) {

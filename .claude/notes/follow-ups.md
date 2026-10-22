@@ -825,6 +825,54 @@ whose implementation or ticket should pick it up.
    processing isn't harmless) moving `processed_events` to a persistence-enabled Redis
    instance/namespace rather than the shared cache-and-backplane one.
 
+## From T053 (Escalation Threshold Logic)
+
+1. **No crash-recovery/retry path for the bulk `updateMulti` status flip if the process
+   dies between the triggering report's `save()` and the bulk `ESCALATED` status update.**
+   `ReportServiceImpl.fileReport` performs two separate writes for an escalating report: the
+   single-document outbox-protected `save()` (which already contains `eventPayload` with
+   `escalated: true` baked in), then a second, independent `MongoTemplate.updateMulti(...)`
+   call that bulk-flips every historical `Report` for that `reportedId` to `ESCALATED`. If
+   the JVM crashes/pod is evicted between the two (GC pause, OOM-kill, rolling deploy), the
+   first write durably exists and `ReportOutboxRelay` will truthfully publish
+   `escalated: true` to Kafka — but the second write never ran, and nothing retries it (no
+   polling/reconciliation loop analogous to the relay's `outboxPublishedAt`-is-null
+   mechanism exists for the status flip). Result: Admin Service is told via Kafka that a
+   user is escalated, but `GET /reports/queue` never shows any of that user's reports,
+   indefinitely. This is explicitly pre-approved by the ticket as a plain mutable-state
+   write outside the outbox invariant, so it's not a blocker — but the ticket's own
+   reasoning addressed cross-document atomicity, not crash-recovery of this second write.
+   Fix direction: a scheduled reconciliation job, same polling shape as `ReportOutboxRelay`,
+   that re-derives `ESCALATED` status for any `reportedId` whose live count has already
+   crossed threshold but whose documents are still `OPEN`.
+   Affects: whichever future ticket next hardens report-service's escalation durability (no
+   specific task ID yet in PROGRESS.md/SPECS.md) — candidate for a Phase 10 Admin Service
+   follow-up since that's the first real consumer relying on `GET /reports/queue` being
+   complete.
+
+2. **TOCTOU race on the read-then-write `reportCountForTarget` computation can understate
+   `reportCountAtEscalation` under concurrent reports against the same target, affecting
+   the admin queue's sort fidelity (not data loss).** Two reports filed against the same
+   `reportedId` in the same instant can both read the same "before" count via
+   `findByReportedId`, both compute the same `reportCountForTarget`/`escalated`, and both
+   stamp the same (now stale) `reportCountAtEscalation` on the bulk update — so a
+   4-report offender can end up permanently sorted as if they only had 3, next to someone
+   who legitimately has 3. Explicitly pre-accepted by the ticket text as "acceptable, not
+   exactly-once-critical," the same call already made for T052's identical read-then-write
+   trade-off.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — flag for whichever future
+   ticket revisits report-service's count/escalation accuracy under concurrency (e.g.
+   alongside T057's Admin Service queue aggregation, which inherits whatever ordering
+   report-service hands it).
+
+3. **`reportCountAtEscalation` is stamped and used for sorting but never exposed in
+   `ReportResponse`/the OpenAPI `Report` schema — an admin viewing the queue can't see
+   why it's ordered the way it is.** Not required by this ticket's acceptance criteria or
+   its contract-gap list, but worth considering once Admin Service actually renders this
+   queue to a human reviewer.
+   Affects: T057 (Admin Service — Phase 10 — the ticket that will actually build the UI/API
+   surface a human reviewer sees).
+
 ## From T050 (Notification Service Docker Image)
 
 1. **`.env.example` has no `FCM_CREDENTIALS_JSON_HOST_PATH` entry, so a fresh clone will

@@ -2,13 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://shareconnectsave.dev/contracts/kafka/report.filed",
   "title": "report.filed",
-  "description": "Published by Report Service when a user files a report against another user. Consumed by Admin Service which escalates the review queue if report_count_for_target exceeds a threshold.",
+  "description": "Published by Report Service when a user files a report against another user. Report Service itself computes and publishes the escalation decision (see the `escalated` property) synchronously, before this event is even built — Admin Service (Phase 10) only ever reads the already-decided flag, it does not derive escalation itself.",
 
-  "_comment_threshold": "report_count_for_target is denormalised into this event so Admin Service can apply threshold logic without querying Report Service's database. Each service owns its data — Admin reads a summary, not raw rows (Database per Service principle).",
+  "_comment_threshold": "report_count_for_target is denormalised into this event so Admin Service can apply its OWN independent logic (e.g. queue aggregation) without querying Report Service's database. Each service owns its data — Admin reads a summary, not raw rows (Database per Service principle).",
   "_comment_dlq": "If the outbox relay fails to publish this event after 3 retries, it routes to report.filed.dlq for manual inspection. Safety reports must not be silently lost.",
 
   "type": "object",
-  "required": ["event_id", "report_id", "reporter_id", "reported_id", "reason", "report_count_for_target"],
+  "required": ["event_id", "report_id", "reporter_id", "reported_id", "reason", "report_count_for_target", "escalated"],
   "additionalProperties": false,
   "properties": {
     "event_id": {
@@ -47,7 +47,11 @@
     "report_count_for_target": {
       "type": "integer",
       "minimum": 1,
-      "description": "Total number of reports filed against reported_id (including this one). Admin Service uses this to auto-escalate when the count crosses a configured threshold."
+      "description": "Total number of reports filed against reported_id (including this one). Report Service uses this, against its own report.escalation.threshold config, to compute `escalated` below. Rating Service independently reads this same raw count against its own unrelated rating.report.suspension.threshold to decide when to recalculate trust score — two services, two independently configurable policies off the same number."
+    },
+    "escalated": {
+      "type": "boolean",
+      "description": "T053: true when report_count_for_target met or exceeded Report Service's own report.escalation.threshold at the moment this report was filed. Computed and decided by Report Service BEFORE this event is serialized — every historical Report document for reported_id is bulk-updated to status ESCALATED in the same write. Consumers (Admin Service, Phase 10) read this as an already-decided fact; they never re-derive it from report_count_for_target themselves."
     }
   }
 }

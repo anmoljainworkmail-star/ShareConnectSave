@@ -84,6 +84,16 @@ public class Report {
     @Builder.Default
     private ReportStatus status = ReportStatus.OPEN;
 
+    // Null until the FIRST moment this reportedId ever crosses
+    // report.escalation.threshold (T053) — a snapshot of
+    // report_count_for_target taken at that instant, not a live count.
+    // Snapshot over live computation (same call T052 already made for
+    // report_count_for_target itself): GET /reports/queue sorts on this
+    // field directly, so the queue's order never changes underneath an
+    // admin mid-review just because a NEW unrelated report was filed
+    // against someone else, and never needs a live aggregation query.
+    private Integer reportCountAtEscalation;
+
     private Instant createdAt;
 
     // The pre-serialized report.filed JSON this report's own outbox "row"

@@ -72,6 +72,40 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /reports/queue:
+    get:
+      tags: [reports]
+      summary: List escalated reports, admin review queue (admin only)
+      description: >
+        T053: every Report document whose status is `escalated`, sorted by
+        the reportCountAtEscalation snapshot descending (worst offenders
+        first). Escalation itself is decided synchronously by Report Service
+        when a report is filed (ReportServiceImpl), not derived here — this
+        endpoint only ever reads the already-decided state.
+      operationId: getEscalatedReportsQueue
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: Escalated reports returned, highest report count first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not an admin.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /reports/{id}:
     get:
       tags: [reports]

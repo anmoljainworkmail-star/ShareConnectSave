@@ -1,0 +1,13 @@
+{
+  "task_id": "T054",
+  "title": "Kafka Producer: report.filed — Retry + Dead Letter Handling",
+  "status": "completed",
+  "files_created": [
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/kafka/ReportOutboxRelay.java"
+  ],
+  "criteria_checked": {
+    "Transient Kafka failure retried up to 3 times": "PASS",
+    "Permanent failure logged with payload, HTTP response still 201": "PASS"
+  },
+  "last_note": "Extracted publishWithRetry(report) with 3-attempt loop (200ms/400ms exponential backoff, no sleep after final attempt). Success path unchanged (updateFirst stamps outboxPublishedAt). Exhausted-retry path logs ERROR with marker DEAD_LETTER_REPORT_FILED including reportId, reportedId, full eventPayload, attempt count, and exception; outboxPublishedAt left null so next 500ms tick retries naturally. No new topic, enum, or Mongo field added; ReportController/ReportServiceImpl untouched so POST /reports still returns 201 synchronously before the relay ever runs."
+}

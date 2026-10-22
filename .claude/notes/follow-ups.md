@@ -873,6 +873,65 @@ whose implementation or ticket should pick it up.
    Affects: T057 (Admin Service — Phase 10 — the ticket that will actually build the UI/API
    surface a human reviewer sees).
 
+## From T054 (Kafka Producer: report.filed — Retry + Dead Letter Handling)
+
+1. **The within-tick retry loop has its own duplicate-publish risk, distinct from the
+   cross-tick duplication the ticket's own spec already accepts.** `ReportOutboxRelay
+   .publishWithRetry` retries `kafkaTemplate.send(...).get()` on any exception — but an
+   exception can mean either "the broker never received this" or "the broker received and
+   durably wrote it, the acknowledgment just never made it back to the client" (a blip on
+   the *return* trip, or a client-side `Future.get()` timeout). The code cannot
+   distinguish these, so it retries both the same way; if the first case is actually the
+   second, attempt 2 or 3 re-sends the identical `eventPayload` and `report.filed` is
+   published twice for one report. Whether this actually produces a duplicate message
+   depends entirely on Kafka's idempotent-producer behavior (dedup via producer-id +
+   sequence number) — which is a client *default*, never explicitly configured or
+   asserted anywhere in `report-service`'s `application.yml` (only `key-serializer`/
+   `value-serializer` are set). Survivable today because `rating-service`'s
+   `ReportFiledConsumer` already has a `processed_events` idempotency check that skips a
+   redelivered event — but that's incidental coverage, not a verified guarantee for this
+   producer specifically.
+   Fix direction: either explicitly set `enable.idempotence=true` (and ideally
+   `acks=all`) in `report-service`'s Kafka producer config so the guarantee is asserted,
+   not assumed, or add a one-line comment on `publishWithRetry` acknowledging this
+   specific within-tick mechanism is distinct from the cross-tick duplication the ticket
+   text already discusses.
+   Affects: whichever future ticket next touches `report-service`'s Kafka producer config,
+   or a Phase-wide Kafka producer hardening pass (no specific task ID yet in
+   PROGRESS.md/SPECS.md) — also worth checking whether `connection-service`'s and
+   `rating-service`'s own relays (T032, T042) have the identical unverified-default gap.
+
+2. **The interrupted-`Thread.sleep` backoff path produces a third, undocumented failure-log
+   shape, distinct from both the success path and the `DEAD_LETTER_REPORT_FILED` path.**
+   `ReportOutboxRelay.java` (the `InterruptedException` catch inside `publishWithRetry`)
+   correctly restores the interrupt flag and returns `false` without ever reaching the
+   `DEAD_LETTER_REPORT_FILED`-tagged log line — so an interrupted backoff logs a plain,
+   untagged `log.error(...)` instead. Functionally harmless (nothing is lost;
+   `outboxPublishedAt` stays `null` and the next tick retries normally), but an operator
+   grepping logs for the `DEAD_LETTER_REPORT_FILED` marker specifically would miss this
+   case entirely, not realizing a third code path exists.
+   Fix: either tag this path with its own distinct marker (e.g.
+   `RETRY_INTERRUPTED_REPORT_FILED`) or add a one-line comment above the catch block
+   explaining why it's intentionally different from the dead-letter path.
+   Affects: T054 itself (cheap fix next time this file is touched), or whichever future
+   ticket does a logging-consistency pass across the Java services' outbox relays.
+
+3. **The dead-letter log line is a deliberate, spec-mandated first-of-its-kind departure
+   from this project's otherwise-consistent "never log the event payload" precedent.**
+   `connection-service`'s and `rating-service`'s own `OutboxRelay` failure logs only ever
+   include the event's id and topic, never its payload — this ticket's own spec explicitly
+   requires the *full* `eventPayload` JSON (reporter id, reported id, reason,
+   escalation state) at `ERROR` level specifically so a human can manually replay it. That
+   tradeoff is reasoned and intentional, not an oversight, but it means report content and
+   reporter/reported identity — arguably in the same sensitivity bucket as the
+   gender/phone/GPS fields this project otherwise treats as access-controlled — now lands
+   in centralized application logs with none of those other fields' access controls.
+   Not something to silently fix in a code review; needs a Tech-Lead-level decision.
+   Affects: a future `/validate-contracts`-style pass, or whichever ticket first
+   establishes a log-access/redaction policy for this project (no specific task ID yet in
+   PROGRESS.md/SPECS.md) — also worth deciding whether this sets precedent for any other
+   service that might someday need a similar log-based dead-letter shape.
+
 ## From T050 (Notification Service Docker Image)
 
 1. **`.env.example` has no `FCM_CREDENTIALS_JSON_HOST_PATH` entry, so a fresh clone will

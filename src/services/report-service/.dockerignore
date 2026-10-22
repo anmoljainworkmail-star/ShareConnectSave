@@ -1,0 +1,16 @@
+# Build-context hygiene for the Docker build (T055) — first Java service to
+# add this (discovery-service/T028, connection-service/T034 and
+# rating-service/T046 all deferred it). Maven's own build output
+# (target/, the Java equivalent of .NET's bin/obj/) and local IDE/wrapper
+# cache noise have no reason to ride along in the build context: the
+# Dockerfile's build stage runs its own `./mvnw package` from source inside
+# the container, so a host machine's stale target/ directory should never
+# be copied in and silently shadow what that stage produces.
+target/
+.idea/
+*.iml
+.vscode/
+# The wrapper jar itself is fetched fresh by mvnw on first use inside the
+# build stage — shipping a host-cached copy in the build context is just
+# dead weight, not a correctness risk, but it's still noise worth excluding.
+.mvn/wrapper/*.jar

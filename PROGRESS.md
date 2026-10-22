@@ -106,7 +106,7 @@
 - [x] T052 — Report Submission _(reason categories, store to MongoDB)_
 - [x] T053 — Escalation Threshold Logic _(count reports per target, threshold trigger)_
 - [x] T054 — Kafka Producer: report.filed _(with DLQ on failure)_
-- [ ] T055 — Report Service Docker Image
+- [x] T055 — Report Service Docker Image
 
 ---
 

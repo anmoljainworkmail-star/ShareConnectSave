@@ -461,8 +461,18 @@ services:
   report-service:
     image: shareconnectsave/report-service:dev
     build:
-      context: ../../src/services/report-service
-      dockerfile: Dockerfile
+      # T055 fix: report-service's pom.xml depends on shared-java-lib
+      # (ErrorResponse + GlobalExceptionHandler), a sibling module with no
+      # reactor/parent pom tying it to report-service — the same reason
+      # discovery-service/connection-service/rating-service's own build
+      # contexts (above) are scoped to the services PARENT directory, not
+      # the service's own folder alone. A context scoped to report-service/
+      # alone cannot COPY ../shared-java-lib/src, so the Dockerfile's `mvnw
+      # install` step for shared-java-lib would fail with "could not resolve
+      # dependency" on a clean build. Context is the services parent dir;
+      # dockerfile is given relative to it, same shape as rating-service.
+      context: ../../src/services
+      dockerfile: report-service/Dockerfile
     container_name: report-service
     depends_on:
       mongodb:

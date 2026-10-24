@@ -176,6 +176,13 @@ builder.Services.AddScoped<IProfilePhotoStorageService, ProfilePhotoStorageServi
 // same shape IOtpService already gave OtpController.
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
+// T102: Dependency Inversion (D in SOLID) — UserProfileController asks for
+// IAdminAccountService, never AppDbContext/IUserRepository directly, same
+// shape as IUserProfileService immediately above. Registered as its own
+// interface/class, not folded into IUserProfileService's registration, for
+// Single Responsibility — see IAdminAccountService's own class comment.
+builder.Services.AddScoped<IAdminAccountService, AdminAccountService>();
+
 // T019: Dependency Inversion (D in SOLID) - IdentityVerificationController
 // asks for IIdentityVerificationService, never AppDbContext/IUserRepository/
 // IFaceMatchService directly. Every identity-verification business rule

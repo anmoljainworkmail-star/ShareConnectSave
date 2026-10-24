@@ -26,6 +26,9 @@ public class UserRepository : IUserRepository
     public Task<User?> GetByVerifiedPhoneAsync(string phone) =>
         _context.Users.FirstOrDefaultAsync(u => u.Phone == phone && u.PhoneVerifiedAt != null);
 
+    public Task<List<User>> GetByAccountStatusAsync(string accountStatus) =>
+        _context.Users.Where(u => u.AccountStatus == accountStatus).ToListAsync();
+
     public async Task<User> AddAsync(User user)
     {
         _context.Users.Add(user);

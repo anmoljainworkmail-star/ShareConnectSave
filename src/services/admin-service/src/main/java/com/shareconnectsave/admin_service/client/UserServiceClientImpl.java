@@ -65,7 +65,7 @@ public class UserServiceClientImpl implements UserServiceClient {
     @CircuitBreaker(name = "userService")
     public List<SuspendedUserSummary> getSuspendedUsers() {
         SuspendedUserDto[] suspended = userServiceWebClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/users").queryParam("accountStatus", "suspended").build())
+                .uri(uriBuilder -> uriBuilder.path("/users/internal").queryParam("accountStatus", "suspended").build())
                 .retrieve()
                 .bodyToMono(SuspendedUserDto[].class)
                 // Virtual Threads (spring.threads.virtual.enabled: true) make
@@ -86,7 +86,7 @@ public class UserServiceClientImpl implements UserServiceClient {
     @CircuitBreaker(name = "userService", fallbackMethod = "getUserFallback")
     public UserProfileSummary getUser(String userId) {
         UserProfileDto profile = userServiceWebClient.get()
-                .uri("/users/{id}", userId)
+                .uri("/users/internal/{id}", userId)
                 .retrieve()
                 // A genuine 404 is a normal, non-exceptional outcome (the
                 // user id truly doesn't exist) — turned into an empty Mono so
@@ -109,7 +109,7 @@ public class UserServiceClientImpl implements UserServiceClient {
     @CircuitBreaker(name = "userService")
     public UserProfileSummary setStatus(String userId, String accountStatus) {
         UserProfileDto updated = userServiceWebClient.put()
-                .uri("/users/{id}/account-status", userId)
+                .uri("/users/internal/{id}/account-status", userId)
                 .bodyValue(new AccountStatusUpdateRequest(accountStatus))
                 .retrieve()
                 .bodyToMono(UserProfileDto.class)

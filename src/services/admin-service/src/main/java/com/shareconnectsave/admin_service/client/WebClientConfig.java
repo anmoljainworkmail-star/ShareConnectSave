@@ -27,9 +27,19 @@ public class WebClientConfig {
 
     @Bean
     public WebClient userServiceWebClient(WebClient.Builder builder, UserServiceProperties userServiceProperties) {
+        // T102: Trust Boundary / Defense in Depth — every call this client
+        // makes now targets a /users/internal/... endpoint (see
+        // UserServiceClientImpl), each of which checks this same shared-secret
+        // header before doing anything else (same guard as User Service's own
+        // GET /users/internal/{id}/fcm-token). Attached once here as a default
+        // header, not re-added at each .get()/.put() call site in
+        // UserServiceClientImpl, because EVERY request this WebClient instance
+        // sends needs it — there is no public-endpoint call left on this
+        // client to accidentally leak it to.
         return builder
                 .baseUrl(userServiceProperties.baseUrl())
                 .defaultHeader("Content-Type", "application/json")
+                .defaultHeader("X-Internal-Service-Key", userServiceProperties.internalServiceKey())
                 .build();
     }
 

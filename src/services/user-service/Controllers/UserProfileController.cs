@@ -28,7 +28,7 @@ using user_service.Services.Interfaces;
 // class owned HTTP orchestration AND business rules at once) in a way the
 // rest of this service didn't.
 [ApiController]
-public class UserProfileController(IUserProfileService userProfileService) : ControllerBase
+public class UserProfileController(IUserProfileService userProfileService, IAdminAccountService adminAccountService) : ControllerBase
 {
     [HttpGet("/users/me")]
     public async Task<IActionResult> GetMyProfile()
@@ -143,12 +143,9 @@ public class UserProfileController(IUserProfileService userProfileService) : Con
         // is checked here, not at the gateway, so notification-service must send
         // the correct header for every call, and any external caller that somehow
         // reached this endpoint without the header gets a 401 instead of the token.
-        var expectedKey = config["InternalServiceKey"];
-        if (string.IsNullOrEmpty(expectedKey) || !Request.Headers.TryGetValue("X-Internal-Service-Key", out var providedKey) || providedKey != expectedKey)
+        if (!TryAuthorizeInternalCall(config, out var unauthorized))
         {
-            return StatusCode(
-                StatusCodes.Status401Unauthorized,
-                new ErrorResponse("INVALID_INTERNAL_KEY", "Internal service authentication failed.", HttpContext.TraceIdentifier));
+            return unauthorized!;
         }
 
         var fcmToken = await userProfileService.GetFcmTokenAsync(id);
@@ -165,6 +162,90 @@ public class UserProfileController(IUserProfileService userProfileService) : Con
         }
 
         return Ok(new InternalFcmTokenResponse(fcmToken));
+    }
+
+    // T102: Trust Boundary / Internal-Only Endpoints — same Docker-network
+    // trust boundary as GetInternalFcmToken above, reachable only via
+    // direct inter-service calls (admin-service calling
+    // http://user-service:8080 directly), never through the YARP gateway and
+    // never carrying X-User-Id/X-User-Role (those headers answer "who is the
+    // signed-in person", meaningless for a service-to-service call with no
+    // signed-in person at all). These three actions close the contract gap
+    // flagged in admin-service's UserServiceClient — account standing
+    // (Active/Suspended) is admin-only data, so it is projected through
+    // InternalAccountStatusResponse, never through PublicUserProfileDto/
+    // UserProfileDto (see their own class comments on why those two types
+    // structurally cannot carry it).
+    [HttpGet("/users/internal")]
+    public async Task<IActionResult> GetInternalUsersByAccountStatus([FromQuery] string? accountStatus, IConfiguration config)
+    {
+        if (!TryAuthorizeInternalCall(config, out var unauthorized))
+        {
+            return unauthorized!;
+        }
+
+        var outcome = await adminAccountService.GetUsersByAccountStatusAsync(accountStatus);
+
+        return outcome.Result switch
+        {
+            AccountStatusListResult.Success => Ok(outcome.Users),
+            AccountStatusListResult.InvalidRequest => InvalidRequest(outcome.ErrorMessage!),
+            _ => throw new InvalidOperationException($"Unhandled {nameof(AccountStatusListResult)}: {outcome.Result}"),
+        };
+    }
+
+    [HttpGet("/users/internal/{id:long}")]
+    public async Task<IActionResult> GetInternalAccountStatus(long id, IConfiguration config)
+    {
+        if (!TryAuthorizeInternalCall(config, out var unauthorized))
+        {
+            return unauthorized!;
+        }
+
+        var profile = await adminAccountService.GetAccountStatusAsync(id);
+        return profile is null ? UserNotFound() : Ok(profile);
+    }
+
+    [HttpPut("/users/internal/{id:long}/account-status")]
+    public async Task<IActionResult> UpdateInternalAccountStatus(long id, UpdateAccountStatusRequest request, IConfiguration config)
+    {
+        if (!TryAuthorizeInternalCall(config, out var unauthorized))
+        {
+            return unauthorized!;
+        }
+
+        var outcome = await adminAccountService.UpdateAccountStatusAsync(id, request.AccountStatus);
+
+        return outcome.Result switch
+        {
+            AccountStatusUpdateResult.Success => Ok(outcome.Profile),
+            AccountStatusUpdateResult.InvalidRequest => InvalidRequest(outcome.ErrorMessage!),
+            AccountStatusUpdateResult.NotFound => UserNotFound(),
+            AccountStatusUpdateResult.Conflict => UpdateConflict(outcome.ErrorMessage!),
+            _ => throw new InvalidOperationException($"Unhandled {nameof(AccountStatusUpdateResult)}: {outcome.Result}"),
+        };
+    }
+
+    // DRY extraction (T102): GetInternalFcmToken originally inlined this same
+    // shared-secret check; now that a second and third internal endpoint need
+    // the identical guard, duplicating the five-line check a third and fourth
+    // time would be the exact "copy the business rule at every call site"
+    // problem this project's service-layer extractions (UserProfileService,
+    // IOtpService) already exist to avoid for business rules — this is that
+    // same discipline applied to an HTTP-layer cross-cutting concern instead.
+    private bool TryAuthorizeInternalCall(IConfiguration config, out IActionResult? unauthorized)
+    {
+        var expectedKey = config["InternalServiceKey"];
+        if (string.IsNullOrEmpty(expectedKey) || !Request.Headers.TryGetValue("X-Internal-Service-Key", out var providedKey) || providedKey != expectedKey)
+        {
+            unauthorized = StatusCode(
+                StatusCodes.Status401Unauthorized,
+                new ErrorResponse("INVALID_INTERNAL_KEY", "Internal service authentication failed.", HttpContext.TraceIdentifier));
+            return false;
+        }
+
+        unauthorized = null;
+        return true;
     }
 
     private IActionResult InvalidRequest(string message) =>

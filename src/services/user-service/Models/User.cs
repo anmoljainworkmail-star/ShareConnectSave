@@ -149,6 +149,26 @@ public class User
     // UserProfileController.UpdateMyFcmToken).
     public string? FcmToken { get; set; }
 
+    // T102: ADMIN-OWNED account standing (Active/Suspended) — deliberately a
+    // SEPARATE column from Status above (the user-owned availability toggle).
+    // Folding "suspended" into Status would let a user's own PATCH /users/me
+    // request (which writes "looking"/"unavailable" into Status) silently
+    // collide with — or even clear — an admin's suspension; that is exactly
+    // the kind of two-concerns-one-column bug the post-T018 Status/
+    // IsOnboardingComplete split already fixed once on this same entity. Only
+    // AdminAccountService (reached through this service's own
+    // PUT /users/internal/{id}/account-status, called by admin-service) ever
+    // writes this column — no self-service endpoint does.
+    public string AccountStatus { get; set; } = "Active";
+
+    // Null means "never suspended, or currently reinstated" — same
+    // nullable-means-hasn't-happened convention as PhoneVerifiedAt above.
+    // AdminAccountService clears this back to null the moment AccountStatus
+    // leaves "Suspended", so the column always answers "since when has this
+    // account been suspended RIGHT NOW", never a stale timestamp from some
+    // earlier suspension that a later reinstatement already undid.
+    public DateTime? SuspendedAt { get; set; }
+
     // Optimistic Concurrency Token: two concurrent writes to the same user row
     // (e.g. PATCH /users/me racing POST /users/me/photo, or a double-submitted
     // PATCH) can both read this row before either writes it back. Without a

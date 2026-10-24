@@ -191,10 +191,12 @@ two User Service endpoints and one Report Service endpoint were already being ca
 T057 code but never actually existed, and a third User Service call hit the wrong (privacy-
 minimized) response shape. T059 is explicitly blocked on T102.
 
-- [ ] T102 — Admin Internal Account-Status Endpoints _(user-service, new AccountStatus field +
+- [x] T102 — Admin Internal Account-Status Endpoints _(user-service, new AccountStatus field +
       3 internal-only endpoints, closes T057's getSuspendedUsers/getUser/setStatus gaps)_
 - [ ] T103 — Report History by Target Endpoint _(report-service, exposes existing
       findByReportedId() query via GET /reports?reportedId=, closes T057's getReportHistory gap)_
+- [x] T104 — Admin Bulk-Expire Connections Endpoint _(connection-service, new admin-only
+      PUT /admin/connections/users/{userId}/expire-active, closes T059's ConnectionServiceClient gap)_
 
 ---
 

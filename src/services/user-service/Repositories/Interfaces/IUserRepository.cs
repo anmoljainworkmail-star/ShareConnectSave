@@ -21,6 +21,16 @@ public interface IUserRepository
     // to check whether some OTHER user already holds it.
     Task<User?> GetByVerifiedPhoneAsync(string phone);
 
+    // T102: admin-only list query ("who is currently in this account
+    // state") — the data source behind admin-service's suspended-accounts
+    // queue. Kept on THIS interface rather than a separate IAdminRepository:
+    // Interface Segregation's boundary here is "what table a caller reads"
+    // (every method on IUserRepository touches the same users table), not
+    // "which service calls it" — same reasoning as GetByVerifiedPhoneAsync
+    // immediately above, which is also a single-purpose query added
+    // directly here rather than split out.
+    Task<List<User>> GetByAccountStatusAsync(string accountStatus);
+
     Task<User> AddAsync(User user);
 
     Task UpdateAsync(User user);

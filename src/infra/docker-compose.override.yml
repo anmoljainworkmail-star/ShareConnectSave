@@ -261,3 +261,11 @@ services:
       - USER_SERVICE_BASE_URL=${USER_SERVICE_BASE_URL:-http://user-service:8080}
       - RATING_SERVICE_BASE_URL=${RATING_SERVICE_BASE_URL:-http://rating-service:8080}
       - REPORT_SERVICE_BASE_URL=${REPORT_SERVICE_BASE_URL:-http://report-service:8080}
+      # T102: shared secret for User Service's /users/internal/... endpoints
+      # (GET /users/internal?accountStatus=suspended, GET /users/internal/{id},
+      # PUT /users/internal/{id}/account-status) — must match the
+      # InternalServiceKey configured on user-service below, same "one shared
+      # secret, every internal caller agrees on it" pattern notification-
+      # service's own InternalServiceKey already follows for the fcm-token
+      # endpoint.
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-dev-internal-key-123}

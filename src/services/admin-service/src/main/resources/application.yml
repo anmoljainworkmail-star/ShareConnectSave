@@ -108,6 +108,13 @@ resilience4j:
 # uses the container's own internal port, never the host-side mapping.
 user-service:
   base-url: ${USER_SERVICE_BASE_URL:http://user-service:8080}
+  # T102: shared secret for User Service's /users/internal/... endpoints —
+  # same default ("dev-internal-key-123") notification-service's own
+  # InternalServiceKey already uses for local dev, so every internal caller
+  # agrees on one value out of the box. In production this must be a strong,
+  # randomly-generated value set via INTERNAL_SERVICE_KEY, same as on
+  # User Service and notification-service.
+  internal-service-key: ${INTERNAL_SERVICE_KEY:dev-internal-key-123}
 rating-service:
   base-url: ${RATING_SERVICE_BASE_URL:http://rating-service:8080}
 report-service:

@@ -1,0 +1,30 @@
+{
+  "task_id": "T102",
+  "title": "Admin Internal Account-Status Endpoints",
+  "status": "completed",
+  "files_created": [
+    "src/services/user-service/Models/User.cs",
+    "src/services/user-service/Infrastructure/AppDbContext.cs",
+    "src/services/user-service/Dtos/InternalAccountStatusResponse.cs",
+    "src/services/user-service/Repositories/Interfaces/IUserRepository.cs",
+    "src/services/user-service/Repositories/UserRepository.cs",
+    "src/services/user-service/Services/Interfaces/IAdminAccountService.cs",
+    "src/services/user-service/Services/AdminAccountService.cs",
+    "src/services/user-service/Controllers/UserProfileController.cs",
+    "src/services/user-service/Program.cs",
+    "src/services/user-service/Migrations/20261024192545_AddAccountStatusToUsers.cs",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/UserServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/UserServiceClientImpl.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/config/UserServiceProperties.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/WebClientConfig.java",
+    "src/services/admin-service/src/main/resources/application.yml",
+    "src/infra/docker-compose.override.yml"
+  ],
+  "criteria_checked": {
+    "AC1_wire_shapes_match_exactly": "PASS",
+    "AC2_accountstatus_suspendedat_new_independent_columns": "PASS - Tech Lead ran `dotnet ef migrations add AddAccountStatusToUsers` + `dotnet ef database update` against the live sqlserver container (host port 14330); verified via INFORMATION_SCHEMA.COLUMNS that users.AccountStatus (nvarchar, default 'Active') and users.SuspendedAt (datetime2, nullable) now exist on the real UserServiceDb, independent of the existing Status column",
+    "AC3_admin_service_client_updated_to_internal_paths": "PASS",
+    "AC4_known_gap_comments_removed": "PASS"
+  },
+  "last_note": "All 4 acceptance criteria PASS. Migration applied and verified against the live DB. Also wired (beyond the ticket's explicit file list, but required for the integration to actually work end to end): admin-service's userServiceWebClient now attaches the same X-Internal-Service-Key shared-secret header the new endpoints enforce (UserServiceProperties.internalServiceKey, WebClientConfig default header, application.yml user-service.internal-service-key, docker-compose.override.yml INTERNAL_SERVICE_KEY env var on admin-service) - without this the three new endpoints would 401 every admin-service call, since that guard already existed on the fcm-token internal endpoint and the new ones match it."
+}

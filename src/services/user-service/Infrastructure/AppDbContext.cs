@@ -58,6 +58,17 @@ public class AppDbContext : DbContext
             // clause fast.
             entity.Property(u => u.FcmToken).HasMaxLength(4000);
 
+            // T102: admin-owned account standing, independent of Status (see
+            // User.AccountStatus's class comment). Required + defaults to
+            // "Active" at the DB level too, so a row inserted by anything
+            // other than EF Core can't accidentally default to "Suspended".
+            entity.Property(u => u.AccountStatus).HasMaxLength(20).IsRequired().HasDefaultValue("Active");
+
+            // T102: nullable — "never suspended" is the default, common state
+            // for every user, same reasoning as PhoneVerifiedAt's nullable
+            // datetime2 above.
+            entity.Property(u => u.SuspendedAt).HasColumnType("datetime2");
+
             // Optimistic Concurrency Token (see User.RowVersion's class
             // comment for the full "why"): IsRowVersion() tells EF Core this
             // column is a SQL Server `rowversion` — include it in every
@@ -103,6 +114,13 @@ public class AppDbContext : DbContext
             // efficient lookup, not a table scan, the moment they start
             // reading this column.
             entity.HasIndex(u => u.IdentityBadge);
+
+            // T102: GET /users/internal?accountStatus=suspended is the ENTIRE
+            // data source behind admin-service's suspended-accounts queue
+            // (UserServiceClient.getSuspendedUsers) — same "index the column
+            // an internal/admin query actually filters on" reasoning as the
+            // IsOnboardingComplete/IdentityBadge indexes above.
+            entity.HasIndex(u => u.AccountStatus);
         });
 
         modelBuilder.Entity<OtpAttempt>(entity =>

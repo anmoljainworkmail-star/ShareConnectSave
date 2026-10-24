@@ -15,23 +15,19 @@ import java.util.List;
 // method User Service happens to expose.
 public interface UserServiceClient {
 
-    // KNOWN GAP (flagged, same precedent as discovery-service's
-    // UserServiceClient.getBlockList comment on a documented-but-unbuilt User
-    // Service endpoint): contracts/openapi/user-service.yaml's Profile.status
-    // enum is [looking_for_companion, not_available] — a DISCOVERY-AVAILABILITY
-    // toggle, a completely different concept from the suspended/active
-    // ACCOUNT status SPECS.md's T057 spec means ("status = suspended in User
-    // Service"). User Service has no endpoint or field for that account
-    // status today (T059 "Suspend User" — the ticket that would first SET
-    // it — has not shipped yet either). This method is written against the
-    // endpoint User Service SHOULD expose for this ticket's own spec to be
-    // satisfiable at all: GET /users?accountStatus=suspended, returning a
-    // NEW field (accountStatus, deliberately NOT named "status" to avoid
-    // colliding with Profile.status's existing, unrelated meaning). Until
-    // that endpoint exists, this call 404s/connection-refuses on every
-    // invocation — see UserServiceClientImpl's class comment for why this
-    // method has NO @CircuitBreaker fallback and what that means for
-    // GET /admin/queue today.
+    // T102: backed by User Service's GET /users/internal?accountStatus=suspended
+    // — an internal-only endpoint (Docker-network reachable only, same trust
+    // boundary as its existing GET /users/internal/{id}/fcm-token), separate
+    // from the public /users/{id} discovery-privacy-minimized endpoint.
+    // accountStatus (Active/Suspended) is a NEW column on User Service's own
+    // table, deliberately independent of contracts/openapi/user-service.yaml's
+    // Profile.status enum ([looking_for_companion, not_available]) — that is
+    // a DISCOVERY-AVAILABILITY toggle, a completely different concept from
+    // this account-standing field, which is why the wire property is named
+    // account_status, never status. See UserServiceClientImpl's class comment
+    // for why this method still has NO @CircuitBreaker fallback even now that
+    // the gap is closed: GET /admin/queue has no other data source to
+    // approximate from if User Service cannot be reached.
     List<SuspendedUserSummary> getSuspendedUsers();
 
     // Returns null ONLY for a genuine 404 (user id does not exist) — same

@@ -113,7 +113,7 @@
 ## Phase 10 — Admin Service (Java)
 
 - [x] T056 — Spring Boot + Spring Security Setup _(OncePerRequestFilter reads X-User-Role)_
-- [ ] T057 — Review Queue Endpoints _(sorted by report count desc)_
+- [x] T057 — Review Queue Endpoints _(sorted by report count desc)_
 - [ ] T058 — Trust Score Override _(admin writes directly to ratings_db)_
 - [ ] T059 — Account Suspend _(status flag in users_db, re-publishes trust.score.updated)_
 - [ ] T060 — Dashboard Queries _(Caffeine-cached stats, 60s TTL)_
@@ -167,6 +167,20 @@ _Note: T073–T080 reserved — not currently assigned._
 - [ ] T094 — Apply Outbox to All .NET Services _(replace direct IProducer calls)_
 - [ ] T095 — Consumer Idempotency _(ProcessedEvent table, 7-day pruning, all Java consumers)_
 - [ ] T096 — ConnectionLifecycleSaga State Tracking _(saga_state table, 5-min timeout, compensating revert, connection.chat-failed topic)_
+
+---
+
+## Phase 15 — Transport Layer: Connector Tuning (Bonus, not part of the original 96-task list)
+
+Everything ngrok doesn't teach — the connector layer (Tomcat/Kestrel) sitting between the public
+tunnel and this project's own application code. Scoped to discovery-service and api-gateway only,
+not all nine services.
+
+- [ ] T097 — Tomcat Connector Tuning _(discovery-service, explicit threads.max/accept-count, Actuator metrics)_
+- [ ] T098 — Kestrel Limits Tuning _(api-gateway, MaxConcurrentConnections vs. MaxConcurrentUpgradedConnections for SignalR)_
+- [ ] T099 — Load Test: Connector Saturation _(k6, extends T086 — deliberately break then fix the pool under load)_
+- [ ] T100 — Graceful Shutdown & Connection Draining _(SIGTERM mid-request, before/after evidence, discovery-service + api-gateway)_
+- [ ] T101 — Where ngrok Actually Sits _(request-path write-up, no code)_
 
 ---
 

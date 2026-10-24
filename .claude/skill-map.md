@@ -150,3 +150,12 @@ T094: dotnet-mvc-controllers kafka-outbox
 T095: java-spring-boot kafka-outbox
 T096: java-spring-boot dotnet-mvc-controllers kafka-outbox saga
 ```
+
+## Phase 15 — Transport Layer: Connector Tuning (Bonus, beyond the original 96)
+```
+T097: java-spring-boot
+T098: dotnet-mvc-controllers
+T099:
+T100: java-spring-boot dotnet-mvc-controllers
+T101:
+```

@@ -29,6 +29,7 @@ Phase 11: Angular Frontend              (T062–T072)
 Phase 12: Testing                       (T081–T086)
 Phase 13: Observability                 (T087–T090)
 Phase 14: Saga + Outbox                 (T091–T096)
+Phase 15: Transport Layer — Connector Tuning (Bonus) (T097–T101)
 ```
 
 ---
@@ -1931,6 +1932,11 @@ Verify every service's Docker healthcheck passes in `docker compose ps`. Add a `
 | T094 | Outbox: apply to all .NET services | 14 | .NET | T092 |
 | T095 | Idempotency: consumer dedup (Java) | 14 | Java | T093 |
 | T096 | Saga state: ConnectionLifecycleSaga | 14 | Java+.NET | T094,T095 |
+| T097 | Tomcat Connector Tuning | 15 | Java | T028 |
+| T098 | Kestrel Limits Tuning | 15 | .NET | T014 |
+| T099 | Load Test: Connector Saturation | 15 | k6 | T097,T086 |
+| T100 | Graceful Shutdown & Connection Draining | 15 | Java+.NET | T097,T098 |
+| T101 | Where ngrok Actually Sits (write-up) | 15 | Markdown | T097,T098 |
 
 ---
 
@@ -2094,3 +2100,119 @@ Implement saga state tracking for the `ConnectionLifecycleSaga` across both serv
 - [ ] `connection.chat-opened` received → Connection Service saga moves to `CHAT_OPEN`, and the timeout job leaves it alone even after 5+ minutes of continued chatting
 - [ ] Compensating path: kill Chat Service after accept (so `connection.chat-opened` is never published) → Connection Service detects timeout → reverts to PENDING within 5 min → saga shows `compensating`
 - [ ] `connection.chat-failed` and `connection.chat-opened` topics added to Kafka init script (T009)
+
+---
+
+## Phase 15 — Transport Layer: Connector Tuning (Bonus, beyond the original 96 tasks)
+
+Everything ngrok doesn't teach you. ngrok tunnels traffic to a local port — it says nothing about
+what happens once a request arrives at that port: how many connections the server can hold open,
+what happens when its worker thread pool is full, whether an in-flight request survives a restart.
+This phase makes that layer (Tomcat for Java services, Kestrel for .NET services) visible and
+deliberately tuned on two representative services — discovery-service and api-gateway — rather
+than across all nine, then proves the tuning matters by breaking it under real load on purpose.
+
+### T097 — Tomcat Connector Tuning
+
+**Service:** discovery-service (Java)
+**Language:** Java
+**Depends on:** T028
+
+**Spec:**
+Add explicit `server.tomcat.threads.max`, `threads.min-spare`, `accept-count`,
+`connection-timeout`, `max-connections` to discovery-service's `application.yml` under the `dev`
+profile, replacing Spring Boot's untouched defaults with small, deliberately visible values
+(`threads.max: 10`, `accept-count: 5`) so saturation is reachable and observable in local testing.
+Confirm Actuator exposes `tomcat.threads.busy` / `tomcat.threads.config.max` /
+`tomcat.threads.current`. Document, in plain English, the acceptor-thread → worker-thread-pool →
+OS-level accept-count backlog chain, and what happens to a request once both are exhausted (the OS
+refuses the connection outright).
+
+**Acceptance criteria:**
+- [ ] `application.yml` dev profile has explicit, commented Tomcat connector settings
+- [ ] `/actuator/metrics/tomcat.threads.busy` and `/actuator/metrics/tomcat.threads.config.max`
+      return real numbers matching configuration
+- [ ] Plain-English explanation of the connector chain exists in the skill file or a new docs file
+
+---
+
+### T098 — Kestrel Limits Tuning
+
+**Service:** api-gateway (.NET)
+**Language:** C#
+**Depends on:** T014
+
+**Spec:**
+Configure `KestrelServerOptions` in `Program.cs` via `ConfigureKestrel(...)`: `MaxConcurrentConnections`,
+`MaxConcurrentUpgradedConnections` (the WebSocket-upgrade-specific limit, counted separately from
+plain HTTP — relevant here because the gateway proxies Chat/Notification Service's SignalR hubs),
+`KeepAliveTimeout`, `RequestHeadersTimeout` — all from environment variables, no hardcoded values.
+Document why upgraded connections need their own separate limit from plain HTTP ones.
+
+**Acceptance criteria:**
+- [ ] All four Kestrel limits configured from env vars
+- [ ] A plain HTTP connection and a SignalR upgrade are demonstrably counted against two separate
+      limits (manually verified)
+- [ ] Plain-English explanation of the upgraded-vs-plain distinction exists in a code comment or
+      skill file
+
+---
+
+### T099 — Load Test: Connector Saturation
+
+**Service:** discovery-service (k6 against it)
+**Language:** k6
+**Depends on:** T097, T086
+
+**Spec:**
+Extend T086's existing k6 script. Run it twice against discovery-service: once with T097's
+deliberately undersized pool (`threads.max: 10`) at a concurrency well past that limit, capturing
+k6's latency/error output plus sampled `tomcat.threads.busy` showing saturation; once with the
+pool sized to comfortably cover the same concurrency, showing no saturation. Record both runs'
+output side by side as the evidence.
+
+**Acceptance criteria:**
+- [ ] Undersized run shows measurably worse latency/errors with threads pinned at max
+- [ ] Correctly-sized run shows no connector-induced errors at the same concurrency
+- [ ] Both runs' output captured verbatim in the ticket's QA file
+
+---
+
+### T100 — Graceful Shutdown & Connection Draining
+
+**Service:** discovery-service (Java), api-gateway (.NET)
+**Language:** Java + .NET
+**Depends on:** T097, T098
+
+**Spec:**
+Enable Spring Boot's graceful shutdown (`server.shutdown: graceful`,
+`spring.lifecycle.timeout-per-shutdown-phase`) on discovery-service. On api-gateway, make the host
+shutdown grace period explicit (`ConfigureHostOptions(opts => opts.ShutdownTimeout = ...)`) and log
+`IHostApplicationLifetime.ApplicationStopping`. Demonstrate with a deliberately slow endpoint: a
+request in flight when `docker compose stop` is issued completes cleanly with graceful shutdown
+enabled, and is cut off without it — captured as explicit before/after evidence.
+
+**Acceptance criteria:**
+- [ ] Without graceful shutdown: slow in-flight request is cut off by a mid-request stop
+- [ ] With graceful shutdown: the identical request completes despite a mid-request stop
+- [ ] Both services log a clear message when shutdown begins
+
+---
+
+### T101 — Where ngrok Actually Sits (write-up)
+
+**Service:** docs (no running service)
+**Language:** Markdown
+**Depends on:** T097, T098
+
+**Spec:**
+Write `docs/request-path.md`: a labeled diagram tracing one request end to end — client → ngrok
+edge (TLS terminates here) → plain HTTP tunnel → api-gateway's Kestrel connector (T098) → YARP →
+downstream service's own connector (T097) → controller code. Explain where TLS terminates, what
+ngrok's free tier gives you zero control over (backlog, connection limits) versus what T097/T098
+do give you control over, and what a real load balancer would add in ngrok's place.
+
+**Acceptance criteria:**
+- [ ] Diagram shows every hop with the tool/layer responsible, naming T097/T098 where they apply
+- [ ] States where TLS terminates and why it matters
+- [ ] Clearly contrasts what ngrok does NOT control against what T097/T098 do control

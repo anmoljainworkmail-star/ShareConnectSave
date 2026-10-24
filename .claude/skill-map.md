@@ -159,3 +159,9 @@ T099:
 T100: java-spring-boot dotnet-mvc-controllers
 T101:
 ```
+
+## Phase 16 — Cross-Service Gaps for Admin Service (Bonus, beyond the original 96)
+```
+T102: dotnet-mvc-controllers
+T103: java-spring-boot
+```

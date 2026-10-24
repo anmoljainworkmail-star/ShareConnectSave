@@ -184,6 +184,20 @@ not all nine services.
 
 ---
 
+## Phase 16 — Cross-Service Gaps for Admin Service (Bonus, not part of the original 96-task list)
+
+Discovered via a manual audit of admin-service's three downstream WebClient calls (T057):
+two User Service endpoints and one Report Service endpoint were already being called by shipped
+T057 code but never actually existed, and a third User Service call hit the wrong (privacy-
+minimized) response shape. T059 is explicitly blocked on T102.
+
+- [ ] T102 — Admin Internal Account-Status Endpoints _(user-service, new AccountStatus field +
+      3 internal-only endpoints, closes T057's getSuspendedUsers/getUser/setStatus gaps)_
+- [ ] T103 — Report History by Target Endpoint _(report-service, exposes existing
+      findByReportedId() query via GET /reports?reportedId=, closes T057's getReportHistory gap)_
+
+---
+
 ## Post-ship fixes — not part of the original 96-task list
 
 - **[Fixed 2026-09-04] Stale JWT `status` claim on automatic onboarding transition.**

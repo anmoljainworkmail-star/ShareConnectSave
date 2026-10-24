@@ -1376,7 +1376,10 @@ Calls Rating Service `PATCH /trust/:userId` with override. Logs the override act
 
 **Service:** `admin-service`  
 **Language:** Java  
-**Depends on:** T057  
+**Depends on:** T057, T102  
+
+T102 added post-T057: this ticket calls `UserServiceClient.setStatus`, which has no real
+endpoint to call until T102 ships — see Phase 16.  
 
 **Spec:**
 `POST /admin/users/:id/suspend`  
@@ -1630,7 +1633,15 @@ On `ChatClosed` event → navigate to rating screen.
 
 **Service:** `frontend`  
 **Language:** TypeScript  
-**Depends on:** T057, T058, T059, T060  
+**Depends on:** T057, T058, T059, T060, T102, T103  
+
+T102 and T103 are listed explicitly, not just inherited through T057/T059: T057 already shows
+`[x]` done in PROGRESS.md even though its User Service and Report Service calls are currently
+broken (see Phase 16), so dependency-checking `T057` alone would NOT catch the gap — this UI's
+"User detail" and "Queue list" pages are the first place that breakage becomes visible on screen
+(nulled-out profile fields, an empty suspended-accounts queue, a report-history section that
+never loads) instead of just an exception in a server log. Do not start this ticket until T102
+AND T103 both show `[x]` in PROGRESS.md, even if T057/T059/T060 are already done.
 
 **Spec:**
 `AdminModule` — lazy loaded, guarded by `AdminGuard` (checks `X-User-Role` claim in JWT).
@@ -2216,3 +2227,59 @@ do give you control over, and what a real load balancer would add in ngrok's pla
 - [ ] Diagram shows every hop with the tool/layer responsible, naming T097/T098 where they apply
 - [ ] States where TLS terminates and why it matters
 - [ ] Clearly contrasts what ngrok does NOT control against what T097/T098 do control
+
+---
+
+## Phase 16 — Cross-Service Gaps for Admin Service (Bonus, discovered via T057 downstream-endpoint audit)
+
+T057 (Admin Service's review queue) shipped already calling three endpoints on User Service and
+one on Report Service that don't exist in either service's real codebase — the downstream
+contracts were assumed when T057 was ticketed, never actually specified or built. Two of the
+three User Service gaps and the one Report Service gap are self-documented as `KNOWN GAP` in
+admin-service's own client interfaces (`UserServiceClient.java`, `ReportServiceClient.java`); a
+third (the admin user-detail view hitting the wrong, privacy-minimized public DTO) was found only
+by manually diffing the client's expected JSON shape against the real controller's response. This
+phase builds the missing companion endpoints so T057 actually works end to end and T059 (which
+is explicitly blocked on the same User Service gap) can proceed.
+
+### T102 — Admin Internal Account-Status Endpoints
+
+**Service:** user-service (.NET)
+**Language:** C#
+**Depends on:** T057, T018
+
+**Spec:**
+Add an `AccountStatus` field to `User` (separate from the existing availability `Status` column)
+plus three internal-only endpoints (Docker-network reachable only, same trust boundary as the
+existing `GET /users/internal/{id}/fcm-token`): `GET /users/internal?accountStatus=suspended`,
+`GET /users/internal/{id}`, and `PUT /users/internal/{id}/account-status`. Response shapes must
+match admin-service's already-shipped `UserServiceClientImpl` wire DTOs exactly
+(`user_id`/`display_name`/`account_status`/`suspended_at`). Companion fix: update
+admin-service's `UserServiceClientImpl` to call the new `/users/internal/...` paths instead of
+the public `/users`/`/users/{id}` paths it currently (incorrectly) targets.
+
+**Acceptance criteria:**
+- [ ] All three internal endpoints return the exact wire shapes `UserServiceClientImpl` expects
+- [ ] `AccountStatus`/`SuspendedAt` are new columns, independent of the existing `Status` column
+- [ ] admin-service's `UserServiceClientImpl` updated to call the new internal paths
+- [ ] `UserServiceClient.java`'s `KNOWN GAP` comments removed now that the gap is closed
+
+---
+
+### T103 — Report History by Target Endpoint
+
+**Service:** report-service (Java)
+**Language:** Java
+**Depends on:** T057, T053
+
+**Spec:**
+Add `GET /reports?reportedId={userId}` to `ReportController`, exposing the already-existing
+`ReportRepository.findByReportedId()` query (used internally since T053's escalation check) as a
+new endpoint. Returns `List<ReportResponse>` — the same response type `/reports` and
+`/reports/queue` already use; no new DTO needed, and no shape mismatch exists against
+admin-service's already-shipped `ReportServiceClientImpl.ReportDto`, only a missing route.
+
+**Acceptance criteria:**
+- [ ] Returns every report filed against the target user, any status, not just escalated
+- [ ] Empty array (not 404) when the target has zero reports
+- [ ] `ReportServiceClient.java`'s `KNOWN GAP` comment removed now that the gap is closed

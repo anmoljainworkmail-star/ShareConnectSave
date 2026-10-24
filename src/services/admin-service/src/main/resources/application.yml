@@ -1,0 +1,86 @@
+# application.yml — base (shared) config + dev/prod profile documents below,
+# separated by `---`. Same overall shape as report-service's and
+# rating-service's application.yml — see those files for the full
+# No-Hardcoded-Config rationale (Architecture Rule #3): every value below
+# that can vary by environment comes from an env var placeholder, never a
+# literal.
+#
+# admin-service is the first Java service in this platform with NO
+# datasource block at all (T056 ships HTTP-only — see pom.xml's comment on
+# the JPA-vs-HTTP spec conflict). There is therefore no spring.datasource /
+# spring.data.mongodb section here, and no Flyway block — nothing for either
+# to point at yet. WebClient beans (and whatever config they need) land in
+# T057 when admin-service actually starts calling User/Rating/Report Service
+# over HTTP.
+#
+# docker profile intentionally omitted, same precedent as report-service's
+# and rating-service's application.yml: only `dev` and `prod` profile
+# documents exist below, even though docker-compose.yml will set
+# SPRING_PROFILES_ACTIVE=docker on this service once it's wired into the
+# compose stack. There is no environment-specific property left to override
+# per-profile yet (no datasource, no broker) — the `dev`/`prod` split here
+# only changes the logging level, which is enough to establish the
+# convention now rather than retrofit it once admin-service does gain
+# environment-specific config.
+spring:
+  application:
+    name: admin-service
+
+  # Virtual Threads (Java 21 / Project Loom) — applies to BOTH profiles, so it
+  # sits in this shared section rather than inside dev: or prod:. Every Java
+  # service in this platform enables this at Spring Boot Setup time
+  # (T021/T029/T041/T051/T056), not retroactively. It matters even more here
+  # than for a DB-backed service: T057's WebClient calls to User/Rating/Report
+  # Service are exactly the kind of blocking-while-waiting-on-I/O work virtual
+  # threads are for — a platform thread sits idle holding a request's slot for
+  # the entire outbound call; a virtual thread unmounts from its carrier OS
+  # thread while blocked, so a burst of slow admin lookups can't exhaust a
+  # fixed-size thread pool.
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health (+ info) reachable over HTTP — never "*". An
+        # unauthenticated /actuator/env or /actuator/beans endpoint leaks
+        # internal wiring to anyone who can reach this service. This is also
+        # the one path SecurityConfig's permitAll() rule carves out of
+        # .anyRequest().hasRole("ADMIN") — a health check that itself
+        # required the X-User-Role header would break container
+        # orchestration's own liveness probe, which has no header to send.
+        include: health,info
+
+---
+# dev profile — no datasource/broker config exists yet for this service, so
+# the only thing this profile currently changes is logging verbosity. Kept
+# as its own `on-profile: dev` document anyway (rather than folding
+# everything into the shared section above) so the convention already
+# matches every other service's application.yml before admin-service's first
+# environment-specific property (a WebClient base URL, in T057) actually
+# needs one.
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.shareconnectsave.admin_service: DEBUG
+
+---
+# prod profile — same "nothing environment-specific yet besides logging"
+# state as dev above. Kept separate (not merged into dev) so a future env var
+# (e.g. a WebClient base URL that must NOT default to localhost in prod) has
+# an obvious home the moment it's needed, instead of a later ticket having to
+# first introduce the dev/prod split this file already establishes now.
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.shareconnectsave.admin_service: INFO

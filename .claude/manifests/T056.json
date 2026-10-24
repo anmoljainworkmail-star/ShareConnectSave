@@ -1,0 +1,25 @@
+{
+  "task_id": "T056",
+  "title": "Spring Boot + Spring Security Setup",
+  "status": "completed",
+  "files_created": [
+    "src/services/admin-service/pom.xml",
+    "src/services/admin-service/src/main/resources/application.yml",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/security/AdminRoleAuthenticationFilter.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/security/SecurityConfig.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/security/AdminAuthenticationEntryPoint.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/security/AdminAccessDeniedHandler.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/exception/ExceptionHandlingConfig.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/ping/AdminPingController.java"
+  ],
+  "files_deleted": [
+    "src/services/admin-service/src/main/resources/application.properties"
+  ],
+  "criteria_checked": {
+    "AC1_missing_role_header_returns_403": "PASS",
+    "AC2_actuator_health_is_public": "PASS",
+    "AC3_403_body_matches_standard_error_envelope": "PASS",
+    "AC4_admin_role_header_reaches_protected_endpoint": "PASS"
+  },
+  "last_note": "Edited the already-generated pom.xml (removed data-jpa/validation/spring-kafka per Tech Lead's HTTP-only resolution, added spring-boot-starter-security + shared-java-lib), converted application.properties to application.yml (dev/prod profiles, virtual threads), authored AdminRoleAuthenticationFilter/SecurityConfig/AdminAuthenticationEntryPoint/AdminAccessDeniedHandler, wired ExceptionHandlingConfig (@Import GlobalExceptionHandler) for MVC-level errors, and added a trivial GET /admin/ping controller to prove the chain end-to-end. Verified with mvnw compile (clean) and a live spring-boot:run smoke test: no header -> 403 with {code,message,traceId} envelope, X-User-Role: admin -> 200 pong, wrong role -> 403, /actuator/health -> 200 with no header. All 4 acceptance criteria PASS."
+}

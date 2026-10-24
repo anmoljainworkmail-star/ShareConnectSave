@@ -36,19 +36,49 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+
+		<!-- T056 spec conflict, RESOLVED by Tech Lead in favor of HTTP-only:
+		     SPECS.md's own task text says "JPA (read-only access to users_db,
+		     ratings_db)," but CLAUDE.md's Database per Service principle and
+		     T057's own spec ("pulled via HTTP to User Service") both assume
+		     admin-service never touches another service's database directly.
+		     spring-boot-starter-data-jpa and a SQL Server JDBC driver are
+		     therefore deliberately ABSENT here — this service ships
+		     HTTP-client-ready (WebClient beans land in T057 when they're
+		     actually needed), not JPA-ready. spring-boot-starter-validation is
+		     also omitted: the only endpoint this ticket adds (GET /admin/ping)
+		     takes no request body, so there is no DTO yet for @Valid to guard.
+		     spring-kafka/spring-kafka-test (Initializr defaults) are removed
+		     for the same reason — this ticket has no producer or consumer. -->
+
+		<!-- Spring Security: this ticket's whole reason for existing. Unlike
+		     every other Java service's inline @RequestHeader guard-clause
+		     check, admin-service centralizes "is this caller an admin" into
+		     one filter chain (AdminRoleAuthenticationFilter + SecurityConfig)
+		     because the actions this service permits — suspend an account,
+		     override a trust score — justify the extra machinery a
+		     copy-pasted per-controller check would not. -->
 		<dependency>
-			<groupId>org.springframework.kafka</groupId>
-			<artifactId>spring-kafka</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- shared-java-lib: the shared ErrorResponse + GlobalExceptionHandler
+		     error-envelope contract every other Java service with a
+		     controller already depends on (see report-service's pom.xml for
+		     the full rationale). admin-service is the first service that also
+		     needs this exact {code, message, traceId} shape produced from
+		     OUTSIDE Spring MVC's dispatcher — AdminAuthenticationEntryPoint and
+		     AdminAccessDeniedHandler reuse the shared ErrorResponse record
+		     directly so a Spring-Security-rejected request and an MVC-handled
+		     one are byte-for-byte identical on the wire, not two envelopes
+		     that happen to look similar today and drift apart later. -->
+		<dependency>
+			<groupId>com.shareconnectsave</groupId>
+			<artifactId>shared-java-lib</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
@@ -59,11 +89,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.kafka</groupId>
-			<artifactId>spring-kafka-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

@@ -112,7 +112,7 @@
 
 ## Phase 10 — Admin Service (Java)
 
-- [ ] T056 — Spring Boot + Spring Security Setup _(OncePerRequestFilter reads X-User-Role)_
+- [x] T056 — Spring Boot + Spring Security Setup _(OncePerRequestFilter reads X-User-Role)_
 - [ ] T057 — Review Queue Endpoints _(sorted by report count desc)_
 - [ ] T058 — Trust Score Override _(admin writes directly to ratings_db)_
 - [ ] T059 — Account Suspend _(status flag in users_db, re-publishes trust.score.updated)_

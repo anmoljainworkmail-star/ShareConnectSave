@@ -982,3 +982,30 @@ whose implementation or ticket should pick it up.
    Affects: no specific future task yet in PROGRESS.md/SPECS.md — flag for whichever ticket
    first does a resilience/startup-hardening pass across the .NET services' Redis
    connections (would apply to chat-service too, not just notification-service).
+
+## From T056 (Spring Boot + Spring Security Setup)
+
+1. **The case-sensitive `X-User-Role: admin` match has no enforced casing contract
+   anywhere upstream.** Traced end-to-end: `AdminRoleAuthenticationFilter` only grants
+   `ROLE_ADMIN` on an exact `"admin".equals(header)` match, and nothing issues or
+   forwards an admin-role claim yet — `user-service`'s `JwtIssuer` currently hardcodes
+   `new Claim("role", "user")` for every token, and the gateway's
+   `JwtValidationMiddleware` forwards the `role` claim's string verbatim into
+   `X-User-Role` with no `.ToLowerInvariant()` normalization. Dormant today (nobody can
+   become an admin yet), but the moment a future ticket adds admin-role issuance, if that
+   code ever mints `"Admin"` instead of `"admin"` (a common mismatch against a C# enum or
+   Identity role name), real admins get silently 403'd with no exception or stack trace
+   to chase.
+   Affects: whichever future ticket first adds admin-role assignment/issuance (no
+   specific task ID yet in PROGRESS.md/SPECS.md) — normalize casing once, at the point
+   the claim is minted.
+
+2. **admin-service's whole security model trusts `X-User-Role` verbatim with no second
+   factor, which is correct by design but has no enforcement yet that its port stays
+   gateway-only reachable.** Confirmed admin-service isn't wired into `docker-compose.yml`
+   yet, so there's no live exposure today — but whichever ticket first adds it must not
+   publish its port to the host, since anyone who can reach the service directly (a
+   Compose misconfiguration, a missing network policy, a stray `curl` from inside the
+   network) can self-grant `ROLE_ADMIN` with a single header, no JWT or password involved.
+   Affects: T061 (Admin Service Docker Image — the ticket that will actually add
+   admin-service to `docker-compose.yml`/production networking).

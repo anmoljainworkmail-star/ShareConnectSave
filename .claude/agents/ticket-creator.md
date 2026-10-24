@@ -28,7 +28,7 @@ Task ID: {TASK_ID}
 {verbatim text of matching entries, or "none"}
 
 === OUTPUT ===
-Create the file: .claude/tickets/{TASK_ID}.md
+Create the file: {TICKET_OUTPUT_PATH}
 
 Use exactly this structure:
 

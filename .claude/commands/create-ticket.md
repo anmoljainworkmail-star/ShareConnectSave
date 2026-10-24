@@ -2,11 +2,16 @@ Create a work ticket for task $ARGUMENTS.
 
 ## Step 1 — Check if ticket already exists
 
-Look for `.claude/tickets/$ARGUMENTS.md`. If it exists:
-- If status is `draft` → say "Ticket exists but not yet approved. Open `.claude/tickets/$ARGUMENTS.md` to review it."
+Look for `.claude/tickets/$ARGUMENTS.md`, and if it's not there, `.claude/tickets/bonus/$ARGUMENTS.md`
+(bonus-phase tickets, e.g. T097+, live there). Call whichever path is found TICKET_PATH. If either exists:
+- If status is `draft` → say "Ticket exists but not yet approved. Open `TICKET_PATH` to review it."
 - If status is `approved` → say "Ticket already approved. Run `/start-task $ARGUMENTS` to implement it."
 - If status is `done` → say "Ticket is already done. Run `/review-task $ARGUMENTS` if you want to re-review."
 - Stop in all cases.
+
+If a new ticket needs creating (neither path exists): write new tickets to
+`.claude/tickets/bonus/$ARGUMENTS.md` when $ARGUMENTS belongs to a phase under `.claude/phases/bonus/`,
+otherwise to the normal `.claude/tickets/$ARGUMENTS.md`.
 
 ## Step 2 — Gather source material (in this session)
 
@@ -36,11 +41,13 @@ Read `.claude/agents/ticket-creator.md` for the full agent prompt. Call Agent wi
 - `{phase-N.md goal statement}` → phase goal from Step 2c
 - `{comma-separated skill names, or "none"}` → skill names from Step 2d
 - `{verbatim text of matching entries, or "none"}` → follow-ups from Step 2e
+- `{TICKET_OUTPUT_PATH}` → `.claude/tickets/bonus/$ARGUMENTS.md` if the phase file found in Step 2c
+  lives under `.claude/phases/bonus/`, otherwise `.claude/tickets/$ARGUMENTS.md`
 
 ## Step 4 — After ticket is created
 
 Report to the user:
-"Ticket created: .claude/tickets/$ARGUMENTS.md
+"Ticket created: {the path it was actually written to in Step 3 — .claude/tickets/$ARGUMENTS.md or .claude/tickets/bonus/$ARGUMENTS.md}
 
 Review the ticket in your IDE. When satisfied:
 1. Change `status: draft` → `status: approved` in the file

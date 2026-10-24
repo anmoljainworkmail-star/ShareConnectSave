@@ -2,9 +2,11 @@ Review the implementation of task $ARGUMENTS and auto-fix any blocking issues.
 
 ## Step 1 — Load the ticket
 
-Open `.claude/tickets/$ARGUMENTS.md`.
+Look for the ticket at `.claude/tickets/$ARGUMENTS.md`, and if it's not there,
+`.claude/tickets/bonus/$ARGUMENTS.md` (bonus-phase tickets, e.g. T097+, live there).
+Call whichever path is found TICKET_PATH.
 
-- If not found → say "No ticket found for $ARGUMENTS." Stop.
+- If neither path exists → say "No ticket found for $ARGUMENTS." Stop.
 - If `status: draft` or `status: approved` → say "Task hasn't been implemented yet. Run `/start-task $ARGUMENTS` first." Stop.
 - Read the full ticket content — this is the contract both the reviewer and fixer use.
 
@@ -16,7 +18,7 @@ From the ticket's `skills:` field, read the full content of each `.claude/skills
 
 Read `.claude/agents/reviewer.md` for the full agent prompt. Call Agent with that content, substituting:
 - `{TASK_ID}` → the task ID from $ARGUMENTS
-- Ticket content → replace `{full content of .claude/tickets/{TASK_ID}.md — paste verbatim}` with the full ticket content read in Step 1
+- Ticket content → replace `{full content of .claude/tickets/{TASK_ID}.md — paste verbatim}` with the full ticket content read from TICKET_PATH in Step 1
 - Skill content → for each skill in the ticket's `skills:` field, replace the skill placeholder block with the full content of `.claude/skills/<skill>.md`
 
 ## Step 4 — Handle verdict
@@ -46,7 +48,7 @@ Extract the numbered issue list. Spawn fix agent (cycle 1):
 Read `.claude/agents/fixer.md` for the full agent prompt. Call Agent with that content, substituting:
 - `{TASK_ID}` → the task ID from $ARGUMENTS
 - `{ticket title}` → title from the ticket's frontmatter
-- Ticket content → full content of `.claude/tickets/{TASK_ID}.md`
+- Ticket content → full content of TICKET_PATH (from Step 1)
 - Skill content → same skill files used in Step 2
 - `{numbered issue list from the reviewer — verbatim}` → the numbered issue list from the reviewer's NEEDS_REWORK output, verbatim
 

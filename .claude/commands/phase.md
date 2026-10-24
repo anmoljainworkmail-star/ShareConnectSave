@@ -5,15 +5,20 @@ After reviewing, you run `/start-task T001` for each task individually.
 
 ## Step 1 — Read the phase manifest
 
-Open `.claude/phases/phase-$ARGUMENTS.md`. Get the ordered task list and goal.
+Open `.claude/phases/phase-$ARGUMENTS.md`. If it's not there, try
+`.claude/phases/bonus/phase-$ARGUMENTS.md` instead (bonus phases beyond the original 96 tasks,
+e.g. Phase 15, live there). Whichever path is found, call it PHASE_PATH, and note whether it was
+under `bonus/` — call that IS_BONUS. Get the ordered task list and goal from PHASE_PATH.
 
-If the file doesn't exist → say "Phase $ARGUMENTS not found. Valid phases: 0–14." Stop.
+If neither path exists → say "Phase $ARGUMENTS not found. Valid phases: 0–14, or a bonus phase under `.claude/phases/bonus/`." Stop.
+
+Set TICKET_DIR to `.claude/tickets/bonus/` if IS_BONUS, otherwise `.claude/tickets/`.
 
 ## Step 2 — Skip tasks that already have tickets
 
-For each task in the phase, check if `.claude/tickets/{TASK_ID}.md` already exists.
+For each task in the phase, check if `TICKET_DIR{TASK_ID}.md` already exists.
 - If it does: skip that task (don't re-create)
-- If all tasks already have tickets: say "All tickets for Phase $ARGUMENTS already exist in `.claude/tickets/`." Stop.
+- If all tasks already have tickets: say "All tickets for Phase $ARGUMENTS already exist in `TICKET_DIR`." Stop.
 
 ## Step 3 — Create tickets for missing tasks
 
@@ -53,7 +58,7 @@ Task ID: {TASK_ID}
 {verbatim text of matching entries, or "none"}
 
 === OUTPUT ===
-Create the file: .claude/tickets/{TASK_ID}.md
+Create the file: TICKET_DIR{TASK_ID}.md
 
 Use this exact structure:
 
@@ -109,8 +114,8 @@ Report the full list:
 ```
 Phase $ARGUMENTS tickets ready for review:
 
-  T001  [title]  .claude/tickets/T001.md
-  T002  [title]  .claude/tickets/T002.md
+  T001  [title]  TICKET_DIRT001.md
+  T002  [title]  TICKET_DIRT002.md
   ...
 
 Your next steps:

@@ -4,9 +4,10 @@ Commit and push changes for task $ARGUMENTS, or push without committing if no ta
 
 ### Step 1 — Read the ticket
 
-Open `.claude/tickets/$ARGUMENTS.md`.
+Look for the ticket at `.claude/tickets/$ARGUMENTS.md`, and if it's not there,
+`.claude/tickets/bonus/$ARGUMENTS.md` (bonus-phase tickets, e.g. T097+, live there).
 
-- If not found → say "No ticket found for $ARGUMENTS." Stop.
+- If neither path exists → say "No ticket found for $ARGUMENTS." Stop.
 - If `status: draft` or `status: approved` → say "Task hasn't been implemented yet. Run `/start-task $ARGUMENTS` first." Stop.
 - Read: `title`, `phase`, `service` fields.
 

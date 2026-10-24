@@ -2,10 +2,12 @@ Implement task $ARGUMENTS using its approved ticket.
 
 ## Step 1 — Load and validate the ticket
 
-Open `.claude/tickets/$ARGUMENTS.md`.
+Look for the ticket at `.claude/tickets/$ARGUMENTS.md`. If it's not there, look at
+`.claude/tickets/bonus/$ARGUMENTS.md` instead (bonus-phase tickets, e.g. T097+, live there).
+Whichever path is found, call it TICKET_PATH for the rest of this command.
 
-- If the file does not exist → say "No ticket found. Run `/create-ticket $ARGUMENTS` first." Stop.
-- If `status: draft` → say "Ticket is still in draft. Review `.claude/tickets/$ARGUMENTS.md`, change status to `approved`, then re-run." Stop.
+- If neither path exists → say "No ticket found. Run `/create-ticket $ARGUMENTS` first." Stop.
+- If `status: draft` → say "Ticket is still in draft. Review `TICKET_PATH`, change status to `approved`, then re-run." Stop.
 - If `status: done` → say "Task already implemented. Run `/review-task $ARGUMENTS` to verify." Stop.
 - If `status: approved` → continue.
 
@@ -46,14 +48,14 @@ From the ticket's `skills:` field, read the full content of each `.claude/skills
 
 Read `.claude/agents/task-implementer.md` for the full agent prompt. Call Agent with that content, substituting:
 - `{TASK_ID}` → the task ID from $ARGUMENTS
-- Ticket content → replace `{full content of .claude/tickets/{TASK_ID}.md — paste verbatim}` with the full ticket content read in Step 1
+- Ticket content → replace `{full content of .claude/tickets/{TASK_ID}.md — paste verbatim}` with the full ticket content read from TICKET_PATH in Step 1
 - Skill content → for each skill in the ticket's `skills:` field, replace the skill placeholder block with the full content of `.claude/skills/<skill>.md`
 - `{RESUME_SECTION}` → if RESUME_MODE is true, use the **RESUME SECTION TEMPLATE** at the bottom of the agent file, substituting `files_created`, `criteria_checked`, and `last_note` from the manifest; if RESUME_MODE is false, remove the `{RESUME_SECTION}` placeholder entirely
 
 ## Step 6 — After agent completes
 
 **When agent reports "IMPLEMENTATION COMPLETE":**
-1. Change `status: approved` → `status: done` in `.claude/tickets/$ARGUMENTS.md`
+1. Change `status: approved` → `status: done` in TICKET_PATH (from Step 1)
 2. Change `- [ ] $ARGUMENTS` → `- [x] $ARGUMENTS` in PROGRESS.md
 3. Confirm `.claude/manifests/$ARGUMENTS.json` has `"status": "completed"` (agent should have set this; set it yourself if not)
 4. Report to user:

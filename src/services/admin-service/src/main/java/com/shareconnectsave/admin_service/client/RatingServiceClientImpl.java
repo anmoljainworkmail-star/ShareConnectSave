@@ -65,6 +65,27 @@ public class RatingServiceClientImpl implements RatingServiceClient {
         throw new UpstreamUnavailableException("Rating Service", ex);
     }
 
+    // TODO: Rating Service has no PATCH /trust/:userId yet — stubbed until
+    // that ticket ships. Tech Lead decision (T058, 2026-10-24): rather than
+    // calling a path that would 404 on every invocation (same failure mode
+    // UserServiceClient.getSuspendedUsers' own comment documents for a
+    // genuinely-missing upstream endpoint), this method short-circuits with
+    // a locally-constructed result that simply echoes the admin's requested
+    // score/reason back. No WebClient call, no @CircuitBreaker — there is
+    // nothing upstream to fail against yet, so wrapping this in Resilience4j
+    // would be decoration around a call that never happens.
+    //
+    // A future ticket that ships the real Rating Service endpoint deletes
+    // this method body and replaces it with the same
+    // ratingServiceWebClient.patch()... shape getTrustScore above uses for
+    // GET — this TODO text is the marker that ticket searches for.
+    @Override
+    public TrustScoreOverrideResult overrideTrustScore(String userId, TrustScoreOverrideRequest request) {
+        log.warn("Rating Service PATCH /trust/{} is stubbed (T058) — echoing override locally, "
+                + "no real upstream call made: score={}, reason={}", userId, request.score(), request.reason());
+        return new TrustScoreOverrideResult(userId, request.score(), request.reason());
+    }
+
     // Matches TrustScoreController/TrustScoreQueryResponse's REAL field names
     // exactly (see this class's header comment) — userId is Long on the wire
     // (Rating Service's own ids are numeric Longs, same convention

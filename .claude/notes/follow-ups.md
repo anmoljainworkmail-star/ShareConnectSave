@@ -1049,3 +1049,28 @@ whose implementation or ticket should pick it up.
    Affects: T091 (next ticket to touch shared-java-lib directly — same fix referenced in the
    T024 follow-up covers this too, no separate fix needed, just confirming the gap still
    applies to admin-service).
+
+## From T058 (Trust Score Override)
+
+1. **`TrustScoreOverrideDto.score` has no range validation.** Only `@NotNull` is present
+   (`TrustScoreOverrideDto.java:19-20`). The project already bounds numeric input elsewhere
+   at the DTO layer (discovery-service's `ScanStartRequest`/`ScanLocationRequest` use
+   `@DecimalMin`/`@DecimalMax` on lat/lng), and Rating Service's own `TrustScoreCalculator`
+   constants (`TRUSTED_BADGE_MIN_SCORE = 4.5`, `SUSPENDED_MAX_SCORE = 2.5`) imply a known
+   score domain (0.0–5.0). A typo'd score (`-500`, `99999`) is currently accepted, echoed
+   back as a "successful" 200, and permanently audited. This is input-boundary validation,
+   not "computing the trust score formula" (correctly out of this ticket's scope) — a
+   different concern.
+   Affects: T058 itself if ever revisited (cheap fix — add `@DecimalMin("0.0")
+   @DecimalMax("5.0")` or the confirmed real range), or whichever future ticket actually
+   builds Rating Service's real `PATCH /trust/{userId}` endpoint (should validate the bound
+   there too, not just at admin-service's door).
+
+2. **Missing `X-User-Id` header surfaces as `500 INTERNAL_ERROR` instead of a clean `400`.**
+   Same pre-existing shared-java-lib gap already logged under "From T024" and "From T057"
+   (the shared `GlobalExceptionHandler` has no
+   `@ExceptionHandler(MissingRequestHeaderException.class)`), re-confirmed here on
+   `AdminTrustScoreController`. Not introduced by this ticket.
+   Affects: T091 (next ticket to touch shared-java-lib directly — same fix already tracked
+   under T024/T057 covers this too, no separate fix needed, just confirming the gap recurs
+   on every Java controller reading a required `X-User-Id` header).

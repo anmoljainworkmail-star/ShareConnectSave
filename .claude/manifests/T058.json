@@ -1,0 +1,21 @@
+{
+  "task_id": "T058",
+  "title": "Trust Score Override",
+  "status": "completed",
+  "files_created": [
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/controller/AdminTrustScoreController.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/service/AdminTrustScoreService.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/service/AdminTrustScoreServiceImpl.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/audit/TrustScoreOverrideAuditEntry.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/audit/TrustScoreOverrideAuditLog.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dto/TrustScoreOverrideDto.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dto/TrustScoreOverrideResponse.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/RatingServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/RatingServiceClientImpl.java"
+  ],
+  "criteria_checked": {
+    "Override applied to Rating Service (via stubbed RatingServiceClient call)": "PASS",
+    "Override audit log entry created (in-memory, file-backed-in-prod swap point marked)": "PASS"
+  },
+  "last_note": "Implemented PATCH /admin/users/{id}/trust-score end-to-end: thin controller -> AdminTrustScoreServiceImpl (audit write then stubbed Rating Service forward) -> TrustScoreOverrideAuditLog (in-memory CopyOnWriteArrayList). RatingServiceClient.overrideTrustScore is stubbed per ticket point 2 with TODO marker, no real WebClient call. No tests added per no-piecemeal-test-retrofits. No Rating Service files touched."
+}

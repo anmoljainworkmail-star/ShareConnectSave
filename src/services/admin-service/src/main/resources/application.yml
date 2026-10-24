@@ -101,11 +101,23 @@ resilience4j:
         wait-duration-in-open-state: 30s
         sliding-window-size: 10
         minimum-number-of-calls: 10
+      # T059: admin-service's first circuit breaker around a WRITE call
+      # (Connection Service's expire-active) rather than a read-only
+      # aggregation fan-out — same failure-rate/sliding-window shape as the
+      # other three instances regardless, per this block's own header
+      # comment ("one named instance per upstream service").
+      connectionService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 10
 
-# T057 — base URLs for this service's three outbound WebClient calls. Port
-# 8080 for every one of them (container-internal port), matching discovery-
-# service's user-service.base-url comment: container-to-container traffic
-# uses the container's own internal port, never the host-side mapping.
+# T057 — base URLs for this service's outbound WebClient calls. Port 8080 for
+# every one of them (container-internal port), matching discovery-service's
+# user-service.base-url comment: container-to-container traffic uses the
+# container's own internal port, never the host-side mapping (connection-
+# service's own docker-compose.yml entry maps host port 8083 to this same
+# container-internal 8080, same as every other Java service here).
 user-service:
   base-url: ${USER_SERVICE_BASE_URL:http://user-service:8080}
   # T102: shared secret for User Service's /users/internal/... endpoints —
@@ -119,6 +131,9 @@ rating-service:
   base-url: ${RATING_SERVICE_BASE_URL:http://rating-service:8080}
 report-service:
   base-url: ${REPORT_SERVICE_BASE_URL:http://report-service:8080}
+# T059 — admin-service's first outbound call into Connection Service.
+connection-service:
+  base-url: ${CONNECTION_SERVICE_BASE_URL:http://connection-service:8080}
 
 ---
 # dev profile — sensible localhost defaults so a developer can run this

@@ -6,14 +6,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shareconnectsave.admin_service.dto.ReinstateResponse;
 import com.shareconnectsave.admin_service.dto.ReviewQueueItem;
+import com.shareconnectsave.admin_service.dto.SuspendResponse;
+import com.shareconnectsave.admin_service.dto.SuspendUserRequest;
 import com.shareconnectsave.admin_service.dto.UserDetailResponse;
 import com.shareconnectsave.admin_service.service.ReviewQueueService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -72,5 +76,23 @@ public class ReviewQueueController {
             @RequestHeader("X-User-Id") String actingAdminId) {
         log.info("Admin {} reinstating user {}", actingAdminId, id);
         return ResponseEntity.ok(reviewQueueService.reinstate(id));
+    }
+
+    // T059 — the mirror image of reinstate() above, same URL family
+    // (/admin/users/{id}/...), so it stays on THIS controller rather than a
+    // separate AccountSuspendController: unlike T104's AdminConnectionController
+    // (whose /admin/connections/users/{userId}/expire-active URL didn't nest
+    // under an existing controller's mapping), /admin/users/{id}/suspend
+    // nests naturally alongside /admin/users/{id} and
+    // /admin/users/{id}/reinstate already handled right here.
+    @PostMapping("/admin/users/{id}/suspend")
+    public ResponseEntity<SuspendResponse> suspend(
+            @PathVariable("id") String id,
+            // Same ACTING-ADMIN-vs-TARGET-ACCOUNT split as reinstate()'s own
+            // X-User-Id comment above.
+            @RequestHeader("X-User-Id") String actingAdminId,
+            @Valid @RequestBody SuspendUserRequest request) {
+        log.info("Admin {} suspending user {} (reason: {})", actingAdminId, id, request.reason());
+        return ResponseEntity.ok(reviewQueueService.suspend(id, request));
     }
 }

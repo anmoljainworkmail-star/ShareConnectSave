@@ -4,6 +4,8 @@ import java.util.List;
 
 import com.shareconnectsave.admin_service.dto.ReinstateResponse;
 import com.shareconnectsave.admin_service.dto.ReviewQueueItem;
+import com.shareconnectsave.admin_service.dto.SuspendResponse;
+import com.shareconnectsave.admin_service.dto.SuspendUserRequest;
 import com.shareconnectsave.admin_service.dto.UserDetailResponse;
 
 // Dependency Inversion (SOLID-D): ReviewQueueController depends on this
@@ -17,4 +19,8 @@ public interface ReviewQueueService {
     UserDetailResponse getUserDetail(String userId);
 
     ReinstateResponse reinstate(String userId);
+
+    // T059 — the mirror image of reinstate() above: same three-upstream-call
+    // orchestration shape, opposite direction (suspend vs. reactivate).
+    SuspendResponse suspend(String userId, SuspendUserRequest request);
 }

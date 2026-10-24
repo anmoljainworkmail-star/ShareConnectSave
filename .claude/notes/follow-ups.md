@@ -1074,3 +1074,54 @@ whose implementation or ticket should pick it up.
    Affects: T091 (next ticket to touch shared-java-lib directly — same fix already tracked
    under T024/T057 covers this too, no separate fix needed, just confirming the gap recurs
    on every Java controller reading a required `X-User-Id` header).
+
+## From T059 (Account Suspend)
+
+1. **`SuspendUserRequest.reason`'s `@NotBlank` is inert — `spring-boot-starter-validation`
+   is still missing from admin-service's `pom.xml`.** Same pre-existing gap inherited from
+   T058's `TrustScoreOverrideDto` (never flagged as a blocker there either, since the DTO's
+   own comment already calls it out). Posting `{"reason": ""}` or `{"reason": null}`
+   currently sails through `@Valid` with no `Validator` bean on the classpath, suspends the
+   account anyway, and logs an empty audit reason — defeating the one piece of human
+   accountability this endpoint is supposed to capture.
+   Affects: T060 (Dashboard Queries) or T061 (Admin Service Docker Image) — whichever next
+   touches admin-service's `pom.xml`/build; add the `spring-boot-starter-validation`
+   dependency once, which silently fixes both this DTO and T058's.
+
+2. **Suspending a non-existent user id returns a generic `500 INTERNAL_ERROR` instead of a
+   clean `404 USER_NOT_FOUND`.** `UserServiceClientImpl.setStatus` has no catch for
+   `WebClientResponseException.NotFound` (no `@CircuitBreaker` fallback configured either),
+   so it falls through to `GlobalExceptionHandler`'s catch-all. Same gap already exists in
+   T057's `reinstate()` — inherited, not newly introduced by this ticket, but now present on
+   two endpoints.
+   Affects: T091 (next ticket to touch shared-java-lib directly — add a
+   `WebClientResponseException.NotFound` → domain `*NotFoundException` translation
+   convention there, or alternatively fix both `UserServiceClientImpl` call sites directly
+   in a small admin-service follow-up).
+
+3. **A failed Rating Service read on the third step leaves a suspended user fully gone from
+   Connection Service but still stuck in Discovery's `scan:eligible_users` with no automatic
+   correction.** If `ratingServiceClient.getTrustScore(userId)` throws after User Service has
+   already been flipped to `suspended` and Connection Service has already expired the user's
+   connections, `suspend()` throws `UpstreamUnavailableForWriteException` and the
+   `trust.score.updated` outbox event is never written — Discovery never learns the user
+   should be removed. This matches T057 reinstate's already-approved "fail and let the caller
+   retry" precedent, but the severity is asymmetric: a failed reinstate just leaves a harmless
+   account un-upgraded, while a failed suspend leaves a flagged bad actor still discoverable
+   until an admin notices the 503 and manually retries.
+   Affects: no existing ticket owns this — flag to the Tech Lead as a candidate for a new
+   bonus-phase ticket (e.g. a periodic reconciliation job cross-checking User Service's
+   suspended list against Discovery's `scan:eligible_users`, or retry-on-restart logic for
+   this specific failure window).
+
+4. **Connection Service's and Report Service's admin-only endpoints both trust a bare
+   `X-User-Role: admin` header with no shared-secret defense-in-depth**, unlike User
+   Service's T102 internal endpoints (which additionally require
+   `X-Internal-Service-Key`). T104's new `AdminConnectionController` follows the same bare-
+   header convention `ReportController` already established, so this is consistent with
+   existing project precedent, not a new weakening introduced by T059/T104 — but it means
+   two of four Java services have no second layer of defense if the YARP gateway's route
+   exclusions are ever misconfigured.
+   Affects: no existing ticket owns this — flag for a future platform-wide security
+   hardening pass across Connection Service, Report Service, and Admin Service's admin-only
+   routes (add `X-Internal-Service-Key` checks matching T102's pattern).

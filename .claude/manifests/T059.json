@@ -1,0 +1,24 @@
+{
+  "task_id": "T059",
+  "title": "Account Suspend",
+  "status": "completed",
+  "files_created": [
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dto/SuspendUserRequest.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dto/SuspendResponse.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ConnectionServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ConnectionServiceClientImpl.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/config/ConnectionServiceProperties.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/exception/ConnectionServiceUnavailableException.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/WebClientConfig.java",
+    "src/services/admin-service/src/main/resources/application.yml",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/exception/AdminExceptionHandler.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/service/ReviewQueueService.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/service/ReviewQueueServiceImpl.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/controller/ReviewQueueController.java"
+  ],
+  "criteria_checked": {
+    "AC1_removed_from_scan_eligible_users": "PASS",
+    "AC2_active_connection_requests_expired": "PASS"
+  },
+  "last_note": "Implemented POST /admin/users/{id}/suspend as a new method on ReviewQueueController/ReviewQueueService/ReviewQueueServiceImpl (nests naturally under existing /admin/users/{id} family, same reasoning T104 used in reverse for AdminConnectionController). Added new ConnectionServiceClient (WebClient + Resilience4j, no fallback value, reuses shared UpstreamUnavailableException) calling T102/T104's shipped endpoints. Reused T057's AdminOutboxRelay/IOutboxService exactly, no second producer. Clean Maven compile of admin-service passed (52 source files)."
+}

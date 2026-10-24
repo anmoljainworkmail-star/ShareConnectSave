@@ -1,5 +1,6 @@
 package com.shareconnectsave.admin_service.client;
 
+import com.shareconnectsave.admin_service.config.ConnectionServiceProperties;
 import com.shareconnectsave.admin_service.config.RatingServiceProperties;
 import com.shareconnectsave.admin_service.config.ReportServiceProperties;
 import com.shareconnectsave.admin_service.config.UserServiceProperties;
@@ -16,12 +17,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 // chain, and nothing is actually built until .build() runs. Same exact shape
 // as discovery-service's UserServiceClientConfig.
 //
-// Three beans in ONE config class, not three near-identical files (discovery-
+// Four beans in ONE config class, not four near-identical files (discovery-
 // service gave UserServiceClientConfig its own file because it was the only
 // outbound client that service had at setup time): admin-service's whole
-// reason to exist is aggregating exactly these three upstream services, so
-// keeping their construction side by side here is more readable than three
-// files that would only ever be read together anyway.
+// reason to exist is aggregating/orchestrating exactly these upstream
+// services, so keeping their construction side by side here is more
+// readable than four files that would only ever be read together anyway.
 @Configuration
 public class WebClientConfig {
 
@@ -55,6 +56,21 @@ public class WebClientConfig {
     public WebClient reportServiceWebClient(WebClient.Builder builder, ReportServiceProperties reportServiceProperties) {
         return builder
                 .baseUrl(reportServiceProperties.baseUrl())
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+    }
+
+    // T059: admin-service's first-ever outbound call into Connection
+    // Service. No default X-Internal-Service-Key-style header here — unlike
+    // userServiceWebClient, this client's one call authorizes itself with a
+    // per-request X-User-Role header instead (see
+    // ConnectionServiceClientImpl's own comment for why that stays at the
+    // call site rather than becoming a default header on this bean).
+    @Bean
+    public WebClient connectionServiceWebClient(WebClient.Builder builder,
+            ConnectionServiceProperties connectionServiceProperties) {
+        return builder
+                .baseUrl(connectionServiceProperties.baseUrl())
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }

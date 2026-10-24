@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.shareconnectsave.admin_service.client.ConnectionServiceClient;
 import com.shareconnectsave.admin_service.client.RatingServiceClient;
 import com.shareconnectsave.admin_service.client.RatingServiceClient.TrustScoreSnapshot;
 import com.shareconnectsave.admin_service.client.ReportServiceClient;
@@ -17,7 +18,10 @@ import com.shareconnectsave.admin_service.client.UserServiceClient.UserProfileSu
 import com.shareconnectsave.admin_service.dto.ReinstateResponse;
 import com.shareconnectsave.admin_service.dto.ReportHistoryEntry;
 import com.shareconnectsave.admin_service.dto.ReviewQueueItem;
+import com.shareconnectsave.admin_service.dto.SuspendResponse;
+import com.shareconnectsave.admin_service.dto.SuspendUserRequest;
 import com.shareconnectsave.admin_service.dto.UserDetailResponse;
+import com.shareconnectsave.admin_service.exception.ConnectionServiceUnavailableException;
 import com.shareconnectsave.admin_service.exception.UpstreamUnavailableForWriteException;
 import com.shareconnectsave.admin_service.exception.UserNotFoundException;
 import com.shareconnectsave.admin_service.kafka.event.TrustScoreUpdatedEvent;
@@ -60,9 +64,29 @@ public class ReviewQueueServiceImpl implements ReviewQueueService {
     // floor exists.
     private static final int REINSTATED_REQUEST_LIMIT = 3;
 
+    // T059: the OPPOSITE floor from REINSTATED_REQUEST_LIMIT above — a
+    // suspend always drives request_limit all the way to Rating Service's
+    // own SUSPENDED wire value (0), never merely lowers it, so Discovery's
+    // TrustScoreUpdatedEventListener (T025) removes this user from
+    // scan:eligible_users unconditionally. Unlike REINSTATED_REQUEST_LIMIT,
+    // this is not a Math.max floor over the user's real persisted limit —
+    // suspend always WINS over whatever Rating Service currently has on
+    // file, same as how a suspended account overrides any in-flight
+    // automated trust recalculation until a future reinstate() reverses it.
+    private static final int SUSPENDED_REQUEST_LIMIT = 0;
+
+    // T059: the lowest of Rating Service's own three-way trusted/standard/
+    // restricted badge tiering (T043's TrustScoreRecalculationServiceImpl) —
+    // reused verbatim, never a fourth tier invented here (see this ticket's
+    // own "What NOT to do"). Open/Closed (SOLID-O): if Rating Service's
+    // tiering ever grows a new name for this tier, this ONE constant is the
+    // only place admin-service needs to change to stay in sync.
+    private static final String BADGE_LEVEL_RESTRICTED = "restricted";
+
     private final UserServiceClient userServiceClient;
     private final RatingServiceClient ratingServiceClient;
     private final ReportServiceClient reportServiceClient;
+    private final ConnectionServiceClient connectionServiceClient;
     private final IOutboxService outboxService;
     private final ReportHistoryEntryMapper reportHistoryEntryMapper;
 
@@ -245,5 +269,70 @@ public class ReviewQueueServiceImpl implements ReviewQueueService {
         // confirmed value rather than this service assuming the write did
         // what it asked for.
         return new ReinstateResponse(userId, updated.accountStatus(), Instant.now());
+    }
+
+    // POST /admin/users/{id}/suspend. Simple synchronous orchestration (per
+    // this ticket's own "Patterns demonstrated" — explicitly NOT a Saga: no
+    // compensating-transaction step exists if a later leg fails, only a
+    // documented "stop and let the caller retry" contract), three steps in
+    // this exact order, mirroring reinstate()'s own structure in reverse:
+    //   1. UserServiceClient.setStatus — synchronous, no fallback. If this
+    //      throws, nothing below runs and User Service is left untouched,
+    //      same "cleanest possible failure, nothing to reconcile" reasoning
+    //      as reinstate()'s own step 1.
+    //   2. ConnectionServiceClient.expireActiveConnections — synchronous, no
+    //      fallback VALUE (ConnectionServiceClientImpl's circuit breaker
+    //      fallback re-throws, never degrades). If this fails, User Service
+    //      has ALREADY been flipped to suspended — this method still must
+    //      not publish a trust.score.updated event for a half-finished
+    //      suspend (same "don't leave an inconsistent state as if it
+    //      succeeded" rule reinstate()'s own Rating Service step follows),
+    //      so the failure is wrapped into ConnectionServiceUnavailableException
+    //      and the whole request fails — see that exception's own comment
+    //      for why retrying afterward is always safe.
+    //   3. Fetch the user's CURRENT trust score (same call reinstate() makes
+    //      — Single Responsibility, SOLID-S: admin-service never recomputes
+    //      a score, only republishes the one Rating Service already has on
+    //      file) and write ONE outbox document with request_limit forced to
+    //      SUSPENDED_REQUEST_LIMIT and badge_level forced to
+    //      BADGE_LEVEL_RESTRICTED — the entire local "transaction" this
+    //      endpoint has (see AdminOutboxServiceImpl's own comment).
+    @Override
+    public SuspendResponse suspend(String userId, SuspendUserRequest request) {
+        UserProfileSummary updated = userServiceClient.setStatus(userId, STATUS_SUSPENDED);
+
+        int expiredConnectionCount;
+        try {
+            expiredConnectionCount = connectionServiceClient.expireActiveConnections(userId);
+        } catch (UpstreamUnavailableException e) {
+            throw new ConnectionServiceUnavailableException(userId, e);
+        }
+
+        TrustScoreSnapshot snapshot;
+        try {
+            snapshot = ratingServiceClient.getTrustScore(userId);
+        } catch (UpstreamUnavailableException e) {
+            throw new UpstreamUnavailableForWriteException(userId, e);
+        }
+
+        // new_score is deliberately snapshot.trustScore() UNCHANGED — this
+        // ticket's own "What NOT to do" is explicit that a suspend is an
+        // AVAILABILITY action, not a re-scoring action. Only request_limit
+        // and badge_level are overridden below; TrustScoreCalculator in
+        // Rating Service remains the one and only place a score is computed
+        // (the very next rating.submitted recalculation there republishes
+        // the real number again, same as reinstate()'s own override is only
+        // ever local to the one event it publishes).
+        String eventId = UUID.randomUUID().toString();
+        TrustScoreUpdatedEvent event = new TrustScoreUpdatedEvent(
+                eventId,
+                userId,
+                snapshot.trustScore(),
+                BADGE_LEVEL_RESTRICTED,
+                SUSPENDED_REQUEST_LIMIT);
+
+        outboxService.publish(TOPIC_TRUST_SCORE_UPDATED, userId, eventId, event);
+
+        return new SuspendResponse(userId, updated.accountStatus(), expiredConnectionCount, Instant.now());
     }
 }

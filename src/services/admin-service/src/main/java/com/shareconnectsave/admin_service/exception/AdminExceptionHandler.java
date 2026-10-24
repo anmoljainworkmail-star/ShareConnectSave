@@ -32,6 +32,18 @@ public class AdminExceptionHandler {
                 .body(new ErrorResponse("TRUST_SCORE_UNAVAILABLE", ex.getMessage(), traceId()));
     }
 
+    // 503, same reasoning as handleUpstreamUnavailableForWrite immediately
+    // above — a known, named upstream-dependency outage during a write
+    // (suspend's own Connection Service step), not an unexpected programming
+    // error. A separate error CODE from TRUST_SCORE_UNAVAILABLE so an admin
+    // UI (or a human reading logs) can tell which of suspend's two
+    // downstream legs actually failed.
+    @ExceptionHandler(ConnectionServiceUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleConnectionServiceUnavailable(ConnectionServiceUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorResponse("CONNECTION_SERVICE_UNAVAILABLE", ex.getMessage(), traceId()));
+    }
+
     // Same MDC-read convention as shared-java-lib's GlobalExceptionHandler and
     // every other service's local handler: traceId is only ever READ from the
     // OpenTelemetry-populated request-thread context, never minted here.

@@ -491,6 +491,15 @@ services:
       start_period: 60s
 
   # Admin Service (Java / Spring Boot) — dashboard, review queue, account actions.
+  #
+  # T057 fix: this block previously depended on sqlserver/sqlserver-init — a
+  # leftover from Phase 0's early compose stubs, written before T056 resolved
+  # admin-service's JPA-vs-HTTP spec conflict in favor of HTTP-only (pom.xml's
+  # "T056 spec conflict" comment) and before T057's own "T057 DATASTORE
+  # DECISION" comment chose Mongo for this service's outbox. admin-service has
+  # never had a SQL Server dependency of its own and should not wait on one at
+  # startup — depends_on now matches report-service's shape (mongodb + kafka),
+  # the other Java service with no SQL Server dependency.
   admin-service:
     image: shareconnectsave/admin-service:dev
     build:
@@ -498,10 +507,8 @@ services:
       dockerfile: Dockerfile
     container_name: admin-service
     depends_on:
-      sqlserver:
+      mongodb:
         condition: service_healthy
-      sqlserver-init:
-        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     ports:

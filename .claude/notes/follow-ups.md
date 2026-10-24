@@ -1009,3 +1009,43 @@ whose implementation or ticket should pick it up.
    network) can self-grant `ROLE_ADMIN` with a single header, no JWT or password involved.
    Affects: T061 (Admin Service Docker Image — the ticket that will actually add
    admin-service to `docker-compose.yml`/production networking).
+
+## From T057 (Review Queue Endpoints)
+
+1. **`GET /users?accountStatus=suspended`, `PUT /users/{id}/account-status` (User Service),
+   and `GET /reports?reportedId=` (Report Service) don't exist yet, so `GET /admin/queue` and
+   `POST /admin/users/{id}/reinstate` 500 against the live stack today.** Honestly flagged
+   in-code already (`UserServiceClient.java:18-34`). `GET /admin/users/{id}` already works
+   correctly today for the two slices that do exist (profile, trust score) and degrades the
+   report-history slice cleanly (`reportHistoryUnavailable: true`) rather than failing.
+   Affects: T059 (Account Suspend — the ticket that will actually add User Service's
+   suspend/account-status write path, the natural place to also expose the matching
+   suspended-accounts read query T057's queue needs), T060 (Dashboard Queries — likely also
+   needs a suspended-account-status query from User Service for its own stats).
+
+2. **No idempotency guard on duplicate reinstate clicks.** Two concurrent
+   `POST /admin/users/{id}/reinstate` calls for the same user each mint their own
+   `UUID.randomUUID()` (`ReviewQueueServiceImpl.java:201`) and write a separate outbox
+   document, publishing two `trust.score.updated` events for one logical action. Harmless
+   today (idempotent downstream consumers), but worth a dedupe key if this pattern recurs.
+   Affects: T059 (Account Suspend — same admin-service outbox/action-button shape; worth
+   deciding the dedupe approach once for both suspend and reinstate).
+
+3. **No current-status check before reinstating (TOCTOU window).** `reinstate()`
+   (`ReviewQueueServiceImpl.java:177-217`) unconditionally sets the user to `active` with no
+   guard that the account is currently `suspended`. If Report Service's escalation saga
+   re-suspends the same user in the window between an admin loading the queue and clicking
+   reinstate, admin-service blindly overwrites to `active` and publishes a "reinstated,
+   trusted" event, racing the more-recent suspend decision.
+   Affects: T059 (Account Suspend — once User Service's suspend/account-status endpoint
+   exists, add a compare-and-swap expected-current-status check symmetrically on both the
+   suspend and reinstate write paths).
+
+4. **Missing `X-User-Id` header on reinstate returns a generic 500 instead of a clean 400.**
+   Same pre-existing shared-java-lib gap already logged under "From T024" (the shared
+   `GlobalExceptionHandler` has no `@ExceptionHandler(MissingRequestHeaderException.class)`),
+   re-confirmed here because this is the first admin-service endpoint with a required header
+   an admin-UI bug could plausibly drop.
+   Affects: T091 (next ticket to touch shared-java-lib directly — same fix referenced in the
+   T024 follow-up covers this too, no separate fix needed, just confirming the gap still
+   applies to admin-service).

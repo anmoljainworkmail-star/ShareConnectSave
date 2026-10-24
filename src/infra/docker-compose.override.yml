@@ -247,8 +247,17 @@ services:
       - SPRING_DATA_MONGODB_URI=${REPORT_MONGODB_URI:-mongodb://mongodb:27017/ReportServiceDb}
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
 
+  # T057 fix: SPRING_DATASOURCE_URL (SQL Server) replaced with
+  # SPRING_DATA_MONGODB_URI — see docker-compose.yml's admin-service comment
+  # and pom.xml's "T057 DATASTORE DECISION" for why. Same shape as
+  # report-service's entry above (database name AdminServiceDb, not
+  # ReportServiceDb — Database per Service even though both share the one
+  # physical Mongo container).
   admin-service:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=${ADMIN_DB_URL:-jdbc:sqlserver://sqlserver:1433;databaseName=AdminServiceDb;encrypt=true;trustServerCertificate=true}
+      - SPRING_DATA_MONGODB_URI=${ADMIN_MONGODB_URI:-mongodb://mongodb:27017/AdminServiceDb}
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - USER_SERVICE_BASE_URL=${USER_SERVICE_BASE_URL:-http://user-service:8080}
+      - RATING_SERVICE_BASE_URL=${RATING_SERVICE_BASE_URL:-http://rating-service:8080}
+      - REPORT_SERVICE_BASE_URL=${REPORT_SERVICE_BASE_URL:-http://report-service:8080}

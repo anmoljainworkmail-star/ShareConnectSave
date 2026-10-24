@@ -5,81 +5,145 @@
 # that can vary by environment comes from an env var placeholder, never a
 # literal.
 #
-# admin-service is the first Java service in this platform with NO
-# datasource block at all (T056 ships HTTP-only — see pom.xml's comment on
-# the JPA-vs-HTTP spec conflict). There is therefore no spring.datasource /
-# spring.data.mongodb section here, and no Flyway block — nothing for either
-# to point at yet. WebClient beans (and whatever config they need) land in
-# T057 when admin-service actually starts calling User/Rating/Report Service
-# over HTTP.
+# T057 supersedes T056's "no datastore block at all" state. See pom.xml's
+# "T057 DATASTORE DECISION" comment for the full reasoning — short version:
+# a single Mongo collection (admin_outbox) for this service's own Kafka
+# outbox rows, reusing the already-running shared Mongo container, instead
+# of provisioning a SQL Server schema + Flyway migration for one table.
 #
 # docker profile intentionally omitted, same precedent as report-service's
 # and rating-service's application.yml: only `dev` and `prod` profile
-# documents exist below, even though docker-compose.yml will set
-# SPRING_PROFILES_ACTIVE=docker on this service once it's wired into the
-# compose stack. There is no environment-specific property left to override
-# per-profile yet (no datasource, no broker) — the `dev`/`prod` split here
-# only changes the logging level, which is enough to establish the
-# convention now rather than retrofit it once admin-service does gain
-# environment-specific config.
+# documents exist below, even though docker-compose.yml sets
+# SPRING_PROFILES_ACTIVE=docker on this service — docker-compose.override.yml
+# sets SPRING_DATA_MONGODB_URI/SPRING_KAFKA_BOOTSTRAP_SERVERS directly as
+# container env vars, which Spring's relaxed env-var binding resolves
+# regardless of active profile.
 spring:
   application:
     name: admin-service
 
   # Virtual Threads (Java 21 / Project Loom) — applies to BOTH profiles, so it
-  # sits in this shared section rather than inside dev: or prod:. Every Java
-  # service in this platform enables this at Spring Boot Setup time
-  # (T021/T029/T041/T051/T056), not retroactively. It matters even more here
-  # than for a DB-backed service: T057's WebClient calls to User/Rating/Report
-  # Service are exactly the kind of blocking-while-waiting-on-I/O work virtual
-  # threads are for — a platform thread sits idle holding a request's slot for
-  # the entire outbound call; a virtual thread unmounts from its carrier OS
-  # thread while blocked, so a burst of slow admin lookups can't exhaust a
-  # fixed-size thread pool.
+  # sits in this shared section rather than inside dev: or prod:. Matters even
+  # more here than for a DB-backed service: T057's WebClient calls to
+  # User/Rating/Report Service are exactly the kind of blocking-while-waiting-
+  # on-I/O work virtual threads are for — a platform thread sits idle holding
+  # a request's slot for the entire outbound call; a virtual thread unmounts
+  # from its carrier OS thread while blocked, so a burst of slow admin lookups
+  # (GET /admin/queue fanning out to Rating/Report Service per suspended user)
+  # can't exhaust a fixed-size thread pool.
   threads:
     virtual:
       enabled: true
+
+  kafka:
+    # AdminOutboxRelay is this service's first-ever Kafka producer (no
+    # consumer exists in admin-service). Same bootstrap-servers property,
+    # same ${VAR:default} shape as every other Java service's application.yml.
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    # Spring Boot leaves these null unless set explicitly — it does NOT
+    # default to StringSerializer. Without this, AdminOutboxRelay's first
+    # real kafkaTemplate.send() throws "Missing required configuration
+    # 'key.serializer'", since the outbox payload is already a JSON string
+    # and the partition key (userId) is also a plain String.
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 management:
   endpoints:
     web:
       exposure:
-        # Only health (+ info) reachable over HTTP — never "*". An
-        # unauthenticated /actuator/env or /actuator/beans endpoint leaks
-        # internal wiring to anyone who can reach this service. This is also
-        # the one path SecurityConfig's permitAll() rule carves out of
-        # .anyRequest().hasRole("ADMIN") — a health check that itself
-        # required the X-User-Role header would break container
-        # orchestration's own liveness probe, which has no header to send.
+        # Only health (+ info) reachable over HTTP — never "*". Also the one
+        # path SecurityConfig's permitAll() rule carves out of
+        # .anyRequest().hasRole("ADMIN") — a health check that itself required
+        # X-User-Role would break container orchestration's liveness probe.
         include: health,info
+  endpoint:
+    health:
+      # T057: the userService/ratingService/reportService circuit breakers'
+      # CLOSED/OPEN/HALF_OPEN state must be visible on this endpoint, same
+      # reasoning as discovery-service's T027. "always" (not "when-authorized")
+      # because this service has no anonymous-but-authenticated principal to
+      # authorize against on /actuator/health specifically (it is permitAll,
+      # not hasRole("ADMIN")) — "when-authorized" would just behave as
+      # permanently hidden here. Acceptable because this endpoint is never
+      # routed through the public-facing YARP gateway.
+      show-details: always
+  health:
+    circuitbreakers:
+      # resilience4j-spring-boot3's own actuator integration: without this,
+      # the dependency being on the classpath is not enough to add a
+      # "circuitBreakers" component to /actuator/health.
+      enabled: true
+
+# Circuit Breaker (Decorator pattern under the hood): one named instance per
+# upstream service, matching discovery-service's userService instance shape
+# exactly (failure-rate-threshold/sliding-window/minimum-number-of-calls).
+# minimum-number-of-calls is pinned explicitly for all three — Resilience4j's
+# own default is 100 regardless of sliding-window-size, so a 10-call window
+# could never reach it and the breaker would silently never open (the exact
+# bug discovery-service's T027 fixed).
+resilience4j:
+  circuitbreaker:
+    instances:
+      userService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 10
+      ratingService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 10
+      reportService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 10
+
+# T057 — base URLs for this service's three outbound WebClient calls. Port
+# 8080 for every one of them (container-internal port), matching discovery-
+# service's user-service.base-url comment: container-to-container traffic
+# uses the container's own internal port, never the host-side mapping.
+user-service:
+  base-url: ${USER_SERVICE_BASE_URL:http://user-service:8080}
+rating-service:
+  base-url: ${RATING_SERVICE_BASE_URL:http://rating-service:8080}
+report-service:
+  base-url: ${REPORT_SERVICE_BASE_URL:http://report-service:8080}
 
 ---
-# dev profile — no datasource/broker config exists yet for this service, so
-# the only thing this profile currently changes is logging verbosity. Kept
-# as its own `on-profile: dev` document anyway (rather than folding
-# everything into the shared section above) so the convention already
-# matches every other service's application.yml before admin-service's first
-# environment-specific property (a WebClient base URL, in T057) actually
-# needs one.
+# dev profile — sensible localhost defaults so a developer can run this
+# service directly against docker-up's infra without exporting env vars by
+# hand. 27018, not Mongo's default 27017 — same host-port remap reasoning as
+# report-service's application.yml (a native Windows MongoDB service can
+# already own 27017 on dev machines).
 spring:
   config:
     activate:
       on-profile: dev
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27018/AdminServiceDb}
 
 logging:
   level:
     com.shareconnectsave.admin_service: DEBUG
 
 ---
-# prod profile — same "nothing environment-specific yet besides logging"
-# state as dev above. Kept separate (not merged into dev) so a future env var
-# (e.g. a WebClient base URL that must NOT default to localhost in prod) has
-# an obvious home the moment it's needed, instead of a later ticket having to
-# first introduce the dev/prod split this file already establishes now.
+# prod profile — deliberately NO default for the Mongo URI or the three
+# upstream base URLs' topology-sensitive pieces. A missing env var here must
+# fail the container at startup rather than fall back to a dev-shaped guess.
 spring:
   config:
     activate:
       on-profile: prod
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI}
 
 logging:
   level:

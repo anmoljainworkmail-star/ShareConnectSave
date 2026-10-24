@@ -28,6 +28,14 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Same "pin third-party versions as a property" convention as
+		     discovery-service's pom.xml. -->
+		<resilience4j.version>2.2.0</resilience4j.version>
+		<!-- Same version already pinned by report-service's/rating-service's
+		     pom.xml — kept in lockstep across services on purpose, same
+		     reasoning as the parent BOM pinning every spring-boot-starter-*
+		     version together. -->
+		<mapstruct.version>1.6.3</mapstruct.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -38,20 +46,96 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+		<!-- spring-boot-starter-validation still intentionally omitted (T056's
+		     own reasoning still holds): none of T057's three endpoints take a
+		     request body — GET /admin/queue and GET /admin/users/{id} take no
+		     body at all, and POST /admin/users/{id}/reinstate's body is empty
+		     (the target user comes from the path, the acting admin from
+		     X-User-Id) — so there is still no DTO anywhere for @Valid to guard. -->
 
 		<!-- T056 spec conflict, RESOLVED by Tech Lead in favor of HTTP-only:
 		     SPECS.md's own task text says "JPA (read-only access to users_db,
 		     ratings_db)," but CLAUDE.md's Database per Service principle and
 		     T057's own spec ("pulled via HTTP to User Service") both assume
 		     admin-service never touches another service's database directly.
-		     spring-boot-starter-data-jpa and a SQL Server JDBC driver are
-		     therefore deliberately ABSENT here — this service ships
-		     HTTP-client-ready (WebClient beans land in T057 when they're
-		     actually needed), not JPA-ready. spring-boot-starter-validation is
-		     also omitted: the only endpoint this ticket adds (GET /admin/ping)
-		     takes no request body, so there is no DTO yet for @Valid to guard.
-		     spring-kafka/spring-kafka-test (Initializr defaults) are removed
-		     for the same reason — this ticket has no producer or consumer. -->
+		     spring-boot-starter-data-jpa and a SQL Server JDBC driver remain
+		     deliberately ABSENT here — every cross-service READ in this
+		     service (profile, trust score, report history) stays HTTP, never
+		     a direct DB join, even now that T057 adds real persistence below. -->
+
+		<!-- T057 DATASTORE DECISION (flagged to Tech Lead, same spirit as
+		     T056's own resolved JPA-vs-HTTP conflict): T056 shipped
+		     admin-service with NO datastore of any kind. This ticket is the
+		     first that needs one — admin-service becomes a Kafka producer for
+		     trust.score.updated on reinstate, and the Outbox Pattern (Architecture
+		     Rule #1) requires a durable local row to write BEFORE Kafka ever
+		     sees the event. contracts/openapi/admin-service.yaml's own header
+		     comment says "Admin Service has no database of its own for
+		     user/report/rating DATA" — that statement is about business data
+		     (profile/trust/report fields), which this service still only ever
+		     reads over HTTP and never persists. An outbox row is a different
+		     kind of local state: it is admin-service's OWN bookkeeping about
+		     its own Kafka deliveries, not a cached copy of another service's
+		     data, so it does not violate that statement.
+		     Chosen: MongoDB (spring-boot-starter-data-mongodb), ONE collection
+		     (admin_outbox), reusing the already-running shared Mongo container
+		     (src/infra/docker-compose.yml) the way report-service and
+		     chat-service already do — NOT SQL Server + JPA + Flyway. Reasons:
+		     (1) this ticket's entire local persistence need is a single outbox
+		     row type with no relational structure to model — adding a whole
+		     SQL Server schema, an EF-Core-style JPA entity, and the Tech-Lead-run
+		     `flyway migrate` step (see this ticket's "CLI commands" rule) for
+		     ONE table is disproportionate; (2) Mongo is schemaless, so this
+		     decision needs zero CLI-generated migration — a plain hand-written
+		     @Document class is enough, same precedent report-service's Report.java
+		     already set for "no SQL available, fold outbox state onto Mongo
+		     instead"; (3) unlike Report Service there is no business document to
+		     FOLD outbox fields onto (reinstate has no other admin-owned entity),
+		     so this ticket's AdminOutboxEntity is a standalone document whose
+		     ENTIRE purpose is the outbox row itself — see that class's own
+		     comment. Tech Lead: if a future ticket gives admin-service real
+		     relational data of its own, this decision should be revisited rather
+		     than assumed to extend to that new need. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+		</dependency>
+
+		<!-- Spring Kafka: admin-service's first-ever producer (AdminOutboxRelay
+		     publishes trust.score.updated on reinstate). No consumer exists in
+		     this service. -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
+		<!-- WebClient — T057's three outbound clients (User/Rating/Report
+		     Service). The starter (not a bare spring-webflux dependency) is
+		     what auto-configures the WebClient.Builder bean WebClientConfig
+		     injects — same "reactive stack as an HTTP CLIENT ONLY" choice
+		     discovery-service's pom.xml documents; this app stays on Spring MVC
+		     + virtual threads. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+
+		<!-- Circuit Breaker (Decorator pattern under the hood): wraps each of
+		     UserServiceClient/RatingServiceClient/ReportServiceClient's calls
+		     transparently with retry/fallback behaviour, same shape and same
+		     version as discovery-service's resilience4j-spring-boot3 +
+		     spring-boot-starter-aop pair (resilience4j-spring-boot3 needs AOP
+		     proxies on the classpath for its @CircuitBreaker annotation to
+		     work at all). -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>${resilience4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
 
 		<!-- Spring Security: this ticket's whole reason for existing. Unlike
 		     every other Java service's inline @RequestHeader guard-clause
@@ -79,6 +163,18 @@
 			<groupId>com.shareconnectsave</groupId>
 			<artifactId>shared-java-lib</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+
+		<!-- MapStruct: generates UserProfileMapper/ReportHistoryItemMapper/
+		     TrustScoreSnapshotMapper/ReportHistoryEntryMapper's implementations
+		     at compile time, replacing the hand-written `new XDto(a.x(), a.y(),
+		     ...)` field-by-field copies this ticket originally shipped with —
+		     same zero-reflection, fails-the-build-on-drift reasoning as
+		     report-service's ReportMapper/rating-service's RatingMapper. -->
+		<dependency>
+			<groupId>org.mapstruct</groupId>
+			<artifactId>mapstruct</artifactId>
+			<version>${mapstruct.version}</version>
 		</dependency>
 
 		<dependency>
@@ -110,6 +206,11 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<!-- Pattern: annotation processor ORDER matters — Lombok must run
+				     before MapStruct (see report-service's/rating-service's
+				     pom.xml comment on this exact point). lombok-mapstruct-binding
+				     is the shim that pins that ordering across javac/IDE
+				     combinations. -->
 				<executions>
 					<execution>
 						<id>default-compile</id>
@@ -122,6 +223,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>
@@ -137,6 +248,16 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok-mapstruct-binding</artifactId>
+									<version>0.2.0</version>
+								</path>
+								<path>
+									<groupId>org.mapstruct</groupId>
+									<artifactId>mapstruct-processor</artifactId>
+									<version>${mapstruct.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>

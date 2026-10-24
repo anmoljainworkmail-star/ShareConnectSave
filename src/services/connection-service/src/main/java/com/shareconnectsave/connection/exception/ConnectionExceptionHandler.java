@@ -62,6 +62,16 @@ public class ConnectionExceptionHandler {
                 .body(new ErrorResponse("SELF_CONNECTION_NOT_ALLOWED", ex.getMessage(), traceId()));
     }
 
+    // T104 — same ADMIN_ROLE_REQUIRED code report-service's ReportExceptionHandler
+    // uses for its own NotAdminException, so a future Angular admin screen that
+    // talks to both services can branch on one stable code regardless of which
+    // backend rejected the request.
+    @ExceptionHandler(NotAdminConnectionActionException.class)
+    public ResponseEntity<ErrorResponse> handleNotAdminConnectionAction(NotAdminConnectionActionException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse("ADMIN_ROLE_REQUIRED", ex.getMessage(), traceId()));
+    }
+
     // Optimistic Concurrency Control: Hibernate throws this when a
     // @Version-guarded UPDATE matches zero rows because another transaction
     // already changed the row first (see ConnectionRequest.version). From

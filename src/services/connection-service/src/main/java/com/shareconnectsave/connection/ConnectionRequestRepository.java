@@ -52,4 +52,21 @@ public interface ConnectionRequestRepository extends JpaRepository<ConnectionReq
     // ACCEPTED/DECLINED by a user in between ticks, is never picked up
     // again — re-running the same query on the same data twice is safe.
     List<ConnectionRequest> findByStatusAndExpiresAtBefore(ConnectionStatus status, Instant expiresAt);
+
+    // T104 — backs PUT /admin/connections/users/{userId}/expire-active
+    // (admin-suspend's immediate cleanup, as opposed to T031's TTL sweep).
+    // Same hand-written JPQL OR as findByStatusAndEitherParty above, for the
+    // same reason: Spring Data's method-name derivation has no clean way to
+    // express "either column equals this value". Extended with
+    // "status IN :statuses" because a suspended user's lingering connections
+    // can be sitting in PENDING OR ACCEPTED — unlike the TTL job, which only
+    // ever cares about PENDING (an ACCEPTED connection isn't "overdue", it's
+    // mid-conversation, and only an admin action — not a timer — has the
+    // authority to tear it down).
+    @Query("SELECT c FROM ConnectionRequest c "
+            + "WHERE (c.requesterId = :userId OR c.recipientId = :userId) "
+            + "AND c.status IN :statuses")
+    List<ConnectionRequest> findByEitherPartyAndStatusIn(
+            @Param("userId") Long userId,
+            @Param("statuses") List<ConnectionStatus> statuses);
 }

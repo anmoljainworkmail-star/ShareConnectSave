@@ -51,4 +51,22 @@ public interface ConnectionService {
     // genuine, isolated transaction: one bad row can throw, roll back on
     // its own, and the loop's next iteration is unaffected.
     void expireConnectionRequest(Long connectionId);
+
+    // T104 — Single Responsibility (SOLID-S): AdminConnectionController only
+    // owns the "is this caller allowed to do this at all" question
+    // (X-User-Role: admin); everything about WHICH rows qualify and how many
+    // were changed is this interface's job, same split
+    // expireConnectionRequest/ConnectionExpiryScheduler already uses above.
+    // Deliberately NOT built on top of expireConnectionRequest: that method's
+    // own "status != PENDING -> no-op" guard exists for TTL-sweep idempotency
+    // (a row the scheduler's earlier read already saw move on), and would
+    // silently skip every ACCEPTED connection — exactly the case an admin
+    // suspend needs to clear. This method also intentionally does NOT give
+    // each row its own @Transactional boundary the way the scheduler's loop
+    // does: the scheduler needed per-row isolation because it calls this bean
+    // many times across one tick and one bad row must not roll back the
+    // others, but here the ticket calls for one atomic bulk operation for one
+    // user — see ConnectionServiceImpl for where that single transaction
+    // boundary is drawn.
+    int expireActiveConnectionsForUser(Long userId);
 }

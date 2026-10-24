@@ -334,6 +334,51 @@ public class ConnectionServiceImpl implements ConnectionService {
         outboxService.publish("connection.expired", saved.getId().toString(), event.eventId(), event);
     }
 
+    // Pattern: Outbox — reuses the exact same outboxService.publish(...) call
+    // (same topic name, same event shape, a fresh event_id per row) that
+    // expireConnectionRequest uses for the TTL path above, so Notification
+    // Service and any future consumer of connection.expired cannot tell an
+    // admin-triggered expiry apart from a timed-out one at the wire level —
+    // both are simply "this connection is no longer active," which is all
+    // the ticket wants published (no new bulk/summary event type).
+    //
+    // @Transactional wraps the WHOLE loop here, deliberately unlike
+    // expireConnectionRequest's per-row boundary: that method is invoked
+    // once per id, many times per scheduler tick, from OUTSIDE this class
+    // (through the Spring proxy), specifically so one bad row's rollback
+    // can't take its siblings down with it. This method is invoked once per
+    // admin action, for one user, and the ticket explicitly wants "clear
+    // every active connection this suspended user has" to be a single
+    // atomic unit — either the whole cleanup for this user commits, or none
+    // of it does, so a suspend action never leaves the user half-cleared.
+    @Override
+    @Transactional
+    public int expireActiveConnectionsForUser(Long userId) {
+        List<ConnectionRequest> activeConnections = connectionRequestRepository
+                .findByEitherPartyAndStatusIn(userId, List.of(ConnectionStatus.PENDING, ConnectionStatus.ACCEPTED));
+
+        for (ConnectionRequest connectionRequest : activeConnections) {
+            // Tell, Don't Ask (same as accept/decline/TTL-expire above) —
+            // this entity decides how to update its own status/updated_at,
+            // this method never reaches in with a raw setter.
+            connectionRequest.transitionTo(ConnectionStatus.EXPIRED);
+            ConnectionRequest saved = connectionRequestRepository.save(connectionRequest);
+
+            ConnectionExpiredEvent event = new ConnectionExpiredEvent(
+                    UUID.randomUUID().toString(),
+                    saved.getId(),
+                    saved.getRequesterId()
+            );
+            // Partition key = connection_id, same ordering rationale as every
+            // other outboxService.publish call in this class — keeps this
+            // connection's own event sequence on one partition even when an
+            // admin action and a coincidental TTL tick both touch it.
+            outboxService.publish("connection.expired", saved.getId().toString(), event.eventId(), event);
+        }
+
+        return activeConnections.size();
+    }
+
     private ConnectionRequest requireConnection(Long connectionId) {
         return connectionRequestRepository.findById(connectionId)
                 .orElseThrow(() -> new ConnectionNotFoundException(connectionId));

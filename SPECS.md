@@ -2283,3 +2283,27 @@ admin-service's already-shipped `ReportServiceClientImpl.ReportDto`, only a miss
 - [ ] Returns every report filed against the target user, any status, not just escalated
 - [ ] Empty array (not 404) when the target has zero reports
 - [ ] `ReportServiceClient.java`'s `KNOWN GAP` comment removed now that the gap is closed
+
+---
+
+### T104 — Admin Bulk-Expire Connections Endpoint
+
+**Service:** connection-service (Java)
+**Language:** Java
+**Depends on:** T030
+
+**Spec:**
+Add `PUT /admin/connections/users/{userId}/expire-active` to `ConnectionController` (or a new
+`AdminConnectionController`, matching whichever shape fits the existing controller layout best),
+callable only with `X-User-Role: admin`. Transitions every connection request where `userId` is
+either `requester_id` or `recipient_id` and `status` is `PENDING` or `ACCEPTED` to `EXPIRED`, in a
+single call — admin-service's suspend flow (T059) needs this to immediately clear a suspended
+user's active connections rather than waiting for T031's per-request TTL expiry job. Reuses the
+existing `connection.expired` Kafka producer path (T032's `OutboxRelay`) per-transitioned-row, same
+as the TTL expiry job does — do not add a second Kafka producer or a bulk/summary event type.
+
+**Acceptance criteria:**
+- [ ] Every `PENDING`/`ACCEPTED` connection where the user is requester or recipient transitions to `EXPIRED`
+- [ ] A `connection.expired` event is published per transitioned connection, via the existing outbox/relay path
+- [ ] Returns `200 OK` with a count of connections expired (`0` is a valid, non-error result when the user had none active)
+- [ ] Rejects with `403` when `X-User-Role` is not `admin`

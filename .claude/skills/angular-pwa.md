@@ -2,6 +2,18 @@
 
 You are implementing the Angular 17 frontend for ShareConnectSave. This is a learning project — add short comments naming the pattern being used (not what the code does).
 
+## Visual reference — match this exactly
+
+`FIGMA_SPEC.md` (repo root) is the source of truth for every screen: design tokens, component states, layout, and animation specs. Pull colours/spacing/radii from it into `styles/tokens.scss` — never invent a value.
+
+Two screens have already been built as approved reference mockups (tech-lead sign-off) and should be matched pixel-for-pixel, not just in spirit:
+- **Screen 07 — Radar Active (GPS Mode)**
+- **Screen 12 — Chat**
+
+Reference: https://claude.ai/artifact/CAu6pBZqysAqa8yKct6jrw
+
+Use these two for the exact radar ring/sweep/glow mechanics, dot pulse timing, bubble styling, and the Met Successfully button treatment — the remaining 20 screens follow FIGMA_SPEC.md's written spec directly since they don't carry the same animation/layout risk.
+
 ## Non-negotiable rules
 
 - **No standalone components.** Every component, directive, pipe, and service belongs to an NgModule.

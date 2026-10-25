@@ -18,4 +18,17 @@ public interface ConnectionServiceClient {
     // upstream's own confirmed outcome" discipline as
     // UserServiceClient.setStatus.
     int expireActiveConnections(String userId);
+
+    // T107 — backed by Connection Service's GET /admin/connections/stats.
+    // Named getStats() to match the ticket spec and UserServiceClient's own
+    // T105 precedent, even though UserServiceClient.getStats() returns a
+    // PlatformStats record and this one returns a plain int: User Service's
+    // getStats() already had TWO fields on the horizon when T105 shipped (a
+    // record was the right call there), this one has exactly ONE — Admin
+    // Dashboard needs a single platform-health number here, not a result set
+    // to page through — so a bespoke single-field record would be ceremony
+    // with no caller that benefits from it (Interface Segregation, SOLID-I:
+    // this client exposes exactly what ReviewQueueServiceImpl needs, nothing
+    // wrapped for a future that may never arrive).
+    int getStats();
 }

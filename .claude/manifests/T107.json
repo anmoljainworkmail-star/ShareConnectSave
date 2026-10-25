@@ -1,0 +1,21 @@
+{
+  "task_id": "T107",
+  "title": "Admin Stats Endpoint — Total Connections Accepted Today",
+  "status": "completed",
+  "files_created": [
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/domain/ConnectionStatsResponse.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/exception/NotAdminConnectionActionException.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionRequestRepository.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionService.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/ConnectionServiceImpl.java",
+    "src/services/connection-service/src/main/java/com/shareconnectsave/connection/AdminConnectionController.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ConnectionServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ConnectionServiceClientImpl.java"
+  ],
+  "criteria_checked": {
+    "total_connections_accepted_today_counts_accepted_today_utc": "PASS",
+    "rejects_403_when_role_not_admin": "PASS",
+    "admin_service_getStats_client_call": "PASS"
+  },
+  "last_note": "Added GET /admin/connections/stats on existing AdminConnectionController (T104), new ConnectionStatsResponse DTO (snake_case wire key via @JsonProperty per ticket-fixed contract), countConnectionsAcceptedToday() on ConnectionService/Impl using a new half-open-interval derived repository query on updatedAt, a no-arg NotAdminConnectionActionException overload for the guard clause, and admin-service ConnectionServiceClient.getStats()/ConnectionServiceClientImpl (WebClient + CircuitBreaker, no fallback, reused 'connectionService' Resilience4j instance). No codegen/migrations needed. All acceptance criteria pass."
+}

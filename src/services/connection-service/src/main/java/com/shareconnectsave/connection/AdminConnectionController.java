@@ -1,9 +1,11 @@
 package com.shareconnectsave.connection;
 
+import com.shareconnectsave.connection.domain.ConnectionStatsResponse;
 import com.shareconnectsave.connection.domain.ExpireActiveConnectionsResponse;
 import com.shareconnectsave.connection.exception.NotAdminConnectionActionException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -56,5 +58,31 @@ public class AdminConnectionController {
 
         int expiredCount = connectionService.expireActiveConnectionsForUser(userId);
         return ResponseEntity.ok(new ExpireActiveConnectionsResponse(expiredCount));
+    }
+
+    // T107 — Admin Dashboard stats tile. Nests under this same
+    // /admin/connections controller (not a new class) for the same reason
+    // expireActiveConnections lives here: this is also "an admin acting on
+    // data that belongs to every user, not just their own" trust boundary,
+    // so the two methods share one focused, already-admin-scoped class
+    // rather than splitting one trust boundary across two controllers
+    // (Interface Segregation, SOLID-I — this controller's surface stays
+    // exactly "admin operations on connections", nothing broader).
+    @GetMapping("/stats")
+    public ResponseEntity<ConnectionStatsResponse> getStats(
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        // Same guard clause as expireActiveConnections above, verbatim in
+        // shape — copied, not extracted into a shared method, because this
+        // controller has exactly two admin actions and a one-line guard
+        // clause duplicated twice is more readable than an indirection built
+        // for a "reuse" that saves one line. The no-arg exception overload
+        // (see NotAdminConnectionActionException) is the only difference:
+        // this action has no target user id to report.
+        if (!ADMIN_ROLE.equals(role)) {
+            throw new NotAdminConnectionActionException();
+        }
+
+        int totalAcceptedToday = connectionService.countConnectionsAcceptedToday();
+        return ResponseEntity.ok(new ConnectionStatsResponse(totalAcceptedToday));
     }
 }

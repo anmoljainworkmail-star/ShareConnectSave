@@ -15,4 +15,18 @@ public class NotAdminConnectionActionException extends RuntimeException {
     public NotAdminConnectionActionException(Long targetUserId) {
         super("Caller is not authorized to bulk-expire connections for user " + targetUserId);
     }
+
+    // T107 — GET /admin/connections/stats' guard clause needs the exact same
+    // exception TYPE (so ConnectionExceptionHandler's one existing
+    // @ExceptionHandler keeps mapping both admin actions to 403/
+    // ADMIN_ROLE_REQUIRED without a second handler method), but has no
+    // target user id to report — this endpoint isn't acting on any one
+    // user's connections. An overloaded constructor, not a second exception
+    // class, is the smaller change: Liskov Substitution (SOLID-L) still
+    // holds (every caller of this exception type gets a RuntimeException
+    // with a sensible message), and the admin-role guard stays a single,
+    // reusable concept across both methods on this controller.
+    public NotAdminConnectionActionException() {
+        super("Caller is not authorized to view connection stats");
+    }
 }

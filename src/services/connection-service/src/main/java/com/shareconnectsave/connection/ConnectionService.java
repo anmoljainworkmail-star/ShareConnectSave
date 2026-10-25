@@ -69,4 +69,16 @@ public interface ConnectionService {
     // user — see ConnectionServiceImpl for where that single transaction
     // boundary is drawn.
     int expireActiveConnectionsForUser(Long userId);
+
+    // T107 — Single Responsibility (SOLID-S): AdminConnectionController only
+    // owns "is this caller allowed to see platform stats at all" (the
+    // X-User-Role guard); everything about WHAT counts as "accepted today"
+    // is this interface's job, same split every other method on this
+    // interface already uses for its own controller. Deliberately takes NO
+    // parameters — "today" is computed inside the implementation, exactly
+    // once, from the system clock — rather than making the controller reach
+    // for LocalDate.now(ZoneOffset.UTC) itself; a thin controller only
+    // translates HTTP in/out (see AdminConnectionController's own class
+    // comment), it was never the right place to decide what "today" means.
+    int countConnectionsAcceptedToday();
 }

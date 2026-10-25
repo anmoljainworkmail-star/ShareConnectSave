@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -377,6 +379,31 @@ public class ConnectionServiceImpl implements ConnectionService {
         }
 
         return activeConnections.size();
+    }
+
+    // Read-only, no @Transactional needed — same reasoning as
+    // getPendingInbound/getActiveConnection above: a single derived-query
+    // call, already wrapped in its own short transaction by Spring Data's
+    // SimpleJpaRepository, with nothing else here for a wider boundary to
+    // protect.
+    //
+    // ZoneOffset.UTC, not the server's default zone: "today" for this metric
+    // must mean the same calendar day regardless of which time zone this
+    // JVM happens to be deployed in — the ticket is explicit that this is a
+    // UTC-day boundary, not a local one. Converting that LocalDate to its
+    // start-of-day and start-of-next-day Instants here, then handing BOTH to
+    // the repository as plain parameters, is what keeps
+    // countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan
+    // testable with any fixed instant instead of secretly depending on the
+    // system clock itself.
+    @Override
+    public int countConnectionsAcceptedToday() {
+        LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
+        Instant startOfDayUtc = todayUtc.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant startOfNextDayUtc = todayUtc.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        return (int) connectionRequestRepository.countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan(
+                ConnectionStatus.ACCEPTED, startOfDayUtc, startOfNextDayUtc);
     }
 
     private ConnectionRequest requireConnection(Long connectionId) {

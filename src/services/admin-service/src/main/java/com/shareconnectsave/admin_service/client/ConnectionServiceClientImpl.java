@@ -1,5 +1,7 @@
 package com.shareconnectsave.admin_service.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -87,11 +89,60 @@ public class ConnectionServiceClientImpl implements ConnectionServiceClient {
         throw new UpstreamUnavailableException("Connection Service", ex);
     }
 
+    // T107 — NO fallback, same reasoning as UserServiceClientImpl.getStats
+    // (T105), not expireActiveConnections above: this call IS the Admin
+    // Dashboard's "connections accepted today" tile entire data source, with
+    // no partial result to degrade into. A fallback that invented a 0 here
+    // would let the tile quietly lie to an admin ("0 accepted today")
+    // instead of visibly failing when Connection Service is unreachable —
+    // so this is left to propagate whatever the circuit breaker/WebClient
+    // throws, exactly like getStats() does on the User Service client.
+    @Override
+    @CircuitBreaker(name = "connectionService")
+    public int getStats() {
+        // X-User-Role sent per-call, same reasoning as
+        // expireActiveConnections above — this is the one piece of identity
+        // AdminConnectionController.getStats actually checks.
+        ConnectionStatsResponseDto response = connectionServiceWebClient.get()
+                .uri("/admin/connections/stats")
+                .header("X-User-Role", ADMIN_ROLE)
+                .retrieve()
+                .bodyToMono(ConnectionStatsResponseDto.class)
+                // Virtual Threads make .block() safe here — same reasoning as
+                // every other WebClient call in this class.
+                .block();
+
+        if (response == null) {
+            // Same "2xx with no body is a contract violation" discipline as
+            // expireActiveConnections's own null check above.
+            throw new IllegalStateException("Connection Service returned no body for getStats()");
+        }
+
+        return response.totalConnectionsAcceptedToday();
+    }
+
     // Nested, package-private wire DTO matching Connection Service's own
     // ExpireActiveConnectionsResponse shape exactly: plain camelCase,
     // no @JsonProperty — see that record's own comment for why it
     // deliberately isn't snake_case like this service's other upstream wire
     // DTOs (UserServiceClientImpl's SuspendedUserDto/UserProfileDto).
     record ExpireActiveConnectionsResponseDto(int expiredCount) {
+    }
+
+    // Nested, package-private wire DTO matching Connection Service's own
+    // ConnectionStatsResponse shape exactly (T107): THIS one DOES need
+    // @JsonProperty, unlike ExpireActiveConnectionsResponseDto right above —
+    // Connection Service's own record fixes its wire key as the snake_case
+    // `total_connections_accepted_today` (see that record's own comment for
+    // why), so this DTO has to bridge that fixed wire shape back to an
+    // idiomatic camelCase Java field, the same bridging role
+    // UserServiceClientImpl's StatsDto plays for User Service's
+    // `total_active_users`. @JsonIgnoreProperties(ignoreUnknown = true) for
+    // the same forward-compatibility reason every other inbound wire DTO in
+    // this class/service uses it: a future field Connection Service adds to
+    // this response must never break deserialization here.
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ConnectionStatsResponseDto(
+            @JsonProperty("total_connections_accepted_today") int totalConnectionsAcceptedToday) {
     }
 }

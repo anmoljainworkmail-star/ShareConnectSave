@@ -69,4 +69,21 @@ public interface ConnectionRequestRepository extends JpaRepository<ConnectionReq
     List<ConnectionRequest> findByEitherPartyAndStatusIn(
             @Param("userId") Long userId,
             @Param("statuses") List<ConnectionStatus> statuses);
+
+    // T107 — backs GET /admin/connections/stats. A derived query, not a
+    // hand-written JPQL OR like findByStatusAndEitherParty/
+    // findByEitherPartyAndStatusIn above — "status equals X AND updatedAt
+    // falls in [start, end)" is a plain ANDed comparison, exactly what
+    // Spring Data's method-name derivation already expresses cleanly, so a
+    // @Query here would just be more ceremony for no gain. GreaterThanEqual
+    // + LessThan (NOT a single "Between"): SQL's BETWEEN is inclusive on
+    // BOTH ends, which would let a row updated at exactly midnight of the
+    // FOLLOWING UTC day double-count into today's total — the half-open
+    // interval this expresses is the only boundary-safe way to say "this one
+    // UTC calendar day". Takes the boundary Instants as parameters rather
+    // than computing "today" itself, per this ticket's own rule: the
+    // repository must stay testable with any fixed instant, never reach for
+    // the system clock on its own.
+    long countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan(
+            ConnectionStatus status, Instant startInclusiveUtc, Instant endExclusiveUtc);
 }

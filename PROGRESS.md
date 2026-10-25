@@ -200,6 +200,27 @@ minimized) response shape. T059 is explicitly blocked on T102.
 
 ---
 
+## Phase 17 — Cross-Service Gaps for Admin Service — Dashboard Stats (Bonus, not part of the original 96-task list)
+
+Discovered via T060's own downstream-endpoint audit (GET /admin/stats): none of the 4 services it
+needs stats from expose an aggregate-stats endpoint today. Tech Lead decision (2026-10-25):
+companion tickets first, one narrow admin-only stats endpoint per owning service. T060 is
+re-sequenced to depend on all four.
+
+- [x] T105 — Admin Stats Endpoint — Total Active Users _(user-service, internal-only
+      GET /users/internal/stats, closes T060's "total active users" gap)_
+- [x] T106 — Admin Stats Endpoint — Total Scans Today _(discovery-service, new admin-only
+      GET /admin/scan/stats, closes T060's "total scans today" gap — deliberately uses Spring
+      Security @PreAuthorize method security instead of a manual guard clause, a third real
+      pattern alongside T056's filter-chain config and T104/T107's @RequestHeader guard)_
+- [x] T107 — Admin Stats Endpoint — Total Connections Accepted Today _(connection-service, new
+      admin-only GET /admin/connections/stats, closes T060's "total connections today" gap)_
+- [x] T108 — Top Reported Users Endpoint _(report-service, new admin-only
+      GET /reports/top-reported?days=7&limit=5, closes T060's "top 5 most-reported" gap —
+      NOT a reuse of /reports/queue, which answers a different question per T060's own audit)_
+
+---
+
 ## Post-ship fixes — not part of the original 96-task list
 
 - **[Fixed 2026-09-04] Stale JWT `status` claim on automatic onboarding transition.**

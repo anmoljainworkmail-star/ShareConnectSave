@@ -1125,3 +1125,55 @@ whose implementation or ticket should pick it up.
    Affects: no existing ticket owns this — flag for a future platform-wide security
    hardening pass across Connection Service, Report Service, and Admin Service's admin-only
    routes (add `X-Internal-Service-Key` checks matching T102's pattern).
+
+## From T105 (Admin Stats Endpoint — Total Active Users)
+
+1. **`UserServiceClient.getStats()` has no consumer yet in admin-service — no controller wires
+   it into an actual Admin Dashboard response.** This is in-scope per the ticket's own "What to
+   build" wording (it only asked for the client method), but the surrounding code comments
+   (`UserProfileController.cs` around `GetInternalStats`, `UserServiceClient.java` around
+   `getStats()`) are phrased as if the Admin Dashboard already reads this aggregate, which isn't
+   true until T060 actually calls it.
+   Affects: T060 (Dashboard Queries — the ticket that will actually wire this client call into a
+   response) should tighten those comments once it adds the real call site, so a future reader
+   isn't sent hunting for a dashboard endpoint that doesn't exist yet.
+
+## From T107 (Admin Stats Endpoint — Total Connections Accepted Today)
+
+1. **No single documented wire-casing rule exists yet for admin-service-facing stats endpoints
+   vs. action-result endpoints.** `AdminConnectionController` now has two methods with
+   differently-cased JSON: `expireActiveConnections` → `{"expiredCount": N}` (plain camelCase,
+   no annotation) and `getStats` → `{"total_connections_accepted_today": N}` (snake_case via
+   explicit `@JsonProperty`, matching T105's `InternalStatsResponse` precedent on the .NET side).
+   Both are individually correct and documented in their own file comments, but a future reader
+   of this one controller has to re-derive "stats tiles are snake_case, actions are camelCase"
+   from two separate comments rather than one stated rule.
+   Affects: whichever future ticket next writes an admin-facing stats or action endpoint
+   (T060's own dashboard aggregation, or any later admin-service work) — consider a one-line
+   addition to CLAUDE.md or the skill-map stating this convention explicitly.
+
+2. **`countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan` returns `long`, cast to
+   `int` in `countConnectionsAcceptedToday()`.** Theoretical overflow only possible at >2 billion
+   connections accepted in a single UTC day — not a real risk at this platform's scale, noted for
+   completeness only.
+   Affects: no action needed; flag only if this pattern is copied somewhere with a genuinely
+   large row count.
+
+## From T108 (Top Reported Users Endpoint)
+
+1. **No validation on `days`/`limit` query params on `GET /reports/top-reported` — a negative
+   `limit` surfaces as a raw 500, not a clean 400.** `ReportController.getTopReportedUsers`
+   passes `days`/`limit` straight through to `ReportServiceImpl.getTopReportedUsers`'s MongoDB
+   aggregation with no guard clause. A negative/zero `days` silently produces an empty result
+   (not a crash, just confusing). A negative `limit` (e.g. `limit=-1`) reaches
+   `Aggregation.limit(long)`, which only asserts `>= 0` client-side — MongoDB's server then
+   rejects a negative `$limit` with a command error that falls through to the generic shared
+   `GlobalExceptionHandler` catch-all, surfacing an undifferentiated 500 instead of 400. Not a
+   data-exposure risk, but a sloppy API contract and a real "wrong error code" bug — low priority
+   since admin-service's own `ReportServiceClient.getTopReported()` only ever calls this with
+   fixed, already-valid values, so no real caller hits it today.
+   Fix: a guard clause in `ReportController` (`if (days < 1 || limit < 1) throw ...`, mapped to a
+   clean 400) plus `minimum: 1` on both query param schemas in
+   `contracts/openapi/report-service.yaml`.
+   Affects: no existing ticket owns this — flag for a future report-service hardening pass, or
+   pick up directly whenever this file is next touched.

@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.shareconnectsave.report_service.dto.ReportCreateDto;
 import com.shareconnectsave.report_service.dto.ReportResponse;
+import com.shareconnectsave.report_service.dto.TopReportedUserDto;
 
 // Dependency Inversion (SOLID-D): ReportController depends on THIS
 // interface, never on ReportServiceImpl directly — same shape as every
@@ -21,4 +22,14 @@ public interface ReportService {
     // ask" — Single Responsibility (SOLID-S), same split this ticket keeps
     // between escalation decision logic and authorization.
     List<ReportResponse> getEscalatedQueue();
+
+    // T108 — backs GET /reports/top-reported. Distinct Query Intent: this
+    // answers "who has accumulated the most reports right now, over a
+    // rolling window, across every status", NOT "who is currently
+    // escalated" — a different business question from getEscalatedQueue
+    // above, so it is a separate method with its own fresh aggregation,
+    // never a filter bolted onto the escalation queue's query. See
+    // ReportServiceImpl.getTopReportedUsers's own comment for why reusing
+    // getEscalatedQueue here would silently produce wrong answers.
+    List<TopReportedUserDto> getTopReportedUsers(int days, int limit);
 }

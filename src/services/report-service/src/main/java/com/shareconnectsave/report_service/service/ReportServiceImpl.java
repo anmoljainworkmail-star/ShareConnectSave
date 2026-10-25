@@ -1,11 +1,14 @@
 package com.shareconnectsave.report_service.service;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -15,6 +18,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shareconnectsave.report_service.dto.ReportCreateDto;
 import com.shareconnectsave.report_service.dto.ReportResponse;
+import com.shareconnectsave.report_service.dto.TopReportedUserDto;
 import com.shareconnectsave.report_service.exception.SelfReportException;
 import com.shareconnectsave.report_service.kafka.event.ReportFiledEvent;
 import com.shareconnectsave.report_service.mapper.ReportMapper;
@@ -189,6 +193,67 @@ public class ReportServiceImpl implements ReportService {
                 .stream()
                 .map(reportMapper::toResponse)
                 .toList();
+    }
+
+    // T108 — GET /reports/top-reported's read path.
+    //
+    // Distinct Query Intent (per this ticket's own "Patterns demonstrated"):
+    // getEscalatedQueue above answers "who has already crossed the
+    // escalation threshold", sorted by a SNAPSHOT (reportCountAtEscalation)
+    // taken once, at the moment escalation happened, and filtered to
+    // status == ESCALATED only. This method answers a genuinely different
+    // question — "who has the most reports RIGHT NOW, in the last `days`
+    // days, regardless of status" — a user sitting at 2 reports in the last
+    // week (below a threshold of 3) would never appear in the escalation
+    // queue at all, yet could easily outrank an escalated user whose last
+    // report was months ago. Reusing getEscalatedQueue's query here would
+    // silently answer the wrong question — "it kind of works" is exactly
+    // the trap this ticket calls out.
+    //
+    // MongoDB Aggregation Pipeline: a SQL analogy first, since this is the
+    // first aggregation pipeline in this service — think of it as the Mongo
+    // equivalent of
+    //   SELECT reportedId, COUNT(*) AS reportCount FROM reports
+    //   WHERE createdAt >= :since
+    //   GROUP BY reportedId ORDER BY reportCount DESC LIMIT :limit
+    // built as a pipe of stages, each one transforming the documents that
+    // came out of the stage before it (like Unix `grep | sort | head`, but
+    // over JSON documents instead of text lines):
+    //   $match  — keep only reports inside the rolling window (the WHERE)
+    //   $group  — bucket the survivors by reportedId and count each bucket
+    //             (the GROUP BY + COUNT; Mongo always names the bucket key
+    //             "_id", never the field name it was grouped on)
+    //   $sort   — worst offenders first (the ORDER BY)
+    //   $limit  — only the top N (the LIMIT)
+    //   $project — rename the pipeline's "_id" bucket key back to
+    //             "reportedId" so it lines up with TopReportedUserDto's
+    //             field name; Spring Data's mapper matches aggregation
+    //             output fields to a target record's constructor parameters
+    //             by NAME, and "_id" would never match "reportedId" on its
+    //             own.
+    //
+    // Repository Pattern / Dependency Inversion (SOLID-D): this method is
+    // the one place in the service layer that knows an aggregation pipeline
+    // is involved at all — ReportController depends on ReportService, never
+    // on MongoTemplate directly, the same abstraction boundary
+    // findByStatusOrderByReportCountAtEscalationDesc gives getEscalatedQueue
+    // above, just hand-built here instead of Spring Data deriving it from a
+    // method name (a derived-query method name has no vocabulary for
+    // "group and count").
+    @Override
+    public List<TopReportedUserDto> getTopReportedUsers(int days, int limit) {
+        Instant since = Instant.now().minus(days, ChronoUnit.DAYS);
+
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("createdAt").gte(since)),
+                Aggregation.group("reportedId").count().as("reportCount"),
+                Aggregation.sort(Sort.Direction.DESC, "reportCount"),
+                Aggregation.limit(limit),
+                Aggregation.project("reportCount").and("_id").as("reportedId")
+        );
+
+        return mongoTemplate.aggregate(aggregation, "reports", TopReportedUserDto.class)
+                .getMappedResults();
     }
 
     private String serialize(ReportFiledEvent event) {

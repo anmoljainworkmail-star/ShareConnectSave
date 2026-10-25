@@ -166,3 +166,11 @@ T102: dotnet-mvc-controllers
 T103: java-spring-boot
 T104: java-spring-boot
 ```
+
+## Phase 17 — Cross-Service Gaps for Admin Service — Dashboard Stats (Bonus, beyond the original 96)
+```
+T105: dotnet-mvc-controllers
+T106: java-spring-boot
+T107: java-spring-boot
+T108: java-spring-boot
+```

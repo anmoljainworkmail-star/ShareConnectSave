@@ -1,0 +1,23 @@
+{
+  "task_id": "T108",
+  "title": "Top Reported Users Endpoint",
+  "status": "completed",
+  "files_created": [
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/dto/TopReportedUserDto.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/service/ReportService.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/service/ReportServiceImpl.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/controller/ReportController.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/NotAdminException.java",
+    "contracts/openapi/report-service.yaml",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ReportServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ReportServiceClientImpl.java"
+  ],
+  "criteria_checked": {
+    "Returns up to limit reported_id/report_count pairs, ordered by count descending, over the last days days": "PASS",
+    "Includes reports of every status, not just escalated": "PASS",
+    "Defaults to days=7, limit=5 when query params are omitted": "PASS",
+    "Rejects with 403 when X-User-Role is not admin": "PASS",
+    "admin-service gets a new ReportServiceClient.getTopReported() call against this endpoint": "PASS"
+  },
+  "last_note": "Implementation complete and verified: mvn -o compile passed (exit 0) for both report-service and admin-service. New GET /reports/top-reported in ReportController, TopReportedUserDto, ReportServiceImpl.getTopReportedUsers aggregation via MongoTemplate, OpenAPI contract updated, admin-service ReportServiceClient.getTopReported() added (no fallback, reuses existing reportService circuit breaker)."
+}

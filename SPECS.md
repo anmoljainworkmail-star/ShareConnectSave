@@ -2307,3 +2307,136 @@ as the TTL expiry job does — do not add a second Kafka producer or a bulk/summ
 - [ ] A `connection.expired` event is published per transitioned connection, via the existing outbox/relay path
 - [ ] Returns `200 OK` with a count of connections expired (`0` is a valid, non-error result when the user had none active)
 - [ ] Rejects with `403` when `X-User-Role` is not `admin`
+
+---
+
+## Phase 17 — Cross-Service Gaps for Admin Service — Dashboard Stats (Bonus, discovered via T060 downstream-endpoint audit)
+
+T060 (Admin Service's dashboard) was ticketed against four downstream services' aggregate-stats
+endpoints that, like Phase 16's gaps, were assumed in SPECS.md but never actually specified or
+built — confirmed by reading `contracts/openapi/user-service.yaml`, `discovery-service.yaml`,
+`connection-service.yaml`, and `report-service.yaml` directly against each of T060's 5 metrics.
+Tech Lead decision: ship one narrow, admin-only stats endpoint per owning service (Database per
+Service — each service answers its own aggregate query over its own data) rather than have
+Admin Service query another service's database directly or ship with 3 of 5 metrics stubbed.
+Report Service's "total reports today" metric does NOT get a new endpoint here — T060's own
+audit found the existing admin-only `GET /reports` is good enough to filter/count client-side —
+only "top 5 most-reported" needs new Report Service work, since `/reports/queue` (T053) is
+reportedly NOT a substitute (escalated-only, stale snapshot count, wrong window).
+
+### T105 — Admin Stats Endpoint — Total Active Users
+
+**Service:** user-service (.NET)
+**Language:** C#
+**Depends on:** T102
+
+**Spec:**
+Add `GET /users/internal/stats`, internal-only (Docker-network reachable only, guarded by the
+same `X-Internal-Service-Key` check as T102's three internal endpoints — reuse
+`TryAuthorizeInternalCall`, do not duplicate the guard a fifth time). Returns
+`{ "total_active_users": <count> }`: the count of users where `AccountStatus` is NOT `suspended`
+AND `IsOnboardingComplete` is `true` — a genuinely active, verified user in circulation, not
+merely a row in the table (an incomplete signup or a suspended account is not "active" for this
+metric, same two-different-axes reasoning T102 already established for `AccountStatus` vs.
+`Status`). Companion fix: admin-service's `UserServiceClient` gets a new `getStats()` method
+calling this endpoint.
+
+**Acceptance criteria:**
+- [ ] `total_active_users` = count of users with `AccountStatus != suspended` AND `IsOnboardingComplete = true`
+- [ ] Endpoint rejects a request missing or mismatching `X-Internal-Service-Key`, same as T102's other internal endpoints
+- [ ] admin-service's `UserServiceClient` gains a `getStats()` call against this endpoint
+
+---
+
+### T106 — Admin Stats Endpoint — Total Scans Today
+
+**Service:** discovery-service (Java)
+**Language:** Java
+**Depends on:** T022
+
+**Spec:**
+Add `GET /admin/scan/stats` via a new `AdminScanController`. **Tech Lead decision (2026-10-25):**
+unlike T104/T107's plain `@RequestHeader` guard clause, this endpoint is guarded with real Spring
+Security method security — `@EnableMethodSecurity` + `@PreAuthorize("hasRole('ADMIN')")` directly
+on the controller method — deliberately chosen *because* `AdminScanController` is a brand-new
+class with no sibling method on an existing manual-guard controller to stay consistent with,
+making it a clean place to learn the annotation-based style. This is a third real pattern for the
+exact same "is this caller an admin" question, alongside T056's path-matcher
+`SecurityFilterChain`/`AdminRoleAuthenticationFilter` (admin-service) and T104/T107's manual
+`@RequestHeader` guard clause (connection-service) — all three enforce the identical rule from
+the identical `X-User-Role` header, at three different layers (filter-chain config, a hand-written
+`if`, and a method-level annotation), worth comparing side by side. Needs: the
+`spring-boot-starter-security` dependency (not yet in discovery-service's `pom.xml`); a
+`DiscoveryAdminRoleAuthenticationFilter` (`OncePerRequestFilter`, same shape as T056's
+`AdminRoleAuthenticationFilter`) that reads `X-User-Role` and populates
+`SecurityContextHolder` only when it equals `admin`, so `@PreAuthorize`'s `hasRole(...)` check has
+an `Authentication` to evaluate; a `SecurityConfig` with `csrf().disable()`,
+`sessionManagement(STATELESS)`, and `authorizeHttpRequests().anyRequest().permitAll()` — method
+security does the actual gating here, not the filter chain's own authorization rule, so every
+non-admin endpoint (`/scan/*`, `/actuator/health`) stays reachable exactly as before this ticket;
+and an `AccessDeniedHandler` returning this project's shared `{code, message, traceId}`
+`ErrorResponse` envelope (same reasoning as T056's own `AdminAccessDeniedHandler` — a Spring
+Security rejection happens before `GlobalExceptionHandler` ever sees it). Returns
+`{ "total_scans_today": <count> }`: a SQL Server count query against
+`scan_sessions.started_at >= <start of current UTC day>`. This is deliberately a SQL query, not a
+Redis read — `scan:active_sessions` (T023) only ever holds sessions that are *currently* active,
+which answers a different question ("how many people are scanning right now") than "how many scan
+sessions started today" (includes sessions already stopped).
+
+**Acceptance criteria:**
+- [ ] `total_scans_today` counts `scan_sessions` rows with `started_at` on or after the current UTC day's start
+- [ ] Authorization is enforced via `@PreAuthorize("hasRole('ADMIN')")` on the controller method, not a manual `@RequestHeader` guard clause
+- [ ] Every non-admin discovery-service endpoint (`/scan/*`, `/actuator/health`) remains reachable with no role check, unaffected by this ticket's `SecurityConfig`
+- [ ] A rejection (missing/wrong `X-User-Role`) returns this project's standard `{code, message, traceId}` error envelope, not Spring Security's bare default 403
+- [ ] Rejects with `403` when `X-User-Role` is not `admin`
+- [ ] admin-service gets a new `DiscoveryServiceClient.getStats()` call against this endpoint
+
+---
+
+### T107 — Admin Stats Endpoint — Total Connections Accepted Today
+
+**Service:** connection-service (Java)
+**Language:** Java
+**Depends on:** T030, T104
+
+**Spec:**
+Add `GET /admin/connections/stats` as a new method on T104's existing `AdminConnectionController`
+(nests naturally under `/admin/connections`, same `X-User-Role: admin` guard-clause shape as its
+own `expireActiveConnections` method — reuse the class, do not create a second admin controller).
+Returns `{ "total_connections_accepted_today": <count> }`: a count of `connection_requests` rows
+where `status = ACCEPTED` and the timestamp of the transition *into* `ACCEPTED` falls on the
+current UTC day — use whichever column `acceptConnection` (T030) already writes for that
+transition (e.g. `updated_at`), not `created_at` (the request's original send time, which could
+be days earlier than today's accept).
+
+**Acceptance criteria:**
+- [ ] `total_connections_accepted_today` counts connections whose status transitioned to `ACCEPTED` on the current UTC day
+- [ ] Rejects with `403` when `X-User-Role` is not `admin`
+- [ ] admin-service gets a new `ConnectionServiceClient.getStats()` call against this endpoint
+
+---
+
+### T108 — Top Reported Users Endpoint
+
+**Service:** report-service (Java)
+**Language:** Java
+**Depends on:** T053
+
+**Spec:**
+Add `GET /reports/top-reported?days=7&limit=5` to the existing `ReportController` (admin-only,
+same `X-User-Role` guard as `/reports` and `/reports/queue`), defaulting `days` to 7 and `limit`
+to 5 when omitted. Returns the top `limit` reported users by raw report count over a rolling
+`days`-day window, across every report status — a live MongoDB aggregation
+(`$match` on `createdAt >= now - days`, `$group` by `reportedId` with a count, `$sort` descending,
+`$limit`), NOT a reuse of `/reports/queue`'s shape: that endpoint only returns already-`escalated`
+reports sorted by a point-in-time snapshot count taken when escalation happened, which silently
+excludes a user with multiple recent reports who hasn't crossed the escalation threshold yet, and
+can be stale relative to "right now" — a fundamentally different query, per T060's own audit.
+Response: `List<TopReportedUserDto>` — `{ reported_id, report_count }` per entry.
+
+**Acceptance criteria:**
+- [ ] Returns up to `limit` `reported_id`/`report_count` pairs, ordered by count descending, over the last `days` days
+- [ ] Includes reports of every status, not just `escalated`
+- [ ] Defaults to `days=7`, `limit=5` when query params are omitted
+- [ ] Rejects with `403` when `X-User-Role` is not `admin`
+- [ ] admin-service gets a new `ReportServiceClient.getTopReported()` call against this endpoint

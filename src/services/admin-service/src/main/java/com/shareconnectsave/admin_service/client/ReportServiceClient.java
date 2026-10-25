@@ -26,4 +26,19 @@ public interface ReportServiceClient {
 
     record ReportHistoryItem(String id, String reporterId, String reason, String status, Instant createdAt) {
     }
+
+    // T108 — Admin Dashboard "top reported users" tile. Unlike
+    // getReportHistory above, this calls an endpoint that genuinely exists
+    // (GET /reports/top-reported, T108) — no KNOWN GAP here.
+    //
+    // Distinct Query Intent, same reasoning T108's report-service ticket
+    // applies server-side: this is NOT a client for GET /reports/queue's
+    // escalated-only view (ReportServiceClient deliberately has no method
+    // for that, per this interface's own class comment) — it is a live,
+    // fresh-every-call aggregate over the last `days` days across every
+    // report status, so admin-service must never cache its result either.
+    List<TopReportedUser> getTopReported(int days, int limit);
+
+    record TopReportedUser(String reportedId, long reportCount) {
+    }
 }

@@ -9,10 +9,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shareconnectsave.report_service.dto.ReportCreateDto;
 import com.shareconnectsave.report_service.dto.ReportResponse;
+import com.shareconnectsave.report_service.dto.TopReportedUserDto;
 import com.shareconnectsave.report_service.exception.NotAdminException;
 import com.shareconnectsave.report_service.service.ReportService;
 
@@ -62,5 +64,36 @@ public class ReportController {
             throw new NotAdminException(userId);
         }
         return ResponseEntity.ok(reportService.getEscalatedQueue());
+    }
+
+    // T108 — Admin Dashboard "top reported users" tile. Same admin-only
+    // guard-clause shape as getEscalatedQueue right above it, copied on
+    // purpose: this controller already has two endpoints using the plain
+    // X-User-Role header check, so a third manual guard stays consistent
+    // with its own siblings rather than introducing @PreAuthorize here (a
+    // sibling bonus ticket, T106, uses Spring Security annotations, but only
+    // in a brand-new controller with no existing manual-guard precedent to
+    // match).
+    //
+    // Distinct Query Intent: deliberately NOT a thin wrapper around
+    // getEscalatedQueue's query — see ReportServiceImpl.getTopReportedUsers
+    // for why "already escalated" and "most reported in the last N days,
+    // any status" are two different business questions.
+    //
+    // Default parameter values live here, at the HTTP boundary
+    // (@RequestParam defaultValue), not in the service layer — so
+    // ReportServiceImpl.getTopReportedUsers always receives explicit,
+    // already-resolved values and never needs its own "was this omitted?"
+    // branch.
+    @GetMapping("/top-reported")
+    public ResponseEntity<List<TopReportedUserDto>> getTopReportedUsers(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-User-Role") String role,
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(defaultValue = "5") int limit) {
+        if (!"admin".equals(role)) {
+            throw new NotAdminException(userId);
+        }
+        return ResponseEntity.ok(reportService.getTopReportedUsers(days, limit));
     }
 }

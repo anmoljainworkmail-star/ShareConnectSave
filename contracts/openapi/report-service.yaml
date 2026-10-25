@@ -106,6 +106,57 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /reports/top-reported:
+    get:
+      tags: [reports]
+      summary: Top reported users over a rolling window, admin dashboard metric (admin only)
+      description: >
+        T108: a live MongoDB aggregation ($match on createdAt >= now - days,
+        $group by reportedId with a count, $sort descending, $limit) across
+        EVERY report status, NOT a reuse of GET /reports/queue's query —
+        that endpoint only returns already-escalated reports sorted by a
+        point-in-time snapshot count taken when escalation happened, which
+        silently excludes a user with multiple recent reports who hasn't
+        crossed the escalation threshold yet, and can be stale relative to
+        "right now". Computed fresh on every request — never cached.
+      operationId: getTopReportedUsers
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: days
+          in: query
+          required: false
+          description: Rolling window size, in days.
+          schema:
+            type: integer
+            default: 7
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of users to return.
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: Top reported users returned, highest report count first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopReportedUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Caller is not an admin.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /reports/{id}:
     get:
       tags: [reports]
@@ -241,3 +292,17 @@ components:
         created_at:
           type: string
           format: date-time
+
+    # T108 — one row of GET /reports/top-reported. A computed aggregate, not
+    # a stored document, so it is a deliberately separate schema from Report
+    # above rather than a subset/reuse of it.
+    TopReportedUser:
+      type: object
+      required: [reported_id, report_count]
+      properties:
+        reported_id:
+          type: string
+          format: uuid
+        report_count:
+          type: integer
+          format: int64

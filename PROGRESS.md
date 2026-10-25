@@ -116,7 +116,7 @@
 - [x] T057 — Review Queue Endpoints _(sorted by report count desc)_
 - [x] T058 — Trust Score Override _(admin writes directly to ratings_db)_
 - [x] T059 — Account Suspend _(status flag in users_db, re-publishes trust.score.updated)_
-- [ ] T060 — Dashboard Queries _(Caffeine-cached stats, 60s TTL)_
+- [x] T060 — Dashboard Queries _(Caffeine-cached stats, 60s TTL)_
 - [ ] T061 — Admin Service Docker Image
 
 ---

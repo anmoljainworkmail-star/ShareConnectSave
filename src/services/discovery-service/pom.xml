@@ -57,6 +57,23 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+
+		<!-- Method Security (T106): this service's first-ever Spring Security
+		     dependency. Added specifically so @PreAuthorize("hasRole('ADMIN')")
+		     has a real SecurityContext/Authentication to evaluate on
+		     AdminScanController.getStats() — every other endpoint in this
+		     service (/scan/*, /actuator/health) is untouched by it, since
+		     SecurityConfig's filter-chain rule stays permitAll() and only the
+		     one annotated method is actually gated. See security.SecurityConfig's
+		     own class comment for why THIS service reaches for the
+		     annotation-based style instead of admin-service's T056 path-matcher
+		     SecurityFilterChain or connection-service's T104/T107 manual
+		     @RequestHeader guard clause — three real answers to the identical
+		     "is this caller an admin" question, worth comparing side by side. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>

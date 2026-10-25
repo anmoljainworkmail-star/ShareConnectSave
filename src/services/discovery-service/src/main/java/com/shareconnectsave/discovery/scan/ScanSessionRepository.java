@@ -4,7 +4,10 @@ import com.shareconnectsave.discovery.scan.domain.ScanSession;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Optional;
 
 // Pattern: Repository (GoF/DDD) — same shape as IUserRepository in User
@@ -32,4 +35,22 @@ public interface ScanSessionRepository extends JpaRepository<ScanSession, Long> 
     // including the Redis call — before the other can even read the row.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ScanSession> findFirstByUserIdAndEndedAtIsNullOrderByIdDesc(Long userId);
+
+    // T106 — Distinct Query Intent (Analytics vs. Real-Time): "how many scan
+    // sessions started today" is an ANALYTICS question answered from this
+    // table, deliberately NOT from Redis's scan:active_sessions key (T023),
+    // which only ever holds sessions that are CURRENTLY active and answers a
+    // different question ("how many people are scanning right now"). A
+    // session a user already stopped hours ago still counts here, since
+    // started_at is never cleared by /scan/stop (see ScanSession.close(),
+    // which only sets ended_at) — exactly the historical count the Admin
+    // Dashboard needs.
+    //
+    // An explicit @Query, not a derived findBy... method name, because
+    // "today" is a caller-supplied UTC day boundary (ScanStatsServiceImpl
+    // computes it via ZonedDateTime.now(UTC).truncatedTo(DAYS)), not a
+    // column value Spring Data can infer from the method name alone — the
+    // boundary must be passed in, not hardcoded into generated SQL.
+    @Query("SELECT COUNT(s) FROM ScanSession s WHERE s.startedAt >= :startOfDayUtc")
+    long countScansStartedToday(@Param("startOfDayUtc") Instant startOfDayUtc);
 }

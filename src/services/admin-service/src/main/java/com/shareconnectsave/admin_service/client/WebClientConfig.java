@@ -1,6 +1,7 @@
 package com.shareconnectsave.admin_service.client;
 
 import com.shareconnectsave.admin_service.config.ConnectionServiceProperties;
+import com.shareconnectsave.admin_service.config.DiscoveryServiceProperties;
 import com.shareconnectsave.admin_service.config.RatingServiceProperties;
 import com.shareconnectsave.admin_service.config.ReportServiceProperties;
 import com.shareconnectsave.admin_service.config.UserServiceProperties;
@@ -71,6 +72,20 @@ public class WebClientConfig {
             ConnectionServiceProperties connectionServiceProperties) {
         return builder
                 .baseUrl(connectionServiceProperties.baseUrl())
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+    }
+
+    // T106: admin-service's first-ever outbound call into Discovery Service.
+    // No default X-Internal-Service-Key-style header here — same reasoning
+    // as connectionServiceWebClient above: Discovery Service's GET
+    // /admin/scan/stats authorizes itself via a per-request X-User-Role
+    // header instead (see DiscoveryServiceClientImpl's own comment).
+    @Bean
+    public WebClient discoveryServiceWebClient(WebClient.Builder builder,
+            DiscoveryServiceProperties discoveryServiceProperties) {
+        return builder
+                .baseUrl(discoveryServiceProperties.baseUrl())
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }

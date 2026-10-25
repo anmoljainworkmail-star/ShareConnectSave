@@ -1,0 +1,30 @@
+{
+  "task_id": "T106",
+  "title": "Admin Stats Endpoint — Total Scans Today",
+  "status": "completed",
+  "files_created": [
+    "src/services/discovery-service/pom.xml",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/security/DiscoveryAdminRoleAuthenticationFilter.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/security/DiscoveryAuthenticationEntryPoint.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/security/DiscoveryAccessDeniedHandler.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/security/SecurityConfig.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanSessionRepository.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/domain/ScanStatsResponse.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanStatsService.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/ScanStatsServiceImpl.java",
+    "src/services/discovery-service/src/main/java/com/shareconnectsave/discovery/scan/AdminScanController.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/config/DiscoveryServiceProperties.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/WebClientConfig.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/DiscoveryServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/DiscoveryServiceClientImpl.java",
+    "src/services/admin-service/src/main/resources/application.yml"
+  ],
+  "criteria_checked": {
+    "total_scans_today_utc_day_count": "PASS",
+    "preauthorize_method_security_not_guard_clause": "PASS",
+    "non_admin_endpoints_remain_permitall": "PASS",
+    "rejection_returns_shared_error_envelope": "PASS",
+    "admin_service_getStats_client_method": "PASS"
+  },
+  "last_note": "Implemented GET /admin/scan/stats in new AdminScanController (@PreAuthorize(\"hasRole('ADMIN')\")), backed by new DiscoveryAdminRoleAuthenticationFilter/DiscoveryAuthenticationEntryPoint/DiscoveryAccessDeniedHandler/SecurityConfig (EnableMethodSecurity, filter-chain permitAll) mirroring admin-service's T056 shape but swapping the path-matcher authorization rule for method security. Added ScanSessionRepository.countScansStartedToday (JPQL, UTC day boundary computed in new ScanStatsServiceImpl) and spring-boot-starter-security to discovery-service's pom.xml. On admin-service: new DiscoveryServiceClient/Impl (WebClient + CircuitBreaker, no fallback, same convention as UserServiceClient.getStats() T105), DiscoveryServiceProperties, discoveryServiceWebClient bean in WebClientConfig, and discoveryService circuit breaker instance + discovery-service.base-url in application.yml. No dotnet/mvn/codegen CLI commands required — no schema migration, reuses existing scan_sessions.started_at column."
+}

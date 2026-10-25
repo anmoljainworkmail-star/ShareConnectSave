@@ -111,6 +111,15 @@ resilience4j:
         wait-duration-in-open-state: 30s
         sliding-window-size: 10
         minimum-number-of-calls: 10
+      # T106: admin-service's first circuit breaker around a call into
+      # Discovery Service — same failure-rate/sliding-window shape as every
+      # other instance in this block, per this block's own header comment
+      # ("one named instance per upstream service").
+      discoveryService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 10
+        minimum-number-of-calls: 10
 
 # T057 — base URLs for this service's outbound WebClient calls. Port 8080 for
 # every one of them (container-internal port), matching discovery-service's
@@ -134,6 +143,9 @@ report-service:
 # T059 — admin-service's first outbound call into Connection Service.
 connection-service:
   base-url: ${CONNECTION_SERVICE_BASE_URL:http://connection-service:8080}
+# T106 — admin-service's first outbound call into Discovery Service.
+discovery-service:
+  base-url: ${DISCOVERY_SERVICE_BASE_URL:http://discovery-service:8080}
 
 ---
 # dev profile — sensible localhost defaults so a developer can run this

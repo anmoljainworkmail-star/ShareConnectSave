@@ -1195,3 +1195,19 @@ whose implementation or ticket should pick it up.
    `isFullyAvailable()` is still not trusted/cached across callers.
    Affects: no existing ticket owns this — flag for a future admin-service hardening pass,
    or pick up directly whenever `DashboardStatsServiceImpl.java` is next touched.
+
+## From T061 (Admin Service Docker Image)
+
+1. **No non-root `USER` directive in admin-service's Dockerfile — a platform-wide gap, not a
+   T061 regression.** Neither `admin-service/Dockerfile` nor its explicit precedent,
+   `report-service/Dockerfile` (T055), sets a `USER` directive in the runtime stage, so the
+   container runs as root inside `eclipse-temurin:21-jre-alpine` by default. Confirmed this
+   matches every other Java service's Dockerfile in the repo (T028/T034/T046/T055) — T061
+   followed the established shape exactly as instructed ("follow report-service/Dockerfile
+   exactly"), so this isn't something T061 introduced or could have fixed in isolation
+   without diverging from precedent.
+   Fix: add a non-root user/group creation + `USER` directive to the runtime stage across
+   all Java (and likely .NET) service Dockerfiles in one pass, rather than one-off per
+   service, so every image stays structurally consistent.
+   Affects: no existing ticket owns this — candidate for a dedicated cross-service
+   container-hardening ticket touching all 9 Dockerfiles at once.

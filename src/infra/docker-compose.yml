@@ -500,11 +500,23 @@ services:
   # never had a SQL Server dependency of its own and should not wait on one at
   # startup — depends_on now matches report-service's shape (mongodb + kafka),
   # the other Java service with no SQL Server dependency.
+  #
+  # T061 fix: build context was still narrowly scoped to admin-service/ alone
+  # — a template default nobody had revisited since Phase 0, same stale shape
+  # T046/T055 each had to fix for rating-service/report-service. Verified at
+  # T061 implementation time: admin-service/pom.xml depends on
+  # com.shareconnectsave:shared-java-lib (AdminExceptionHandler and the
+  # Spring-Security entry-point/access-denied handlers all reuse its shared
+  # ErrorResponse record). A context scoped to admin-service/ alone cannot
+  # COPY ../shared-java-lib/src, so the Dockerfile's `mvnw install` step for
+  # shared-java-lib would fail with "could not resolve dependency" on a clean
+  # build. Context is the services parent dir; dockerfile is given relative
+  # to it, same shape as rating-service/report-service.
   admin-service:
     image: shareconnectsave/admin-service:dev
     build:
-      context: ../../src/services/admin-service
-      dockerfile: Dockerfile
+      context: ../../src/services
+      dockerfile: admin-service/Dockerfile
     container_name: admin-service
     depends_on:
       mongodb:

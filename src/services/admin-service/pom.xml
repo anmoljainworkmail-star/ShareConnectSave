@@ -177,6 +177,15 @@
 			<version>${mapstruct.version}</version>
 		</dependency>
 
+		<!-- T060: Caffeine backs DashboardStatsServiceImpl's Cache-Aside layer
+		     around GET /admin/stats (a single fixed-key, 60s expireAfterWrite
+		     entry) — same artifact, same "no <version>, let the parent BOM
+		     pin it" convention as connection-service's T033 usage. -->
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>

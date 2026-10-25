@@ -41,4 +41,29 @@ public interface ReportServiceClient {
 
     record TopReportedUser(String reportedId, long reportCount) {
     }
+
+    // T060 — Admin Dashboard "total reports today" tile. KNOWN GAP, same
+    // shape as getReportHistory's own class comment above: Report Service's
+    // actual ReportController implements only POST /reports,
+    // GET /reports/queue (escalated-only) and GET /reports/top-reported
+    // today — no plain, unfiltered admin-listing endpoint exists yet. This
+    // method is written against the same not-yet-shipped GET /reports
+    // (no query params, admin-only) that getReportHistory's own comment
+    // already assumes for its reportedId-filtered variant; SPECS.md's own
+    // Phase 17 audit judged that gap "good enough" to leave unfilled rather
+    // than fund a fifth T105-T108-style companion ticket for one metric (see
+    // this ticket's own text). Per that same explicit scope decision,
+    // admin-service does NOT grow a matching endpoint on Report Service
+    // itself — until a future Report Service ticket adds GET /reports, this
+    // call fails every time, and DashboardStatsServiceImpl's degrade path
+    // (totalReportsTodayUnavailable=true) is what actually runs in practice,
+    // the same way getUserDetail's reportHistoryUnavailable path already
+    // covers getReportHistory's identical gap.
+    //
+    // Returns the already-computed COUNT, not the raw list — Interface
+    // Segregation (SOLID-I), same reasoning ConnectionServiceClient.getStats()
+    // documents for returning a plain int instead of a List for the caller
+    // to re-derive: DashboardStatsServiceImpl needs exactly one number, never
+    // the full report rows.
+    int getReportsToday();
 }

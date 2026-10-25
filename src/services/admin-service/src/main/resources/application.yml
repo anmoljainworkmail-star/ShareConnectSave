@@ -147,6 +147,15 @@ connection-service:
 discovery-service:
   base-url: ${DISCOVERY_SERVICE_BASE_URL:http://discovery-service:8080}
 
+# T060 — Options pattern (DashboardProperties) backing CacheConfig's Caffeine
+# bean. No hardcoded 60 in Java code (Architecture Rule #3): this is the one
+# place the dashboard's cache TTL is defined, env-overridable via
+# ADMIN_DASHBOARD_CACHE_TTL_SECONDS the same ${VAR:default} shape every other
+# value in this file already uses.
+admin:
+  dashboard:
+    cache-ttl-seconds: ${ADMIN_DASHBOARD_CACHE_TTL_SECONDS:60}
+
 ---
 # dev profile — sensible localhost defaults so a developer can run this
 # service directly against docker-up's infra without exporting env vars by

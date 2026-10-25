@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 // Circuit Breaker (Decorator), same shape as the other two clients — see
@@ -83,6 +86,55 @@ public class ReportServiceClientImpl implements ReportServiceClient {
         return List.of(results).stream()
                 .map(dto -> new TopReportedUser(dto.reportedId(), dto.reportCount()))
                 .toList();
+    }
+
+    // T060 — same KNOWN GAP as getReportHistory above (see
+    // ReportServiceClient's own comment on this method): GET /reports with
+    // no query params does not exist on Report Service's ReportController
+    // today, so in practice this call fails every time (404 -> the circuit
+    // breaker's fallbackMethod below) until a future ticket ships it.
+    // Written against the shape it WILL have once it exists — reusing
+    // ReportDto (never inventing a second "all reports" DTO, per this
+    // ticket's own "What NOT to do") and counting client-side, deliberately
+    // NOT asking Report Service to pre-filter by date: that filtering logic
+    // belongs at the boundary between "raw stored reports" (Report Service's
+    // concern) and "what counts as today for a dashboard" (an admin-service
+    // display concern), the same Single Responsibility split
+    // TrustScoreCalculator draws between computing a score and deciding
+    // escalation.
+    @Override
+    @CircuitBreaker(name = "reportService", fallbackMethod = "getReportsTodayFallback")
+    public int getReportsToday() {
+        ReportDto[] reports = reportServiceWebClient.get()
+                .uri("/reports")
+                .retrieve()
+                .bodyToMono(ReportDto[].class)
+                .block();
+
+        if (reports == null) {
+            return 0;
+        }
+
+        // UTC-day-boundary mechanics, same as T106's/T107's own "today"
+        // queries (ZonedDateTime.now(UTC).truncatedTo(DAYS)) — "today" is
+        // always the UTC calendar day here, never the caller's local
+        // timezone, so every admin viewing this dashboard from any timezone
+        // agrees on the exact same boundary and the exact same count.
+        Instant startOfTodayUtc = ZonedDateTime.now(ZoneId.of("UTC")).truncatedTo(ChronoUnit.DAYS).toInstant();
+
+        return (int) List.of(reports).stream()
+                .filter(report -> !report.createdAt().isBefore(startOfTodayUtc))
+                .count();
+    }
+
+    // Re-throws as UpstreamUnavailableException, same discipline as
+    // getReportHistoryFallback right above — DashboardStatsServiceImpl is the
+    // one place that turns THIS exception into the degraded, flagged
+    // placeholder (totalReportsToday=null, totalReportsTodayUnavailable=true)
+    // the ticket's "Partial-failure degradation" spec describes.
+    private int getReportsTodayFallback(Throwable ex) {
+        log.warn("Report Service reports-today listing unavailable ({})", ex.toString());
+        throw new UpstreamUnavailableException("Report Service", ex);
     }
 
     // Matches ReportResponse's actual wire shape (see

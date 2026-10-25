@@ -1177,3 +1177,21 @@ whose implementation or ticket should pick it up.
    `contracts/openapi/report-service.yaml`.
    Affects: no existing ticket owns this — flag for a future report-service hardening pass, or
    pick up directly whenever this file is next touched.
+
+## From T060 (Dashboard Queries)
+
+1. **Cache-stampede risk on `GET /admin/stats` right after the 60s TTL expires.**
+   `DashboardStatsServiceImpl.getStats()` (`dashboard/DashboardStatsServiceImpl.java:56-74`) uses
+   `getIfPresent`/`put` as two separate, unsynchronized calls, with no in-flight-request
+   de-duplication. If N admins load the dashboard in the same instant right after a cache
+   miss, each one independently triggers all 4-5 downstream HTTP calls (User/Discovery/
+   Connection/Report Service) instead of one shared computation — a classic thundering-herd
+   pattern. This causes no data corruption (reads are idempotent, last-write-wins into the
+   cache is harmless) and does not violate AC2 as literally worded, but it undercuts the
+   ticket's own stated purpose of skipping downstream calls on every concurrent request
+   racing a miss.
+   Fix: switch to Caffeine's atomic `cache.get(CACHE_KEY, key -> assembleStats())` form,
+   computed under a per-key lock, combined with a small wrapper so a result failing
+   `isFullyAvailable()` is still not trusted/cached across callers.
+   Affects: no existing ticket owns this — flag for a future admin-service hardening pass,
+   or pick up directly whenever `DashboardStatsServiceImpl.java` is next touched.

@@ -1,0 +1,22 @@
+{
+  "task_id": "T060",
+  "title": "Dashboard Queries",
+  "status": "completed",
+  "files_created": [
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dashboard/DashboardStatsController.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dashboard/DashboardStatsService.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dashboard/DashboardStatsServiceImpl.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/dashboard/DashboardStatsResponse.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/config/CacheConfig.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/config/DashboardProperties.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ReportServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ReportServiceClientImpl.java",
+    "src/services/admin-service/pom.xml",
+    "src/services/admin-service/src/main/resources/application.yml"
+  ],
+  "criteria_checked": {
+    "AC1_all_5_metrics_returned": "PASS",
+    "AC2_cached_within_60s": "PASS"
+  },
+  "last_note": "Implementation complete. Flagged deviation: DashboardStatsServiceImpl catches RuntimeException (not narrowly UpstreamUnavailableException) around userServiceClient.getStats/discoveryServiceClient.getStats/connectionServiceClient.getStats/reportServiceClient.getTopReported, because those four client methods deliberately have NO @CircuitBreaker fallbackMethod (per their own class comments) and so throw the raw exception (CallNotPermittedException/WebClientResponseException/WebClientRequestException/IllegalStateException), never UpstreamUnavailableException -- catching only the narrower type as the ticket's literal wording says would have left 4 of 5 tiles unprotected against real upstream outages. reportServiceClient.getReportsToday() is a new KNOWN GAP method (GET /reports with no query params does not exist on report-service's ReportController yet) mirroring the existing getReportHistory KNOWN GAP precedent; it always degrades via UpstreamUnavailableException until Report Service ships that endpoint in a future ticket, exactly as the ticket itself anticipated."
+}

@@ -31,6 +31,15 @@ public interface IUserRepository
     // directly here rather than split out.
     Task<List<User>> GetByAccountStatusAsync(string accountStatus);
 
+    // T105: admin-dashboard aggregate — a single COUNT, not a List<User> like
+    // GetByAccountStatusAsync above. Kept on this same interface for the same
+    // Interface Segregation reasoning as that method's own comment: every
+    // method here touches the same users table, so the boundary is "what
+    // table", not "which caller". Counting at the database layer (rather than
+    // GetByAccountStatusAsync(...).Count) avoids pulling every active user's
+    // full row across the wire just to total them.
+    Task<int> CountActiveUsersAsync();
+
     Task<User> AddAsync(User user);
 
     Task UpdateAsync(User user);

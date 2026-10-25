@@ -29,6 +29,17 @@ public class UserRepository : IUserRepository
     public Task<List<User>> GetByAccountStatusAsync(string accountStatus) =>
         _context.Users.Where(u => u.AccountStatus == accountStatus).ToListAsync();
 
+    // T105: Two-Different-Axes Query Logic — AccountStatus (account standing)
+    // and IsOnboardingComplete (profile/identity verification progress) are
+    // independent dimensions on the same row (a user can be Active but still
+    // mid-onboarding, or fully onboarded but later suspended), so "active in
+    // circulation" for this metric requires BOTH conditions, not either
+    // alone. Filtered here, at the database layer, so SQL Server returns one
+    // integer rather than this service materializing every row to count them
+    // in memory.
+    public Task<int> CountActiveUsersAsync() =>
+        _context.Users.CountAsync(u => u.AccountStatus != "Suspended" && u.IsOnboardingComplete);
+
     public async Task<User> AddAsync(User user)
     {
         _context.Users.Add(user);

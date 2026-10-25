@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using user_service.Contracts;
 using user_service.Dtos;
 using user_service.Extensions;
+using user_service.Repositories.Interfaces;
 using user_service.Services.Interfaces;
 
 // MVC Controller (see AuthController's comment for the full Minimal-API-vs-
@@ -28,7 +29,7 @@ using user_service.Services.Interfaces;
 // class owned HTTP orchestration AND business rules at once) in a way the
 // rest of this service didn't.
 [ApiController]
-public class UserProfileController(IUserProfileService userProfileService, IAdminAccountService adminAccountService) : ControllerBase
+public class UserProfileController(IUserProfileService userProfileService, IAdminAccountService adminAccountService, IUserRepository userRepository) : ControllerBase
 {
     [HttpGet("/users/me")]
     public async Task<IActionResult> GetMyProfile()
@@ -224,6 +225,33 @@ public class UserProfileController(IUserProfileService userProfileService, IAdmi
             AccountStatusUpdateResult.Conflict => UpdateConflict(outcome.ErrorMessage!),
             _ => throw new InvalidOperationException($"Unhandled {nameof(AccountStatusUpdateResult)}: {outcome.Result}"),
         };
+    }
+
+    // T105: Trust Boundary via Internal-Only Endpoints — same Docker-network
+    // trust boundary and TryAuthorizeInternalCall guard as the three T102
+    // actions above, reused rather than duplicated a fifth time (see that
+    // method's own DRY comment below). Admin Dashboard's platform-health
+    // tile reads this aggregate over HTTP instead of admin-service ever
+    // opening a connection to UserServiceDb directly — Database per Service:
+    // User Service owns the users table and its query logic, admin-service
+    // only ever sees the resulting count.
+    //
+    // Reuses IUserRepository directly rather than routing through
+    // IAdminAccountService or a new service class: there is no business rule
+    // to apply to a read-only COUNT, just a query, so adding a service layer
+    // here would be ceremony wrapped around nothing — the same
+    // "no service layer where there's no business rule" judgment call this
+    // ticket's own notes call out explicitly.
+    [HttpGet("/users/internal/stats")]
+    public async Task<IActionResult> GetInternalStats(IConfiguration config)
+    {
+        if (!TryAuthorizeInternalCall(config, out var unauthorized))
+        {
+            return unauthorized!;
+        }
+
+        var totalActiveUsers = await userRepository.CountActiveUsersAsync();
+        return Ok(new InternalStatsResponse(totalActiveUsers));
     }
 
     // DRY extraction (T102): GetInternalFcmToken originally inlined this same

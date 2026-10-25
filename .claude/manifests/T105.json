@@ -1,0 +1,19 @@
+{
+  "task_id": "T105",
+  "title": "Admin Stats Endpoint — Total Active Users",
+  "status": "completed",
+  "files_created": [
+    "src/services/user-service/Repositories/Interfaces/IUserRepository.cs",
+    "src/services/user-service/Repositories/UserRepository.cs",
+    "src/services/user-service/Dtos/InternalStatsResponse.cs",
+    "src/services/user-service/Controllers/UserProfileController.cs",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/UserServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/UserServiceClientImpl.java"
+  ],
+  "criteria_checked": {
+    "total_active_users_count_logic": "PASS",
+    "internal_key_guard_reused": "PASS",
+    "admin_service_getStats_client_method": "PASS"
+  },
+  "last_note": "Implemented GET /users/internal/stats in UserProfileController (reusing TryAuthorizeInternalCall + IUserRepository.CountActiveUsersAsync, no new service layer/migration needed since AccountStatus/IsOnboardingComplete already exist), and added getStats()/PlatformStats to admin-service's Java UserServiceClient + UserServiceClientImpl (WebClient + CircuitBreaker, no fallback, same convention as getSuspendedUsers). No dotnet ef command required — no schema change."
+}

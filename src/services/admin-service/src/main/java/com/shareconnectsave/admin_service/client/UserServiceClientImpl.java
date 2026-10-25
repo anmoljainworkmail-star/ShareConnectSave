@@ -21,9 +21,9 @@ import java.util.List;
 // Same shared "userService" instance/sliding-window discovery-service's own
 // UserServiceClientImpl uses.
 //
-// Three DIFFERENT fallback shapes on three methods of the SAME circuit
-// breaker instance — deliberate, same "one exception, the call site decides
-// what it means" discipline discovery-service's T027 established:
+// Different fallback shapes across the methods of the SAME circuit breaker
+// instance — deliberate, same "one exception, the call site decides what it
+// means" discipline discovery-service's T027 established:
 //   - getSuspendedUsers: NO fallback. This is GET /admin/queue's entire data
 //     source (see UserServiceClient's own KNOWN GAP comment) — if User
 //     Service cannot be reached there is no queue to approximate, so the
@@ -45,6 +45,9 @@ import java.util.List;
 //     whole reinstate action afterward is always safe: calling setStatus
 //     twice with the same target status is naturally idempotent, so there is
 //     no compensating "un-reinstate" call for this class to make.
+//   - getStats (T105): NO fallback, same reasoning as getSuspendedUsers — it
+//     is the Admin Dashboard platform-health tile's entire data source, so a
+//     fabricated zero would misinform an admin rather than visibly fail.
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -127,6 +130,31 @@ public class UserServiceClientImpl implements UserServiceClient {
         return userProfileMapper.toUserProfileSummary(updated);
     }
 
+    // T105: NO fallback — same reasoning as getSuspendedUsers above, not
+    // getUser. This call IS the Admin Dashboard platform-health tile's
+    // entire data source (there is no partial result to degrade into, unlike
+    // getUser's one-of-three-fan-out-calls situation); silently returning a
+    // zero or stale count here would let the tile lie to an admin ("0 active
+    // users") instead of visibly failing when User Service is unreachable.
+    @Override
+    @CircuitBreaker(name = "userService")
+    public PlatformStats getStats() {
+        StatsDto stats = userServiceWebClient.get()
+                .uri("/users/internal/stats")
+                .retrieve()
+                .bodyToMono(StatsDto.class)
+                .block();
+
+        if (stats == null) {
+            // Same "2xx with no body is a contract violation" reasoning as
+            // setStatus's null check above — fail loudly rather than let a
+            // caller treat a null/zero as a legitimate "nobody is active".
+            throw new IllegalStateException("User Service returned no body for getStats()");
+        }
+
+        return new PlatformStats(stats.totalActiveUsers());
+    }
+
     // Re-throws as UpstreamUnavailableException rather than returning a
     // placeholder directly — see that class's own comment for why this must
     // stay distinguishable from getUser's plain "null means a genuine 404"
@@ -158,5 +186,13 @@ public class UserServiceClientImpl implements UserServiceClient {
     }
 
     record AccountStatusUpdateRequest(@JsonProperty("account_status") String accountStatus) {
+    }
+
+    // T105: User Service's own wire shape for GET /users/internal/stats,
+    // deliberately distinct from this client's outward PlatformStats record
+    // — same bidirectional-contract-isolation reasoning as
+    // SuspendedUserDto/UserProfileDto above.
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record StatsDto(@JsonProperty("total_active_users") long totalActiveUsers) {
     }
 }

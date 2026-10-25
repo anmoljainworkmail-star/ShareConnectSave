@@ -41,6 +41,14 @@ public interface UserServiceClient {
     // because no exception was thrown.
     UserProfileSummary setStatus(String userId, String accountStatus);
 
+    // T105: backed by User Service's GET /users/internal/stats — same
+    // Docker-network-only + X-Internal-Service-Key trust boundary as the
+    // three methods above (Trust Boundary via Internal-Only Endpoints).
+    // Admin Dashboard needs one platform-health number, not a result set to
+    // page through, so this returns a plain aggregate rather than a List<T>
+    // like getSuspendedUsers above.
+    PlatformStats getStats();
+
     // Nested, shared-shape DTOs (same "no outward-facing contract drift"
     // reasoning as discovery-service's own nested PublicUserProfileResponse):
     // User Service's wire shape can evolve without ReviewQueueItem/
@@ -50,5 +58,14 @@ public interface UserServiceClient {
     }
 
     record UserProfileSummary(String userId, String displayName, String accountStatus, Instant suspendedAt) {
+    }
+
+    // T105: deliberately just a count, not a reuse of UserProfileSummary —
+    // this fact ("how many users are active right now") has no per-user
+    // identity attached to it, so giving it its own narrow shape is the same
+    // Interface Segregation judgment call as keeping SuspendedUserSummary and
+    // UserProfileSummary as two separate records above rather than one
+    // god-DTO covering every User Service response shape.
+    record PlatformStats(long totalActiveUsers) {
     }
 }

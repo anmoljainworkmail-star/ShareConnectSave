@@ -1211,3 +1211,61 @@ whose implementation or ticket should pick it up.
    service, so every image stays structurally consistent.
    Affects: no existing ticket owns this — candidate for a dedicated cross-service
    container-hardening ticket touching all 9 Dockerfiles at once.
+
+## From T062 (Angular PWA Setup)
+
+1. **`/discovery/**` and `/chat/**` live endpoints must be excluded from the `api-freshness`
+   dataGroup in `ngsw-config.json` once they exist.** T062's current `ngsw-config.json`
+   specifies `"urls": ["/api/**"]` with no exclusions — correct for the greenfield state
+   (those routes don't exist yet), but the angular-pwa skill explicitly requires these live
+   endpoints to never be cached. Once T067 (Connection Request Flow) and T068 (Chat UI)
+   introduce those routes, a future ticket must add:
+   ```
+   "urls": ["/api/**", "!/api/discovery/**", "!/api/chat/**"]
+   ```
+   or equivalent negative-glob pattern, depending on ngsw-config's exact exclusion syntax.
+   Affects: T067 (Connection Request Flow — introduces `/api/discovery/*` endpoints),
+   T068 (Chat UI — introduces `/api/chat/*` endpoints). Either ticket should verify/update
+   `ngsw-config.json` as part of its scope, or a dedicated PWA hardening ticket should
+   review the dataGroups configuration once those UI tickets land.
+
+2. **`package.json` has no explicit `@types/node` devDependency, even though
+   `tsconfig.app.json`'s `"types": ["node"]` (added to fix T062's cycle-1 `process` typing
+   blocker) now structurally depends on it.** It currently compiles only because
+   `@types/node@26.1.0` happens to be hoisted to top-level `node_modules/@types/node` as an
+   undeclared transitive dependency of unrelated dev-server tooling packages (`@types/
+   express-serve-static-core`, `@types/connect`, `@types/http-proxy`, etc. — traced via
+   `package-lock.json`). A future `npm install` with different resolution order, a lockfile
+   regen, or an unrelated dependency bump could silently un-hoist it, breaking the build with
+   `TS2688: Cannot find type definition file for 'node'`.
+   Fix: add `"@types/node"` explicitly to `devDependencies` in `package.json` (pin a major
+   matching the project's Node target) and run `npm install` to update the lockfile's
+   direct-dependency marker.
+   Affects: T063 (Auth Flow — next ticket to touch the frontend build/dependency surface;
+   good checkpoint to harden this before more tickets build on the same fragile config).
+
+3. **`GOOGLE_CLIENT_ID` is defined as an empty string in both `production` and
+   `development` `define` blocks in `angular.json`.** Harmless today since Google Sign-In
+   isn't wired up yet, but needs a real value (sourced the same way `API_BASE_URL` is) once
+   OAuth is implemented, or the app will silently ship with no client ID.
+   Affects: T063 (Auth Flow — Google Sign-In + OTP — this is exactly where the real
+   `GOOGLE_CLIENT_ID` value must be populated into the `define` blocks).
+
+4. **No `SwUpdate` wiring exists anywhere in the app — a tab left open across a new deploy
+   never notices, no matter how long it stays open.** `ng add @angular/pwa` only configures
+   the service worker's one-time update check at registration time
+   (`registrationStrategy: 'registerWhenStable:30000'` in `app.module.ts`); nothing calls
+   `SwUpdate.checkForUpdate()` on an interval, and nothing subscribes to
+   `SwUpdate.versionUpdates` to prompt the user or call `activateUpdate()`. Concretely: a
+   user who opens Discovery radar or an active Chat and leaves the tab open for hours will
+   keep running the old cached bundle indefinitely after a new build ships, with zero
+   in-app signal that an update exists — the only way to pick it up today is an unprompted
+   manual reload.
+   Fix: add a small app-wide service that injects `SwUpdate`, polls `checkForUpdate()` on an
+   interval (e.g. every 6h) for long-lived sessions, subscribes to `versionUpdates` for
+   `VERSION_READY`, and surfaces a "new version available — refresh" prompt that calls
+   `activateUpdate()` then `document.location.reload()`.
+   Affects: no specific future task yet in PROGRESS.md/SPECS.md — most relevant once T067
+   (Connection Request Flow) and T068 (Chat UI) ship, since those are the two screens users
+   are most likely to leave open for extended periods; candidate for a dedicated PWA
+   update-notification ticket, or folded into whichever of those two lands first.

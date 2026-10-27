@@ -1,0 +1,19 @@
+{
+  "task_id": "T062",
+  "title": "Angular PWA Setup",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/environments/environment.ts",
+    "src/frontend/src/environments/environment.prod.ts",
+    "src/frontend/angular.json",
+    "src/frontend/ngsw-config.json",
+    "src/frontend/public/manifest.webmanifest",
+    "src/frontend/src/index.html"
+  ],
+  "criteria_checked": {
+    "ng build --configuration production succeeds": "PASS - ran it myself (plain build, not codegen); succeeded in 17.5s; verified dist/frontend/browser contains ngsw.json, ngsw-worker.js, manifest.webmanifest, icons; confirmed via ngsw.json that the api-freshness dataGroup with strategy:freshness compiled in correctly",
+    "Lighthouse PWA score >= 90": "NEEDS_MANUAL_VERIFICATION - no Chrome/Lighthouse binary available in this environment (verified: no lighthouse/chrome on PATH, npx lighthouse requires an install I cannot confirm works headlessly here). Preconditions are in place (manifest complete, SW registered and gated, dataGroups/assetGroups configured) but the actual audit score has not been measured. Tech Lead should serve dist/frontend/browser (service worker requires a real HTTP server, not ng serve) and run Lighthouse in real Chrome.",
+    "App installable on Android Chrome": "NEEDS_MANUAL_VERIFICATION - requires a real device/emulator + served build, not reproducible in this environment. Verified installability PRECONDITIONS only: manifest.webmanifest has name, short_name, description, icons (72-512px incl. maskable), start_url, display:standalone, theme_color, background_color; index.html links the manifest and has a theme-color meta tag; ServiceWorkerModule is registered and correctly gated with enabled: !isDevMode()."
+  },
+  "last_note": "ng add @angular/pwa was run by the Tech Lead (confirmed on disk: ngsw-config.json, public/manifest.webmanifest, public/icons/*, @angular/service-worker dep, ServiceWorkerModule registration in app.module.ts, serviceWorker config in angular.json production target). I then: (1) hand-edited ngsw-config.json to add a dataGroups entry (name api-freshness, urls /api/**, cacheConfig.strategy freshness, maxSize 100, maxAge 1h, timeout 5s) and a navigationUrls array listing the Angular SW defaults plus explicit /profile and /settings entries -- left assetGroups untouched since the ngsw-config schema (node_modules/@angular/service-worker/config/schema.json) does not allow a 'strategy' key on assetGroups (additionalProperties:false there) -- cache-first/performance behavior for static assets is already inherent in assetGroups' prefetch installMode, which is what ng add generated; (2) verified ServiceWorkerModule.register('ngsw-worker.js', { enabled: !isDevMode(), registrationStrategy: 'registerWhenStable:30000' }) in app.module.ts is already correctly gated, no fix needed; (3) improved manifest.webmanifest fields (name/short_name were generic 'frontend'; set name=ShareConnectSave, short_name=SCS, added description, theme_color #7C3AED and background_color #F5F3FF sourced from FIGMA_SPEC.md's --color-primary and --color-background tokens) and added a matching <meta name=theme-color> to index.html; (4) ran `ng build --configuration production` myself (plain build command, not codegen) and it succeeded. Lighthouse/Android install audits are not runnable in this headless environment -- flagged as NEEDS_MANUAL_VERIFICATION rather than claimed PASS."
+}

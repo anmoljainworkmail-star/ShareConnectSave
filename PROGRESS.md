@@ -123,7 +123,7 @@
 
 ## Phase 11 — Angular Frontend
 
-- [ ] T062 — Angular PWA Setup _(ngsw-config, service worker, Lighthouse ≥90)_
+- [x] T062 — Angular PWA Setup _(ngsw-config, service worker, Lighthouse ≥90)_
 - [ ] T063 — Auth Flow _(Google GSI + OTP, AuthGuard, AuthInterceptor)_
 - [ ] T064 — Radar UI Component _(SVG rings + CSS @keyframes sweep animation)_
 - [ ] T065 — BLE Mode _(Web Bluetooth API, offline detection, iOS fallback message)_

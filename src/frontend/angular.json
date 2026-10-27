@@ -55,12 +55,27 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.prod.ts"
+                }
+              ],
+              "define": {
+                "process.env.API_BASE_URL": "\"https://api.shareconnectsave.com\"",
+                "process.env.GOOGLE_CLIENT_ID": "\"\""
+              },
+              "serviceWorker": "ngsw-config.json"
             },
             "development": {
               "optimization": false,
               "extractLicenses": false,
-              "sourceMap": true
+              "sourceMap": true,
+              "define": {
+                "process.env.API_BASE_URL": "\"http://localhost:8080\"",
+                "process.env.GOOGLE_CLIENT_ID": "\"\""
+              }
             }
           },
           "defaultConfiguration": "production"

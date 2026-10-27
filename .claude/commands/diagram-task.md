@@ -27,20 +27,26 @@ that diagram — it is a quick-glance reference, not documentation.
    - No paragraph explanations inside the diagram. If a node needs more than ~5 words,
      split it into two nodes instead of writing a long label.
 
-3. Open `WORKFLOWS.md` at the project root. If it doesn't exist, create it with a one-line
-   header and a table of contents.
+3. Write (or replace, if it already exists) one file in the `workflows/` folder at the
+   project root — create the folder if it doesn't exist yet:
+   - Ticket-scoped diagram: `workflows/T0XX-kebab-case-title.md`
+   - Cross-cutting diagram not owned by one ticket (e.g. an env/secrets resolution path
+     spanning several tickets): `workflows/kebab-case-topic-flow.md`
 
-4. Add (or replace, if this task already has a section) a `## T0XX — <title>` section
-   containing:
-   - The Mermaid diagram only.
+4. Each file contains, in order:
+   - A `# T0XX — <title>` (or `# <Title>`) header.
+   - One short line: `Quick-glance boxes-and-arrows reference for <what it traces>. No
+     prose — if you need the "why," see <ticket file(s) or other reference>. Generated/
+     updated via \`/diagram-task\`.`
+   - The Mermaid diagram (`flowchart TD`/`LR`; use `subgraph` blocks to separate distinct
+     actors/processes/services when that reads clearer than one flat graph).
    - At most one line directly under the diagram if there's a single fact that doesn't fit
      any box (e.g. "GlobalLimiter always runs in parallel with the named policy, not
      instead of it") — skip this line entirely if the diagram is self-explanatory.
-   - Update the table of contents with a link to the new/updated section.
 
 5. Do not duplicate this in `GLOSSARY.md` or `README.md`'s "Concepts I can explain cold"
    section — those already own syntax-level and pattern-level explanations respectively.
-   `WORKFLOWS.md` owns *flow* only: what calls what, in what order, and where it branches.
+   `workflows/` owns *flow* only: what calls what, in what order, and where it branches.
 
 ## What NOT to do
 

@@ -1,0 +1,165 @@
+@import '../auth-shared.css';
+
+.auth-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-6);
+  text-align: left;
+}
+
+.auth-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.auth-topbar-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.auth-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-illustration {
+  width: 64px;
+  height: 64px;
+  color: var(--color-primary);
+  margin-bottom: var(--space-4);
+}
+
+.phone-input-row {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  margin-bottom: var(--space-6);
+}
+
+.phone-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: var(--radius-button) 0 0 var(--radius-button);
+  background: var(--color-primary-light);
+  color: var(--color-text-primary);
+  font-size: 16px;
+}
+
+.phone-input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-button) var(--radius-button) 0;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.phone-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.otp-boxes {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+.otp-box {
+  width: 44px;
+  height: 52px;
+  text-align: center;
+  font-size: 20px;
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+}
+
+.otp-box:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.otp-boxes--error .otp-box {
+  border-color: var(--color-danger);
+}
+
+/* Duration must match SHAKE_ANIMATION_MS in otp-verify.component.ts -- that
+   constant is what clears the --shake class, so the two have to agree or
+   the animation either gets cut off mid-shake or replays a static end
+   frame. */
+.otp-boxes--shake {
+  animation: otp-shake 0.4s ease-in-out;
+}
+
+@keyframes otp-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.auth-primary-button {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-button);
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: var(--space-4);
+}
+
+.auth-primary-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.resend-row {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.auth-locked {
+  font-size: 13px;
+  color: var(--color-danger);
+  margin: 0 0 var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .otp-box {
+    width: 40px;
+  }
+}

@@ -30,6 +30,14 @@ public static class RateLimitPolicies
     // against, just without an SMS bill attached.
     public const string GoogleAuthPolicy = "GoogleAuthPolicy";
 
+    // T063: same reasoning as GoogleAuthPolicy immediately above, applied to
+    // the OTHER public, pre-identity, token-minting route this platform now
+    // has. Each hit here costs user-service an RSA signature verification
+    // plus a fresh access-token mint - a refresh-flood is a JWT-minting
+    // flood exactly like a login-flood is, so it gets its own ceiling
+    // instead of relying on GlobalPolicy's much looser 100/min-per-IP.
+    public const string RefreshTokenPolicy = "RefreshTokenPolicy";
+
     // Path correction (see T013 ticket note, discovered while implementing T012):
     // these are the gateway-facing paths — YARP's route prefix plus the downstream
     // service's own OpenAPI path — never the un-prefixed, service-local path. A
@@ -38,6 +46,7 @@ public static class RateLimitPolicies
     public const string ConnectionRequestPath = "/connection/connections";
     public const string OtpSendPath = "/user/auth/otp/send";
     public const string GoogleAuthPath = "/user/auth/google";
+    public const string RefreshTokenPath = "/user/auth/refresh";
 
     // Key used to hand the OTP phone number from OtpPhoneNumberBufferingMiddleware
     // (which reads it out of the raw request body before UseRateLimiter() runs)
@@ -55,6 +64,10 @@ public static class RateLimitPolicies
     public static bool IsGoogleAuthRoute(HttpRequest request) =>
         HttpMethods.IsPost(request.Method) &&
         string.Equals(request.Path.Value, GoogleAuthPath, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsRefreshTokenRoute(HttpRequest request) =>
+        HttpMethods.IsPost(request.Method) &&
+        string.Equals(request.Path.Value, RefreshTokenPath, StringComparison.OrdinalIgnoreCase);
 
     // What NOT to do (per ticket): this gateway has no ForwardedHeaders middleware
     // configured (see T012's Program.cs), so trusting X-Forwarded-For here would let

@@ -53,9 +53,23 @@ public class JwtValidationMiddleware
     // Identity rule (read X-User-Id/Role/Gender from headers only) forbids.
     // Requiring a valid JWT here — like every other authenticated route —
     // is what lets X-User-Id reach OtpController the normal way.
+    // T063 addition: /user/auth/refresh is public for a DIFFERENT reason than
+    // /user/auth/google - it isn't a chicken-and-egg "no identity exists
+    // yet" case, it's the opposite. AuthInterceptor (Angular) attaches
+    // whatever access token is currently stored to EVERY outgoing request,
+    // including this one - and the access token being expired/invalid is
+    // the entire reason the client is calling this endpoint. If this route
+    // required a valid access token to pass gateway validation, a session
+    // could never actually recover from expiry: the one request meant to
+    // fix an expired token would itself be rejected for having one. The
+    // real credential (the refresh token) travels in the request body
+    // instead and is validated inside user-service's AuthController, the
+    // only place that holds the logic to tell a refresh token apart from an
+    // access token (the "token_use" claim - see JwtIssuer.ValidateRefreshToken).
     private static readonly HashSet<string> PublicRoutePaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/user/auth/google",
+        "/user/auth/refresh",
     };
 
     public JwtValidationMiddleware(

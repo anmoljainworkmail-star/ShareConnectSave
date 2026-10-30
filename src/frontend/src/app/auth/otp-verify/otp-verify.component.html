@@ -1,0 +1,118 @@
+<div class="auth-page">
+  <div class="auth-bokeh" aria-hidden="true">
+    <span class="bokeh-circle c1"></span>
+    <span class="bokeh-circle c2"></span>
+    <span class="bokeh-circle c3"></span>
+    <span class="bokeh-arc a1"></span>
+    <span class="bokeh-arc a2"></span>
+  </div>
+
+  <main class="auth-card">
+    <div class="auth-topbar">
+      <button type="button" class="auth-back" aria-label="Back to sign in" (click)="goBackToLogin()">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path
+            d="M15 18l-6-6 6-6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <span class="auth-topbar-title">Verify Phone</span>
+    </div>
+
+    <ng-container [ngSwitch]="step">
+      <section *ngSwitchCase="'enter-phone'" class="auth-step">
+        <svg class="auth-illustration" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="22" y="8" width="20" height="48" rx="4" fill="none" stroke="currentColor" stroke-width="2" />
+          <line x1="22" y1="46" x2="42" y2="46" stroke="currentColor" stroke-width="2" />
+          <path d="M46 20c4 4 4 10 0 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <path
+            d="M51 15c7 7 7 17 0 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            opacity="0.6"
+          />
+        </svg>
+
+        <h1 class="auth-heading">Enter your phone number</h1>
+        <p class="auth-subtext">We'll send a one-time code to verify it's you.</p>
+
+        <div class="phone-input-row">
+          <span class="phone-prefix">+91</span>
+          <input
+            type="tel"
+            inputmode="numeric"
+            name="phoneNumber"
+            placeholder="98765 43210"
+            maxlength="10"
+            [(ngModel)]="localPhoneDigits"
+            [disabled]="isSubmitting"
+            class="phone-input"
+          />
+        </div>
+
+        <button type="button" class="auth-primary-button" [disabled]="isSubmitting" (click)="sendOtp()">
+          {{ isSubmitting ? 'Sending…' : 'Send Code' }}
+        </button>
+      </section>
+
+      <section *ngSwitchCase="'enter-code'" class="auth-step">
+        <h1 class="auth-heading">Enter the 6-digit code</h1>
+        <p class="auth-subtext">
+          Sent to {{ displayPhoneNumber }} ·
+          <button type="button" class="link-button" [disabled]="isSubmitting" (click)="changePhoneNumber()">
+            Change
+          </button>
+        </p>
+
+        <div
+          class="otp-boxes"
+          [class.otp-boxes--shake]="shakeOtp"
+          [class.otp-boxes--error]="errorMessage && !isLocked"
+        >
+          <input
+            *ngFor="let digit of otpDigits; let i = index; trackBy: trackByIndex"
+            #otpBox
+            type="text"
+            inputmode="numeric"
+            maxlength="1"
+            class="otp-box"
+            [value]="digit"
+            [disabled]="isSubmitting || isLocked"
+            (input)="onDigitInput(i, $event)"
+            (keydown)="onDigitKeydown(i, $event)"
+          />
+        </div>
+
+        <p *ngIf="isLocked" class="auth-locked" role="alert">
+          Too many attempts. Try again in {{ lockedCountdownLabel }}.
+        </p>
+
+        <button type="button" class="auth-primary-button" [disabled]="isSubmitting || isLocked" (click)="verifyOtp()">
+          {{ isSubmitting ? 'Verifying…' : 'Verify' }}
+        </button>
+
+        <p class="resend-row">
+          <ng-container *ngIf="resendCountdown > 0; else resendLink">
+            Resend in {{ resendCountdown }}s
+          </ng-container>
+          <ng-template #resendLink>
+            <button type="button" class="link-button" [disabled]="isSubmitting" (click)="resendOtp()">
+              Resend Code
+            </button>
+          </ng-template>
+        </p>
+      </section>
+    </ng-container>
+
+    <p *ngIf="errorMessage && !(step === 'enter-code' && isLocked)" class="auth-error" role="alert">
+      {{ errorMessage }}
+    </p>
+  </main>
+</div>

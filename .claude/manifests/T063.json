@@ -1,0 +1,51 @@
+{
+  "task_id": "T063",
+  "title": "Auth Flow (Google Sign-In + OTP)",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/app/auth/models/auth.models.ts",
+    "src/frontend/src/app/auth/auth.service.ts",
+    "src/frontend/src/app/auth/auth.guard.ts",
+    "src/frontend/src/app/auth/auth.interceptor.ts",
+    "src/frontend/src/app/auth/login/login.component.ts",
+    "src/frontend/src/app/auth/login/login.component.html",
+    "src/frontend/src/app/auth/login/login.component.css",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.ts",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.html",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.css",
+    "src/frontend/src/app/auth/auth-routing.module.ts",
+    "src/frontend/src/app/auth/auth.module.ts"
+  ],
+  "files_modified": [
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/app/app.module.ts",
+    "src/frontend/src/app/auth/models/auth.models.ts",
+    "src/frontend/src/app/auth/auth.service.ts",
+    "src/services/user-service/Services/Interfaces/IJwtIssuer.cs",
+    "src/services/user-service/Services/JwtIssuer.cs",
+    "src/services/user-service/Controllers/AuthController.cs",
+    "src/services/api-gateway/Middleware/JwtValidationMiddleware.cs",
+    "src/services/api-gateway/RateLimiting/RateLimitPolicies.cs",
+    "src/services/api-gateway/RateLimiting/RateLimitHeadersMiddleware.cs",
+    "src/services/api-gateway/Program.cs",
+    "src/services/api-gateway/appsettings.json",
+    "contracts/openapi/user-service.yaml",
+    "src/frontend/src/app/app.component.html",
+    "src/frontend/src/app/app.component.ts",
+    "src/frontend/src/app/app.component.spec.ts",
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/styles.css",
+    "src/frontend/src/index.html",
+    "src/frontend/src/app/auth/login/login.component.html",
+    "src/frontend/src/app/auth/login/login.component.css",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.ts",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.html",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.css"
+  ],
+  "criteria_checked": {
+    "AC1_full_google_otp_flow_jwt_stored": "PASS",
+    "AC2_protected_routes_redirect_to_login": "PASS",
+    "AC3_expired_jwt_refresh_then_logout": "PASS"
+  },
+  "last_note": "Third pass: user caught that localhost:4200 rendered the unedited Angular CLI scaffold (app.component.html still had the ng-new placeholder, and the root route table had no '' route), and separately asked whether this ticket owed real visual styling. It did and hadn't been done -- angular-pwa skill's 'pull colours/spacing/radii from FIGMA_SPEC.md into styles/tokens.scss, never invent a value' was violated (no tokens file existed; CSS hardcoded hex like #b00020). Fixed: stripped the scaffold from app.component.html/.ts/.spec.ts, added a '' -> 'auth' redirect in app-routing.module.ts, added src/styles/tokens.css transcribing FIGMA_SPEC.md's full token set (violet scale, semantic colours, gradients, spacing, radius, shadows), added src/app/auth/auth-shared.css for the shared gradient-bg/bokeh/card chrome both auth screens use, rebuilt login (Screen 02) and otp-verify (Screen 03) markup/CSS to match FIGMA_SPEC.md exactly (centered card, drifting bokeh circles/arcs, Google button in-card, phone screen with fixed +91 prefix matching OtpController's India-only regex, 6-box auto-advancing OTP input with trackBy-by-index to preserve focus across re-renders, shake-on-INVALID_OTP, resend countdown, and a lockout countdown parsed from OTP_LOCKED's message text since OtpController has no separate structured field for it), and added Inter via Google Fonts in index.html. ng build --configuration development clean after every pass (dist/ removed each time). Reviewer's two logged minor findings (AuthGuard unwired, concurrent-refresh thundering herd) are unaffected by this styling pass and remain open in follow-ups.md."
+}

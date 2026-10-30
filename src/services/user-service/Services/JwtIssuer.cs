@@ -140,11 +140,12 @@ public class JwtIssuer : IJwtIssuer
         {
             // Refresh tokens are deliberately narrower than access tokens:
             // role/gender describe an ACTIVE session entitled to call
-            // protected endpoints right now. No refresh-exchange endpoint
-            // exists yet in this ticket (see IJwtIssuer's comment) - this
-            // marker just keeps a future implementation from accidentally
-            // accepting an access token where a refresh token belongs, or
-            // vice versa.
+            // protected endpoints right now. This marker is what
+            // ValidateRefreshToken below checks before accepting a token
+            // back in - it keeps an access token from being redeemed where
+            // a refresh token belongs, or vice versa, even though both are
+            // otherwise-identical, validly-signed RS256 JWTs from this same
+            // keypair.
             claims.Add(new Claim("token_use", "refresh"));
         }
 
@@ -156,6 +157,67 @@ public class JwtIssuer : IJwtIssuer
             signingCredentials: new SigningCredentials(_signingKey, SecurityAlgorithms.RsaSha256));
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public long? ValidateRefreshToken(string refreshToken)
+    {
+        // Self-validation, not the gateway: every OTHER JWT this platform
+        // issues is validated exactly once, by api-gateway, against the
+        // PUBLIC half of this keypair via GET /.well-known/jwks.json (see
+        // this class's own class comment). A refresh token never reaches
+        // the gateway as a bearer credential the way an access token does -
+        // it travels in a request BODY straight to this one redemption
+        // endpoint (AuthController's POST /auth/refresh, a public gateway
+        // route for exactly this reason) - so user-service is the only
+        // place that can ever validate it, and the only place that needs
+        // to. Using the PRIVATE RSA handle (_rsa) directly as the signing
+        // key here (rather than exporting/reimporting the public half, the
+        // way an external verifier would have to) is safe and simplest:
+        // this class already holds the one and only keypair for the
+        // process's lifetime.
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = _options.Issuer,
+            ValidateAudience = true,
+            ValidAudience = _options.Audience,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = _signingKey,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            ValidAlgorithms = new[] { SecurityAlgorithms.RsaSha256 },
+        };
+
+        ClaimsPrincipal principal;
+        try
+        {
+            // MapInboundClaims = false (same reasoning as api-gateway's
+            // JwtValidationMiddleware): read "sub"/"token_use" by their exact
+            // short names below, not the legacy long-form ClaimTypes URIs
+            // the default mapping would silently rewrite them to.
+            principal = new JwtSecurityTokenHandler { MapInboundClaims = false }
+                .ValidateToken(refreshToken, validationParameters, out _);
+        }
+        catch (SecurityTokenException)
+        {
+            // Fail closed: a malformed/expired/forged token is simply "not
+            // redeemable", never a crash this controller has to catch
+            // separately. Same fail-closed discipline as the gateway's own
+            // ValidateToken call, just returning null instead of writing an
+            // HTTP response - that's the controller's job, not this class's.
+            return null;
+        }
+
+        // token_use scoping (see Issue()'s else-branch comment): an access
+        // token is a validly-signed JWT from this same keypair too, but it
+        // must never be redeemable here.
+        if (principal.FindFirstValue("token_use") != "refresh")
+        {
+            return null;
+        }
+
+        var sub = principal.FindFirstValue("sub");
+        return long.TryParse(sub, out var userId) ? userId : null;
     }
 
     public object GetJwks()

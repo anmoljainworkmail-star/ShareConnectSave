@@ -1,0 +1,30 @@
+<div class="auth-page">
+  <div class="auth-bokeh" aria-hidden="true">
+    <span class="bokeh-circle c1"></span>
+    <span class="bokeh-circle c2"></span>
+    <span class="bokeh-circle c3"></span>
+    <span class="bokeh-arc a1"></span>
+    <span class="bokeh-arc a2"></span>
+  </div>
+
+  <main class="auth-card">
+    <div class="auth-brand">
+      <svg class="auth-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.35" />
+        <circle cx="24" cy="24" r="13" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.6" />
+        <path d="M24 10 L29 24 L24 38 L19 24 Z" fill="currentColor" />
+      </svg>
+      <span class="auth-wordmark">ShareConnectSave</span>
+    </div>
+
+    <h1 class="auth-heading">Find someone going your way</h1>
+    <p class="auth-subtext">Discover verified travel companions heading in your direction.</p>
+
+    <div #googleButton class="google-button-slot"></div>
+
+    <p *ngIf="isSubmitting" class="auth-status" role="status">Signing you in&hellip;</p>
+    <p *ngIf="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
+
+    <p class="auth-fine-print">By continuing you agree to our Terms and Privacy Policy.</p>
+  </main>
+</div>

@@ -84,6 +84,15 @@ public class RateLimitHeadersMiddleware
             remaining = Min(remaining, googleAuthRemaining);
         }
 
+        // T063: same treatment as IsGoogleAuthRoute above, for the other
+        // route carrying its own named policy now.
+        if (RateLimitPolicies.IsRefreshTokenRoute(context.Request))
+        {
+            var refreshRemaining = _registry.GetRemainingPermits(
+                RateLimitPolicies.RefreshTokenPolicy, RateLimitPolicies.ResolveIpKey(context));
+            remaining = Min(remaining, refreshRemaining);
+        }
+
         return remaining;
     }
 

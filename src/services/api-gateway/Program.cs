@@ -47,6 +47,25 @@ builder.Services.AddReverseProxy()
 // same reason ReverseProxy config is bound instead of read ad-hoc above.
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 
+// CORS (fix, found running the Angular PWA against this gateway for the
+// first time, T063): the browser enforces same-origin on any fetch/XHR, so
+// the Angular dev server (http://localhost:4200) calling this gateway
+// (http://localhost:8080) needs an explicit Access-Control-Allow-Origin
+// response header or the browser blocks the response before JS ever sees
+// it — regardless of whether the gateway itself would have accepted the
+// request. No Hardcoded Config: the allowed origin list is bound from the
+// "Cors" section (empty in appsettings.json, "http://localhost:4200" in
+// appsettings.Development.json), not written here, so production never
+// inherits a localhost origin by accident.
+var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>() ?? new CorsOptions();
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy => policy
+        .WithOrigins(corsOptions.AllowedOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
 // Typed HttpClient: lets the framework own HttpClient pooling/DNS-refresh
 // lifetime instead of JwksService holding a single long-lived instance itself
 // (the classic "new HttpClient() per call" / socket-exhaustion pitfall this
@@ -122,6 +141,22 @@ builder.Services.AddRateLimiter(options =>
                 RateLimitPolicies.ResolveIpKey(httpContext),
                 permitLimit: 10,
                 window: TimeSpan.FromMinutes(1)));
+
+    // T063: closes the same login-flood-shaped gap GoogleAuthPolicy closes
+    // above, for the other public, pre-identity, token-minting route this
+    // platform now has - see RateLimitPolicies.RefreshTokenPolicy's comment.
+    // Partitioned by IP, same as GoogleAuthPolicy: this route is public
+    // specifically because the caller's identity can't be trusted yet (its
+    // access token is expired, its refresh token hasn't been validated
+    // until inside user-service), so X-User-Id isn't a safe partition key
+    // here either.
+    options.AddPolicy<string>(RateLimitPolicies.RefreshTokenPolicy, httpContext =>
+        httpContext.RequestServices.GetRequiredService<IRateLimitPartitionRegistry>()
+            .GetFixedWindowPartition(
+                RateLimitPolicies.RefreshTokenPolicy,
+                RateLimitPolicies.ResolveIpKey(httpContext),
+                permitLimit: 10,
+                window: TimeSpan.FromMinutes(1)));
 });
 
 var app = builder.Build();
@@ -133,6 +168,13 @@ var app = builder.Build();
 // the framework's ProblemDetails fallback path, and GlobalExceptionHandler
 // is meant to be the one and only thing that runs.
 app.UseExceptionHandler();
+
+// Must run before JWT validation / rate limiting / proxying: a CORS
+// preflight (OPTIONS) request carries no Authorization header and isn't a
+// "real" call the rate limiter should count, so CORS has to be resolved —
+// and, for a disallowed origin, the request short-circuited — before any
+// later middleware gets a chance to 401/429/forward it.
+app.UseCors();
 
 // X-RateLimit-Remaining headers must register their Response.OnStarting callback
 // BEFORE any middleware that writes a response (including JwtValidationMiddleware's

@@ -60,6 +60,45 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Exchange a refresh token for a new access token
+      description: >
+        Public entry point (same chicken-and-egg-shaped reasoning as
+        /auth/google, just inverted): the caller's access token is, by
+        definition, already expired or about to be — that is the entire
+        reason this endpoint is being called — so it cannot be presented as
+        a trustworthy Bearer credential the way every other authenticated
+        route requires. The real credential travels in the request body
+        instead and is validated inside User Service itself (the only
+        service that ever sees a refresh token), not by the gateway.
+        Returns a new access token only — the refresh token itself is not
+        rotated (see AuthController.Refresh's code comment for why that is
+        a deliberate scope decision, not an oversight).
+      operationId: refreshAccessToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New access token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          description: Refresh token is missing, invalid, expired, or its account no longer exists.
+          content:
+            application/json:
+              schema:
+                $ref: './error-envelope.yaml#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /auth/otp/send:
     post:
       tags: [auth]
@@ -414,10 +453,8 @@ components:
         id_token:
           type: string
 
-    # T005 review follow-up: this returns a refresh_token but no
-    # POST /auth/refresh endpoint exists to redeem it. Intentional scope
-    # deferral, not dropped — add the endpoint when token refresh is
-    # implemented (see .claude/notes/follow-ups.md).
+    # T005 review follow-up, resolved by T063: this returns a refresh_token,
+    # and POST /auth/refresh (above) now redeems it.
     AuthResponse:
       type: object
       required: [access_token, refresh_token, user_id, onboarding_complete]
@@ -431,6 +468,20 @@ components:
           format: uuid
         onboarding_complete:
           type: boolean
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    RefreshResponse:
+      type: object
+      required: [access_token]
+      properties:
+        access_token:
+          type: string
 
     OtpSendRequest:
       type: object

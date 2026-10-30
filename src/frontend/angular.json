@@ -64,7 +64,7 @@
               ],
               "define": {
                 "process.env.API_BASE_URL": "\"https://api.shareconnectsave.com\"",
-                "process.env.GOOGLE_CLIENT_ID": "\"\""
+                "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               },
               "serviceWorker": "ngsw-config.json"
             },
@@ -74,7 +74,7 @@
               "sourceMap": true,
               "define": {
                 "process.env.API_BASE_URL": "\"http://localhost:8080\"",
-                "process.env.GOOGLE_CLIENT_ID": "\"\""
+                "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               }
             }
           },

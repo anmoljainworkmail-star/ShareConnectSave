@@ -1,0 +1,73 @@
+/*
+ * Design tokens, transcribed 1:1 from FIGMA_SPEC.md (repo root) — this file
+ * is the single source every screen pulls colours/spacing/radii/shadows
+ * from, per the angular-pwa skill's "never invent a value" rule. Values
+ * here are never improvised; a new token is only added when FIGMA_SPEC.md
+ * defines one, copied exactly as written there.
+ */
+:root {
+  /* Violet shade scale (base palette) */
+  --violet-50: #F5F3FF;
+  --violet-100: #EDE9FE;
+  --violet-200: #DDD6FE;
+  --violet-300: #C4B5FD;
+  --violet-400: #A78BFA;
+  --violet-500: #8B5CF6;
+  --violet-600: #7C3AED;
+  --violet-700: #6D28D9;
+  --violet-800: #5B21B6;
+  --violet-900: #4C1D95;
+  --violet-950: #2E1065;
+  --indigo-950: #1E1B4B;
+
+  /* Semantic colour tokens */
+  --color-primary: var(--violet-600);
+  --color-primary-dark: var(--violet-700);
+  --color-primary-light: var(--violet-100);
+  --color-accent: var(--violet-400);
+  --color-surface: #FFFFFF;
+  --color-background: var(--violet-50);
+  --color-border: var(--violet-200);
+  --color-text-primary: var(--violet-950);
+  --color-text-secondary: var(--violet-400);
+  --color-text-inverse: #FFFFFF;
+  --color-warning: #F59E0B;
+  --color-warning-light: #FEF3C7;
+  --color-danger: #EF4444;
+  --color-danger-light: #FEE2E2;
+  --color-success: #10B981;
+  --color-overlay: rgba(46, 16, 101, 0.5);
+
+  /* Gradients — use exactly as specified, never improvise a direction */
+  --gradient-sidebar: linear-gradient(180deg, var(--violet-900) 0%, var(--violet-950) 100%);
+  --gradient-auth-bg: linear-gradient(135deg, var(--violet-900) 0%, var(--violet-600) 50%, var(--violet-400) 100%);
+  --gradient-primary-btn: linear-gradient(135deg, var(--violet-600) 0%, var(--violet-700) 100%);
+  --gradient-profile-header: linear-gradient(180deg, var(--violet-700) 0%, var(--violet-900) 100%);
+  --gradient-card-hover: linear-gradient(135deg, var(--violet-50), var(--violet-100));
+
+  /* Typography */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+
+  /* Spacing scale — 4px base unit (--space-N = N * 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Border radius */
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-pill: 20px;
+  --radius-bottom-sheet: 24px;
+
+  /* Shadows */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-bottom-sheet: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  --shadow-fab: 0 4px 16px rgba(124, 58, 237, 0.45);
+}

@@ -1269,3 +1269,54 @@ whose implementation or ticket should pick it up.
    (Connection Request Flow) and T068 (Chat UI) ship, since those are the two screens users
    are most likely to leave open for extended periods; candidate for a dedicated PWA
    update-notification ticket, or folded into whichever of those two lands first.
+
+## From T063 (Auth Flow (Google Sign-In + OTP))
+
+1. **`AuthGuard` is implemented but wired to nothing — AC2 is code-complete but not
+   runtime-verifiable yet.** `auth.guard.ts` correctly implements `CanActivate` with an
+   early-return redirect to a `UrlTree`, but a repo-wide check found zero imports of it
+   outside its own file. `app-routing.module.ts` currently has exactly one route (`/auth`,
+   intentionally public, lazy-loaded) — T063 is the first feature module in the app, so
+   there is no protected route yet for the guard to actually stand in front of. The risk
+   isn't today's code; it's that the next feature route ships without
+   `canActivate: [AuthGuard]` simply because nothing in this codebase demonstrates the
+   wiring pattern yet.
+   Fix: the first ticket that adds a real protected route must add
+   `canActivate: [AuthGuard]` to that route's `loadChildren` entry in
+   `app-routing.module.ts`, and should manually re-verify AC2 end-to-end at that point
+   (navigate to the protected path while logged out → redirected to `/auth/login`).
+   [resolved: T109] — Phase 18 (added 2026-10-29) now exists ahead of T064 specifically to be
+   this first protected route (ProfileSetupComponent, mandatory onboarding) — its own ticket
+   text requires wiring `AuthGuard` there. T064 remains affected only as a consumer that must
+   follow the same pattern T109 establishes, not as the one introducing it.
+   Affects: T109 (introduces the pattern), T064 (Radar UI — must follow it).
+
+## From T063/T109 discussion (Identity Verification)
+
+1. **[resolved: T110]** Identity Verification (Figma Screen 05) had no frontend ticket. Confirmed
+   non-blocking (REQUIREMENTS.md §1 marks it explicitly optional, and `IdentityBadge` is tracked
+   separately from `IsOnboardingComplete`/Discovery visibility), so Tech Lead decision
+   (2026-10-29) was to ticket it as Phase 19 / T110, sequenced last — after every other Phase
+   11/18 ticket — rather than inserted early the way Phase 18 was. Entry point is
+   Profile/Settings (T070), per T110's own spec.
+   Affects: T070 (hosts the entry point), T110 (builds the screen).
+
+2. **Concurrent 401s each trigger their own independent `/auth/refresh` call — no
+   "single refresh in flight" dedup.** `AuthInterceptor.intercept` (`auth.interceptor.ts`)
+   has no guard against multiple simultaneous 401'd requests each calling
+   `AuthService.refreshToken()` on their own. Each individual call still correctly
+   "attempts refresh, then logs out on failure" (AC3 is met per-request), but a screen
+   that fires several parallel authenticated calls at the exact moment the access token
+   expires generates N redundant backend refresh calls instead of one. Two concrete
+   consequences once a multi-call screen exists: (a) wasted RSA sign/verify work on the
+   backend per redundant call, and (b) `RefreshTokenPolicy`'s 10-requests/min-per-IP
+   ceiling (`RateLimitPolicies.cs`) can be exhausted by the burst itself, causing one of
+   the N refresh calls to get a 429 and incorrectly log the user out even though their
+   refresh token was perfectly valid — just rate-limited by the client's own fan-out, not
+   by actual abuse.
+   Fix: standard refresh-interceptor pattern — an `isRefreshing` flag plus a
+   `Subject`/`BehaviorSubject<string | null>` in `AuthService` or `AuthInterceptor` that
+   queues concurrent 401'd requests behind the one in-flight `refreshToken()` call, then
+   releases them all with the single new token once it resolves.
+   Affects: T067 (Connection Request Flow), T068 (Chat UI) — first screens likely to fire
+   multiple concurrent authenticated calls near token expiry.

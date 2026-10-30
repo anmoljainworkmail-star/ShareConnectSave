@@ -82,6 +82,58 @@ public class AuthController(
         return Ok(new GoogleAuthResponse(accessToken, refreshToken, isNewUser));
     }
 
+    // T063: the redemption endpoint IssueRefreshToken's response shape was
+    // always built for (see IJwtIssuer's comment) - a public gateway route,
+    // same chicken-and-egg reasoning as POST /auth/google: the Authorization
+    // header on this call necessarily carries an already-expired access
+    // token (that is the entire reason the client is calling this), so the
+    // real credential travels in the request body instead and is validated
+    // here, not at the gateway.
+    [HttpPost("/auth/refresh")]
+    public async Task<IActionResult> Refresh(RefreshRequest request)
+    {
+        // Guard Clause (project convention): reject empty input before ever
+        // touching JwtIssuer's RSA validation path.
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            return InvalidRefreshToken();
+        }
+
+        var userId = jwtIssuer.ValidateRefreshToken(request.RefreshToken);
+        if (userId is null)
+        {
+            return InvalidRefreshToken();
+        }
+
+        // Re-check the account still exists rather than trusting the token's
+        // claims alone: a refresh token is long-lived (30 days by default,
+        // see JwtIssuerOptions.RefreshTokenDays) and carries no information
+        // about the account's CURRENT state - only that it belonged to this
+        // user id at issuance time.
+        var user = await userRepository.GetByIdAsync(userId.Value);
+        if (user is null)
+        {
+            return InvalidRefreshToken();
+        }
+
+        // Reissue-on-demand (same idea as UserProfileService's "Stale JWT
+        // Claim" fix from T018): the new access token reflects the user's
+        // CURRENT gender/status/onboarding state, not whatever was true 30
+        // days ago when the refresh token was minted.
+        //
+        // Scope decision (T063, deliberate - not an oversight): the SAME
+        // refresh token is returned to the caller unchanged, not rotated.
+        // True rotation (issue a new refresh token, invalidate the old one)
+        // needs a persisted, revocable token store - this platform has none
+        // today, and bolting one on as a side effect of this ticket would be
+        // real new infrastructure, not "finishing the auth flow." Logged
+        // here rather than silently decided so a future ticket can pick it
+        // up deliberately if session-hijacking defense in depth is ever
+        // prioritized.
+        var accessToken = jwtIssuer.IssueAccessToken(user);
+        return Ok(new RefreshResponse(accessToken));
+    }
+
     [HttpGet("/.well-known/jwks.json")]
     public IActionResult GetJwks() => Ok(jwtIssuer.GetJwks());
 
@@ -94,6 +146,22 @@ public class AuthController(
             new ErrorResponse(
                 "INVALID_GOOGLE_TOKEN",
                 "Google ID token failed validation.",
+                HttpContext.TraceIdentifier));
+
+    private IActionResult InvalidRefreshToken() =>
+        // Error Envelope (project-wide contract): { code, message, traceId }.
+        // "INVALID_REFRESH_TOKEN" is this endpoint's one error code - the
+        // Angular client (T063's AuthInterceptor) treats ANY failure here
+        // the same way (clear tokens, redirect to login), so this never
+        // needs to distinguish "expired" from "forged" from "account gone"
+        // for the caller's benefit - only the server log (not this
+        // response) needs that detail, and nothing here logs the token
+        // itself, by the same discipline as the gateway's own JWT failures.
+        StatusCode(
+            StatusCodes.Status401Unauthorized,
+            new ErrorResponse(
+                "INVALID_REFRESH_TOKEN",
+                "Refresh token is missing, invalid, or expired.",
                 HttpContext.TraceIdentifier));
 }
 
@@ -108,3 +176,9 @@ public record GoogleAuthResponse(
     [property: JsonPropertyName("access_token")] string AccessToken,
     [property: JsonPropertyName("refresh_token")] string RefreshToken,
     [property: JsonPropertyName("is_new_user")] bool IsNewUser);
+
+public record RefreshRequest(
+    [property: JsonPropertyName("refresh_token")] string RefreshToken);
+
+public record RefreshResponse(
+    [property: JsonPropertyName("access_token")] string AccessToken);

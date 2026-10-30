@@ -1,0 +1,143 @@
+/*
+ * Shared chrome for every /auth/* screen (FIGMA_SPEC.md Screens 02-03: full
+ * page --gradient-auth-bg, drifting bokeh decoration, centered white card).
+ * A plain CSS partial pulled in via @import, not a SharedModule component --
+ * this project's "Shared UI only in SharedModule" rule governs reusable
+ * Angular components/directives/pipes, not stylesheet partials, so there is
+ * no NgModule boundary to cross here, just avoiding copy-pasting the same
+ * ~60 lines of background/card CSS into every auth component.
+ */
+
+.auth-page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--gradient-auth-bg);
+  overflow: hidden;
+}
+
+/* Purely decorative (FIGMA_SPEC.md: "purely visual, not interactive") --
+   aria-hidden in the template plus pointer-events: none here means this
+   layer can never steal a click or a focus ring from the real UI on top
+   of it. */
+.auth-bokeh {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bokeh-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  filter: blur(2px);
+  animation: bokeh-drift 6s ease-in-out infinite alternate;
+}
+
+.bokeh-circle.c1 {
+  width: 240px;
+  height: 240px;
+  top: 10%;
+  left: 6%;
+}
+
+.bokeh-circle.c2 {
+  width: 180px;
+  height: 180px;
+  bottom: 14%;
+  right: 8%;
+  animation-delay: -2s;
+}
+
+.bokeh-circle.c3 {
+  width: 130px;
+  height: 130px;
+  top: 60%;
+  left: 70%;
+  animation-delay: -4s;
+}
+
+.bokeh-arc {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+}
+
+.bokeh-arc.a1 {
+  width: 400px;
+  height: 400px;
+  top: -110px;
+  left: -130px;
+}
+
+.bokeh-arc.a2 {
+  width: 280px;
+  height: 280px;
+  bottom: -90px;
+  right: -70px;
+}
+
+@keyframes bokeh-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(8px, 8px);
+  }
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: min(480px, 100%);
+  background: var(--color-surface);
+  border-radius: var(--radius-bottom-sheet);
+  box-shadow: var(--shadow-bottom-sheet);
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.auth-heading {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.auth-subtext {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-6);
+}
+
+.auth-error {
+  font-size: 13px;
+  color: var(--color-danger);
+  margin: var(--space-2) 0 0;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.link-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: var(--space-5);
+  }
+}

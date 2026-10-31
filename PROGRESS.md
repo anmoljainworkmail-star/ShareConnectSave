@@ -124,7 +124,7 @@
 ## Phase 11 — Angular Frontend
 
 - [x] T062 — Angular PWA Setup _(ngsw-config, service worker, Lighthouse ≥90)_
-- [ ] T063 — Auth Flow _(Google GSI + OTP, AuthGuard, AuthInterceptor)_
+- [x] T063 — Auth Flow _(Google GSI + OTP, AuthGuard, AuthInterceptor)_
 - [ ] T064 — Radar UI Component _(SVG rings + CSS @keyframes sweep animation)_
 - [ ] T065 — BLE Mode _(Web Bluetooth API, offline detection, iOS fallback message)_
 - [ ] T066 — Discovery Filters Panel _(bottom sheet, radius slider, women-only toggle)_
@@ -218,6 +218,39 @@ re-sequenced to depend on all four.
 - [x] T108 — Top Reported Users Endpoint _(report-service, new admin-only
       GET /reports/top-reported?days=7&limit=5, closes T060's "top 5 most-reported" gap —
       NOT a reuse of /reports/queue, which answers a different question per T060's own audit)_
+
+---
+
+## Phase 18 — Mandatory Profile Setup (Bonus, not part of the original 96-task list)
+
+Discovered while reviewing T063 (2026-10-29): REQUIREMENTS.md §1 defines onboarding as four
+stages (Google sign-in, OTP, **mandatory** profile setup, *optional* identity verification), but
+no Phase 11 ticket (T062–T072) ever built the mandatory profile-setup screen (Figma Screen 04) —
+T070 ("Profile + Settings") only covers editing an already-complete profile. Confirmed against
+`User.IsProfileComplete()`/`TryCompleteOnboarding()` in user-service: without name + photo +
+preferred language + a real gender, `IsOnboardingComplete` never flips true and the user never
+appears in Discovery. Tech Lead decision: ship this as its own ticket now, ahead of T064, rather
+than fold it into T070 or silently let T064 ship first with no way for a new user to ever reach
+it. Identity Verification (Figma Screen 05) is correctly optional by design and is deferred —
+tracked only as a non-blocking follow-up, not a ticket, for now.
+
+- [ ] T109 — Profile Setup (Onboarding) _(ProfileSetupComponent, mandatory name/photo/language/gender
+      step between OTP and the rest of the app; first screen to wire AuthGuard; reuses auth-shared.css)_
+
+T064's dependency updated in SPECS.md to add T109 (Radar is the first screen past this one).
+
+---
+
+## Phase 19 — Optional Identity Verification (Bonus, not part of the original 96-task list)
+
+Unlike Phase 18, this is NOT a blocker for Discovery — `identity_badge` is tracked separately
+from `IsOnboardingComplete` and nothing downstream depends on it. Sequenced last, after every
+other Phase 11/18 ticket, rather than inserted early. Backend (T019) has existed since Phase 3
+with no frontend ever calling it.
+
+- [ ] T110 — Identity Verification (Selfie/Liveness Badge) _(IdentityVerificationComponent, reached
+      from Profile/Settings (T070), synchronous POST /users/me/verify-identity — no polling, the
+      openapi spec's separate GET /identity/status doesn't actually exist in the shipped controller)_
 
 ---
 

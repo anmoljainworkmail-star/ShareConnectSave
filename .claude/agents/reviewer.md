@@ -103,6 +103,10 @@ Rules to check:
   □ JWT identity from X-User headers only (no token decode inside service)
   □ Error envelope { code, message, traceId } on all error paths
   □ Angular: all components in NgModule (no standalone)
+  □ Figma conformance (Angular screen tickets only): layout/colors/spacing/radii
+    match the relevant FIGMA_SPEC.md section, sourced from src/frontend/src/styles/tokens.css
+    (or an equally-shared partial), never a hardcoded hex/px value in component CSS; the
+    states and animations that section lists are implemented, not just the happy path
   □ Java: Lombok, MapStruct, WebClient (no hand-written mappers, no RestTemplate)
   □ .NET: repos injected as interfaces (Dependency Inversion)
   □ Guard clauses over nested ifs

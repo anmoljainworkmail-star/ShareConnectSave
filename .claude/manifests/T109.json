@@ -1,0 +1,32 @@
+{
+  "task_id": "T109",
+  "title": "Profile Setup (Onboarding)",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/app/profile-setup/models/profile-setup.models.ts",
+    "src/frontend/src/app/profile-setup/user-profile.service.ts",
+    "src/frontend/src/app/profile-setup/profile-setup.component.ts",
+    "src/frontend/src/app/profile-setup/profile-setup.component.html",
+    "src/frontend/src/app/profile-setup/profile-setup.component.css",
+    "src/frontend/src/app/profile-setup/profile-setup-routing.module.ts",
+    "src/frontend/src/app/profile-setup/profile-setup.module.ts"
+  ],
+  "files_modified": [
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/app/auth/otp-verify/otp-verify.component.ts"
+  ],
+  "criteria_checked": {
+    "prefills_name_photo_from_get_users_me": "PASS",
+    "three_step_wizard_matches_figma_screen_04_with_progress_dots": "PASS",
+    "step1_continue_disabled_until_photo_set": "PASS",
+    "gender_3_pills_required_with_privacy_note_no_lock_warning": "PASS",
+    "no_base_photo_precondition_enforced_client_side": "PASS",
+    "completing_flow_calls_patch_and_conditionally_photo_post_stores_access_token": "PASS",
+    "route_guarded_by_authguard_redirects_to_auth_login": "PASS",
+    "reuses_auth_shared_css": "PASS",
+    "step3_start_exploring_navigates_to_root": "PASS",
+    "otp_verify_navigates_to_profile_setup": "PASS",
+    "ng_build_development_succeeds": "PASS"
+  },
+  "last_note": "Post-handback fix (caught in my own verification pass, not the implementer's): applyProfileToForm bound profile.photo_url directly to a bare <img src>, which 401s for any already-self-hosted photo (REQUIREMENTS.md section 2 -- every gateway route requires a JWT, static photo files included). Added UserProfileService.resolvePhotoUrl(url): routes a self-hosted photo_url (prefixed with environment.apiBase) through HttpClient as a blob fetch (AuthInterceptor attaches the bearer token automatically), while leaving an external photo_url (Google's own CDN) untouched -- routing THAT through HttpClient would let AuthInterceptor attach our bearer token to a cross-origin Google request and risk a CORS preflight rejection Google has no reason to allow. profile-setup.component.ts's applyProfileToForm updated to subscribe to resolvePhotoUrl and reuse the existing objectUrlToRevoke cleanup, only for the blob case. ng build --configuration development re-verified clean after the fix; dist/ deleted."
+}

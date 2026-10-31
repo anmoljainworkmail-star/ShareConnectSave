@@ -153,11 +153,12 @@ export class OtpVerifyComponent implements OnDestroy {
     this.authService.verifyOtp(this.fullPhoneNumber, code).subscribe({
       next: () => {
         this.isSubmitting = false;
-        // No protected feature module exists yet at this point in the
-        // project (radar/chat/profile ship in later tickets) -- land on the
-        // app root rather than a route that doesn't exist. This ticket's
-        // scope stops at "JWT stored, user authenticated".
-        this.router.navigate(['/']);
+        // Mandatory profile setup (T109) is the next onboarding stage after
+        // phone verification -- IsOnboardingComplete only flips once BOTH
+        // hold (see OtpController and UserProfileController's shared gate),
+        // so a just-OTP-verified user still has a required step ahead, never
+        // the app root.
+        this.router.navigate(['/profile-setup']);
       },
       error: (error: ErrorEnvelope) => {
         this.isSubmitting = false;

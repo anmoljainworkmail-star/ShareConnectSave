@@ -27,6 +27,14 @@ pattern being demonstrated — not what the code does, but what principle it app
 7. ANGULAR — NgModule only. No standalone components, directives, or pipes.
 8. COMMENTS — Name the pattern/principle, not what the code does.
 9. NO CODEGEN CLI COMMANDS — see the dedicated section below. This is non-negotiable.
+10. FIGMA CONFORMANCE (Angular screen tickets only) — if this ticket builds or changes a
+    screen's template/CSS, read `.claude/skills/figma-compliance.md` and the matching
+    FIGMA_SPEC.md section BEFORE writing any markup. Colors/spacing/radii/shadows/gradients
+    come from `src/frontend/src/styles/tokens.css` (extend it if a token is genuinely
+    missing — never invent or hardcode a literal value in component CSS). A ticket's
+    acceptance criteria describing only functional behavior does not exempt it from this —
+    FIGMA_SPEC.md is a separate, always-applicable contract. Does not apply to tickets with
+    no screen UI (e.g. T062 was infrastructure-only and said so explicitly in its own ticket).
 
 === CLI COMMANDS THE TECH LEAD RUNS, NOT YOU ===
 This is a learning project. The Tech Lead wants to personally type and watch the output of

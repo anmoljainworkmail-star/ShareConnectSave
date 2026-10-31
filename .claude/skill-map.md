@@ -112,15 +112,15 @@ T061:
 ```
 T062: angular-pwa
 T063: angular-pwa
-T064: angular-pwa
-T065: angular-pwa
-T066: angular-pwa
-T067: angular-pwa
-T068: angular-pwa
-T069: angular-pwa
-T070: angular-pwa
-T071: angular-pwa
-T072: angular-pwa
+T064: angular-pwa figma-compliance
+T065: angular-pwa figma-compliance
+T066: angular-pwa figma-compliance
+T067: angular-pwa figma-compliance
+T068: angular-pwa figma-compliance
+T069: angular-pwa figma-compliance
+T070: angular-pwa figma-compliance
+T071: angular-pwa figma-compliance
+T072: angular-pwa figma-compliance
 ```
 
 ## Phase 12 — Testing
@@ -173,4 +173,14 @@ T105: dotnet-mvc-controllers
 T106: java-spring-boot
 T107: java-spring-boot
 T108: java-spring-boot
+```
+
+## Phase 18 — Mandatory Profile Setup (Bonus, beyond the original 96)
+```
+T109: angular-pwa figma-compliance
+```
+
+## Phase 19 — Optional Identity Verification (Bonus, beyond the original 96)
+```
+T110: angular-pwa figma-compliance
 ```

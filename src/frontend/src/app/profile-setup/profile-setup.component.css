@@ -1,0 +1,266 @@
+@import '../auth/auth-shared.css';
+
+.wizard-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Progress indicator: a plain flex row of spans, not a component -- three
+   static dots driven entirely by one `step` field don't justify a
+   SharedModule component (that's for UI genuinely reused across features). */
+.progress-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: all 0.2s ease;
+}
+
+.progress-dot--done {
+  background: var(--color-primary);
+}
+
+.progress-dot--active {
+  background: var(--color-primary);
+  width: 22px;
+  border-radius: var(--radius-pill);
+}
+
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.avatar-picker {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  margin: 0 auto var(--space-4);
+  cursor: pointer;
+  background: var(--color-primary-light);
+  overflow: visible;
+}
+
+.avatar-image,
+.avatar-placeholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-camera-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-card);
+}
+
+.photo-source-row {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+
+.photo-source-button {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photo-google-note {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-6);
+  text-align: center;
+}
+
+.field-label {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.text-input,
+.select-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+}
+
+.text-input:focus,
+.select-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.gender-pills {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+
+.gender-pill {
+  flex: 1;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gender-pill--selected {
+  background: var(--gradient-primary-btn);
+  border-color: transparent;
+  color: var(--color-text-inverse);
+}
+
+.field-note {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-4);
+  text-align: left;
+  width: 100%;
+}
+
+.field-warning {
+  font-size: 12px;
+  color: var(--color-warning);
+  background: var(--color-warning-light);
+  border-radius: var(--radius-button);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-4);
+  text-align: left;
+  width: 100%;
+}
+
+/* Checkmark / pending icon: pure CSS+SVG stroke-dasharray draw-in, no Lottie
+   dependency -- same "no new dep for a UI nicety" precedent the login
+   screen's Google button already follows. The ring and tick/line share one
+   dash-length-based animation technique: the stroke is drawn as a dash equal
+   to its own path length, offset fully off-screen, then animated back to 0. */
+.checkmark-circle {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto var(--space-4);
+}
+
+.checkmark-circle svg {
+  width: 100%;
+  height: 100%;
+}
+
+.checkmark-circle--success {
+  color: var(--color-success);
+}
+
+.checkmark-circle--pending {
+  color: var(--color-warning);
+}
+
+.checkmark-ring {
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-dasharray: 145;
+  stroke-dashoffset: 145;
+  animation: checkmark-ring-draw 0.5s ease-out forwards;
+}
+
+.checkmark-tick {
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: checkmark-tick-draw 0.35s ease-out 0.4s forwards;
+}
+
+@keyframes checkmark-ring-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes checkmark-tick-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.auth-primary-button {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-button);
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: var(--space-2);
+}
+
+.auth-primary-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .avatar-picker,
+  .avatar-image,
+  .avatar-placeholder {
+    width: 96px;
+    height: 96px;
+  }
+
+  .photo-source-row {
+    flex-direction: column;
+  }
+}

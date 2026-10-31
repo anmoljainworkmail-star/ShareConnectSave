@@ -1472,7 +1472,8 @@ Two screens: `LoginComponent`, `OtpVerifyComponent`.
 
 **Service:** `frontend`  
 **Language:** TypeScript / CSS  
-**Depends on:** T062  
+**Depends on:** T062, T109 _(added post-T063: Radar is the first real protected-with-content
+screen a user reaches, and must come after mandatory Profile Setup — see Phase 18)_  
 
 **Spec:**
 `RadarComponent` — animated SVG radar:
@@ -1918,7 +1919,7 @@ Verify every service's Docker healthcheck passes in `docker compose ps`. Add a `
 | T061 | Admin Docker | 10 | Docker | T060 |
 | T062 | Angular PWA Setup | 11 | TS | T001 |
 | T063 | Auth Flow | 11 | TS | T062,T016,T017 |
-| T064 | Radar UI | 11 | TS | T062 |
+| T064 | Radar UI | 11 | TS | T062,T109 |
 | T065 | BLE Mode | 11 | TS | T064,T024 |
 | T066 | Discovery Filters Panel | 11 | TS | T064 |
 | T067 | Connection Request Flow | 11 | TS | T064,T030,T048 |
@@ -2440,3 +2441,152 @@ Response: `List<TopReportedUserDto>` — `{ reported_id, report_count }` per ent
 - [ ] Defaults to `days=7`, `limit=5` when query params are omitted
 - [ ] Rejects with `403` when `X-User-Role` is not `admin`
 - [ ] admin-service gets a new `ReportServiceClient.getTopReported()` call against this endpoint
+
+---
+
+## Phase 18 — Mandatory Profile Setup (Bonus, discovered via T063 flow-completeness check)
+
+REQUIREMENTS.md §1 defines onboarding as four stages: Google sign-in, phone OTP, **profile setup
+(name, photo, preferred language, gender)**, then an *optional* identity-verification badge. T063
+(Auth Flow) built the first two and explicitly stopped at "JWT stored, user authenticated," on the
+assumption a later Phase 11 ticket would build the third. No ticket in the original T062–T072 list
+actually does — T070 ("Profile + Settings") only covers *editing* an already-complete profile,
+never the first-time onboarding step. Confirmed against the backend's own gate, not just the
+Figma spec: `User.IsProfileComplete()` (user-service) requires `Name`, `PhotoUrl`,
+`PreferredLanguage`, and `Gender != "Unspecified"` — until all four are set, `IsOnboardingComplete`
+never flips true, the `user.verified` Kafka event never fires, and the user never appears in
+Discovery (T025's consumer: *"only verified users appear in discovery"*). Without this ticket, a
+brand-new user who completes Google sign-in and OTP has no way to ever become discoverable —
+today's auth flow lands them on `/` with nothing left to do. Identity Verification (Figma Screen
+05) is correctly optional and is NOT part of this phase — tracked separately as a non-blocking
+follow-up (see `.claude/notes/follow-ups.md`, "From T063/T109 discussion").
+
+### T109 — Profile Setup (Onboarding)
+
+**Service:** `frontend`
+**Language:** TypeScript / CSS
+**Depends on:** T063, T018
+
+**Spec:**
+`ProfileSetupComponent` — the mandatory, first-time-only screen between OTP verification and the
+rest of the app (Figma Screen 04). Google already supplies `name` and often a `photo_url` at
+`POST /auth/google` time (see `AuthController.GoogleSignIn`); this screen's job is collecting
+whatever Google didn't provide plus the two fields it never provides at all (preferred language,
+gender), and persisting all of it before letting the user past this screen.
+
+- On screen load, call `GET /users/me` (user-service, via the gateway) to pre-fill whatever is
+  already known (`name`, `photo_url` if Google provided one, `preferred_language`'s default `"en"`).
+- Name field (editable, pre-filled from Google).
+- Photo: if `photo_url` is already set, show it (authenticated fetch — see REQUIREMENTS.md §2,
+  plain `<img src>` 401s); if null, require an upload before the user can continue (same
+  `NO_BASE_PHOTO` precondition T019's identity verification will later depend on — this is the
+  one and only place that base photo ever gets set for a Google account with no photo).
+- Preferred language selector.
+- Gender selector — three options (`female | male | unspecified`), with a persistent, visible
+  warning that this is locked after the user's first Discovery scan (T064's own acceptance
+  criteria enforce the lock server-side; this screen only needs to warn, not enforce, since the
+  lock cannot trigger before a scan has ever happened).
+- "Continue" button: calls `PATCH /users/me` with `{name, preferred_language, gender}` (all
+  three, even if only some changed — simpler than tracking per-field dirty state for a one-time
+  screen) and, if a new photo was selected, `POST /users/me/photo` (multipart). Both responses can
+  carry a fresh `access_token` (present only when `onboarding_complete` flips as a result — see
+  `UpdateProfileResponse`/`PhotoUploadResponse`'s `[JsonIgnore(WhenWritingNull)]` contract) — when
+  present, `AuthService.storeToken()` must be called with it, the same reissue-on-claim-change
+  pattern T018 established server-side.
+- On success, navigate to `/` (same as T063's OTP-verified landing — Radar/T064 is not built yet
+  at the time this ticket ships, so this screen's "done" state still has nowhere protected to go;
+  do not invent a different destination).
+- `AuthGuard` must be applied to this route (`canActivate: [AuthGuard]`) — this is the first
+  genuinely protected screen in the app; Login/OTP are deliberately public. Establishes the
+  pattern T064 (and every later protected route) must follow — see
+  `.claude/notes/follow-ups.md`'s "AuthGuard is never wired to any route" finding from T063's
+  review, which this ticket resolves.
+- Per the `figma-compliance` skill: this screen is one of the `--gradient-auth-bg` family (Figma
+  line "these screens render as a centered card ... on `--gradient-auth-bg`": Login, OTP, Profile
+  Setup) — reuse `src/frontend/src/app/auth/auth-shared.css` rather than re-declaring the
+  gradient/bokeh/card chrome. Whether this screen's module lives under the existing `AuthModule`
+  or a new `ProfileSetupModule` is an implementation decision for whoever picks up this ticket,
+  not dictated here — either is consistent with the project's lazy-loaded feature-module rule, as
+  long as it isn't declared in `AuthModule`'s existing `AuthRoutingModule` as a public route (it
+  must sit behind `AuthGuard`, which `/auth/login` and `/auth/otp` must NOT).
+
+**Acceptance criteria:**
+- [ ] Screen pre-fills name/photo from `GET /users/me` where Google already supplied them
+- [ ] Gender selector shows the "locked after first scan" warning
+- [ ] A Google account with no photo cannot continue without uploading one (`NO_BASE_PHOTO`
+      precondition respected client-side, not just server-side)
+- [ ] "Continue" calls `PATCH /users/me` (and `POST /users/me/photo` if a new photo was chosen)
+      and stores a refreshed `access_token` when the response includes one
+- [ ] Route is guarded by `AuthGuard` — an unauthenticated visit redirects to `/auth/login`
+- [ ] Reuses `auth-shared.css`'s gradient/bokeh/card chrome rather than re-declaring it
+- [ ] On success, navigates to `/` (no protected home screen exists yet to send the user to instead)
+
+---
+
+## Phase 19 — Optional Identity Verification (Bonus, discovered via T063/T109 discussion)
+
+Unlike Phase 18's mandatory Profile Setup, Identity Verification (Figma Screen 05) is explicitly
+optional per REQUIREMENTS.md §1 ("Identity verification badge: optional step after profile
+setup") and does NOT gate Discovery visibility — `User.IdentityBadge` is a condition tracked
+entirely separately from `IsOnboardingComplete` (user-service), by design, so a fully onboarded,
+fully discoverable user may never attempt it. Confirmed non-blocking: `T025`'s Kafka consumer
+gates Discovery on `user.verified` (phone + profile complete, Phase 18), never on
+`identity_badge`. Because nothing downstream depends on this ticket, it is sequenced LAST —
+after every other Phase 11/18 Angular ticket — rather than inserted early the way Phase 18 was.
+The backend has existed since T019 (Phase 3) with nothing in the frontend ever calling it.
+
+### T110 — Identity Verification (Selfie/Liveness Badge)
+
+**Service:** `frontend`
+**Language:** TypeScript / CSS
+**Depends on:** T070, T019
+
+**Spec:**
+`IdentityVerificationComponent` — Figma Screen 05, reached from `ProfileComponent`/
+`SettingsComponent` (T070) via a "Verify your identity" entry point (not from the mandatory
+onboarding flow — this is a user-initiated action taken any time after onboarding, possibly
+never). Calls `POST /users/me/verify-identity` (multipart form, field name `selfie`) via
+`user-service.IdentityVerificationController`.
+
+- Entry point: a button/row in `ProfileComponent` or `SettingsComponent`, visible only when
+  `identity_badge` is currently `false` on the user's own profile (`GET /users/me`) — already
+  verified users see their badge instead, not a re-verify action.
+- Camera/selfie capture UI, then submit. This is synchronous, not a polling/async flow: the
+  real `VerifyIdentityAsync` call runs the face-match inline and the HTTP response IS the
+  final result — do not build a "pending, check back later" polling loop; none of the backend
+  supports one (there is no separate status endpoint actually implemented — `identity_badge` on
+  `GET /users/me`/`PATCH /users/me` responses is the only enduring signal, see IMPLEMENTATION
+  NOTE below).
+- Success (`200`): update local profile state's `identity_badge` to `true` from the returned
+  profile, show the "Verified" badge, navigate back to Profile.
+- `422 NO_BASE_PHOTO`: user has no `photo_url` set at all — redirect to `ProfileComponent`'s
+  photo upload (T070) instead of showing a generic error; this should be rare in practice once
+  Phase 18 ships, since Profile Setup already requires a photo before onboarding completes, but
+  must still be handled (an account onboarded before this ticket shipped, or one whose photo
+  was somehow cleared, can still hit it).
+- `422 IDENTITY_MISMATCH`: show the error message from the response envelope and let the user
+  retry with a new selfie — do not lock them out or count attempts client-side; the backend
+  itself has no attempt-lockout for this endpoint (unlike OTP's 5-attempt lockout), so don't
+  invent one.
+- Per the `figma-compliance` skill: Screen 05 is NOT part of the `--gradient-auth-bg` family
+  (Login/OTP/Profile Setup) — it is reached post-onboarding from Profile/Settings, so follow
+  whatever shared chrome T070's screens establish instead of importing `auth-shared.css`.
+
+**IMPLEMENTATION NOTE (contract drift, confirmed before writing this spec):**
+`contracts/openapi/user-service.yaml` documents a separate `GET /identity/status` returning an
+`IdentityStatusResponse` enum (`not_started | pending | verified | rejected`) — but
+`IdentityVerificationController.cs` (T019, shipped) has no such action; it only has
+`POST /users/me/verify-identity`, which responds synchronously with the full profile on success.
+Build against the controller that actually exists, not the openapi doc — do not implement a
+polling loop or a separate status call that has nothing to hit. If this drift needs fixing in
+the contract docs, that is a documentation cleanup for whoever picks up this ticket, not a
+reason to build a backend call that doesn't exist.
+
+**Acceptance criteria:**
+- [ ] Entry point only appears when `identity_badge` is `false`
+- [ ] Successful verification updates the badge state from the response and navigates back,
+      with no polling/pending UI state
+- [ ] `NO_BASE_PHOTO` routes the user to upload a photo instead of showing a dead-end error
+- [ ] `IDENTITY_MISMATCH` allows an immediate retry with a new selfie, no client-side attempt cap
+- [ ] Does not block or redirect away from Discovery/Radar at any point — this screen is reachable
+      only from Profile/Settings, never inserted into the onboarding or Discovery flow

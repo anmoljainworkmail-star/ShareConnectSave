@@ -1,0 +1,176 @@
+<div class="auth-page">
+  <div class="auth-bokeh" aria-hidden="true">
+    <span class="bokeh-circle c1"></span>
+    <span class="bokeh-circle c2"></span>
+    <span class="bokeh-circle c3"></span>
+    <span class="bokeh-arc a1"></span>
+    <span class="bokeh-arc a2"></span>
+  </div>
+
+  <main class="auth-card">
+    <!-- 3-dot progress indicator: current step filled/larger, completed
+         steps filled smaller, upcoming steps outline-only. -->
+    <div class="progress-dots" role="list" aria-label="Setup progress">
+      <span
+        *ngFor="let s of stepOrder; let i = index; trackBy: trackByStep"
+        role="listitem"
+        class="progress-dot"
+        [class.progress-dot--active]="i === stepIndex"
+        [class.progress-dot--done]="i < stepIndex"
+      ></span>
+    </div>
+
+    <ng-container *ngIf="isLoadingProfile">
+      <p class="auth-subtext">Loading your profile&hellip;</p>
+    </ng-container>
+
+    <ng-container *ngIf="!isLoadingProfile && loadError">
+      <p class="auth-error" role="alert">{{ loadError }}</p>
+      <button type="button" class="auth-primary-button" (click)="loadProfile()">Retry</button>
+    </ng-container>
+
+    <ng-container *ngIf="!isLoadingProfile && !loadError">
+      <ng-container [ngSwitch]="step">
+        <!-- Step 1: Photo -->
+        <section *ngSwitchCase="'photo'" class="wizard-step">
+          <h1 class="auth-heading">Add a profile photo</h1>
+          <p class="auth-subtext">
+            Your photo helps others recognize you. It's also used for identity verification.
+          </p>
+
+          <button type="button" class="avatar-picker" (click)="triggerFilePicker(galleryInput)" aria-label="Choose profile photo">
+            <img *ngIf="photoPreviewUrl" [src]="photoPreviewUrl" alt="Profile photo preview" class="avatar-image" />
+            <svg *ngIf="!photoPreviewUrl" class="avatar-placeholder" viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="58" fill="var(--color-primary-light)" />
+              <circle cx="60" cy="46" r="18" fill="var(--violet-300)" />
+              <path d="M24 100c6-22 24-34 36-34s30 12 36 34" fill="var(--violet-300)" />
+            </svg>
+            <span class="avatar-camera-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                />
+                <circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </span>
+          </button>
+
+          <input
+            #galleryInput
+            type="file"
+            accept="image/*"
+            class="visually-hidden-input"
+            (change)="onPhotoFileSelected($event)"
+          />
+          <input
+            #cameraInput
+            type="file"
+            accept="image/*"
+            capture="user"
+            class="visually-hidden-input"
+            (change)="onPhotoFileSelected($event)"
+          />
+
+          <div class="photo-source-row">
+            <button type="button" class="photo-source-button" (click)="triggerFilePicker(cameraInput)">Take Photo</button>
+            <button type="button" class="photo-source-button" (click)="triggerFilePicker(galleryInput)">
+              Upload from Gallery
+            </button>
+          </div>
+
+          <p class="photo-google-note">
+            If your Google account had a photo, it's already loaded. You can change it here.
+          </p>
+
+          <button type="button" class="auth-primary-button" [disabled]="!hasPhoto" (click)="goToBasicInfo()">
+            Continue
+          </button>
+        </section>
+
+        <!-- Step 2: Basic Info -->
+        <section *ngSwitchCase="'basic-info'" class="wizard-step">
+          <h1 class="auth-heading">Tell us about yourself</h1>
+          <p class="auth-subtext">A few details before you start exploring.</p>
+
+          <label class="field-label" for="profile-name">Name</label>
+          <input
+            id="profile-name"
+            type="text"
+            class="text-input"
+            name="name"
+            [(ngModel)]="name"
+            [disabled]="isSubmitting"
+            placeholder="Your name"
+          />
+
+          <span class="field-label">Gender</span>
+          <div class="gender-pills" role="radiogroup" aria-label="Gender">
+            <button
+              *ngFor="let option of genderOptions"
+              type="button"
+              class="gender-pill"
+              role="radio"
+              [attr.aria-checked]="selectedGender === option.value"
+              [class.gender-pill--selected]="selectedGender === option.value"
+              [disabled]="isSubmitting"
+              (click)="selectGender(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <p class="field-note">Your gender is never shown to other users. It's only used for filtering.</p>
+          <p *ngIf="genderMeansIncompleteProfile" class="field-warning" role="alert">
+            Choosing "Prefer not to say" means your profile won't be marked complete yet, and you won't appear in
+            Discovery until you pick Male or Female here.
+          </p>
+
+          <label class="field-label" for="profile-language">Preferred language</label>
+          <select id="profile-language" class="select-input" [(ngModel)]="selectedLanguage" [disabled]="isSubmitting">
+            <option *ngFor="let language of languageOptions" [value]="language.code">{{ language.label }}</option>
+          </select>
+
+          <button type="button" class="auth-primary-button" [disabled]="isSubmitting" (click)="submitBasicInfo()">
+            {{ isSubmitting ? 'Saving…' : 'Continue' }}
+          </button>
+
+          <p *ngIf="errorMessage" class="auth-error" role="alert">{{ errorMessage }}</p>
+        </section>
+
+        <!-- Step 3: Ready -->
+        <section *ngSwitchCase="'ready'" class="wizard-step">
+          <ng-container *ngIf="onboardingComplete; else notComplete">
+            <div class="checkmark-circle checkmark-circle--success" aria-hidden="true">
+              <svg viewBox="0 0 52 52">
+                <circle class="checkmark-ring" cx="26" cy="26" r="23" fill="none" />
+                <path class="checkmark-tick" fill="none" d="M14 27l7 7 17-17" />
+              </svg>
+            </div>
+            <h1 class="auth-heading">You're all set!</h1>
+            <p class="auth-subtext">Profile created. Start scanning to find travel companions nearby.</p>
+          </ng-container>
+
+          <ng-template #notComplete>
+            <div class="checkmark-circle checkmark-circle--pending" aria-hidden="true">
+              <svg viewBox="0 0 52 52">
+                <circle class="checkmark-ring" cx="26" cy="26" r="23" fill="none" />
+                <path class="checkmark-tick" fill="none" d="M26 16v14" />
+                <circle cx="26" cy="36" r="1.6" fill="currentColor" stroke="none" />
+              </svg>
+            </div>
+            <h1 class="auth-heading">Profile saved</h1>
+            <p class="auth-subtext">
+              Your details were saved, but your profile isn't complete yet -- pick Male or Female on the previous
+              step to appear in Discovery.
+            </p>
+          </ng-template>
+
+          <button type="button" class="auth-primary-button" (click)="startExploring()">Start Exploring</button>
+        </section>
+      </ng-container>
+    </ng-container>
+  </main>
+</div>

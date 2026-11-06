@@ -1,0 +1,32 @@
+{
+  "task_id": "T070",
+  "title": "Profile + Settings",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/app/profile/profile.module.ts",
+    "src/frontend/src/app/profile/profile-routing.module.ts",
+    "src/frontend/src/app/profile/profile-shared.css",
+    "src/frontend/src/app/profile/profile.component.ts",
+    "src/frontend/src/app/profile/profile.component.html",
+    "src/frontend/src/app/profile/profile.component.css",
+    "src/frontend/src/app/profile/settings/settings.component.ts",
+    "src/frontend/src/app/profile/settings/settings.component.html",
+    "src/frontend/src/app/profile/settings/settings.component.css",
+    "src/frontend/src/app/profile/models/profile-options.ts"
+  ],
+  "files_modified": [
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/app/profile-setup/profile-setup.component.ts",
+    "src/frontend/src/app/radar/radar/radar.component.html",
+    "src/frontend/src/app/radar/radar/radar.component.css",
+    "src/frontend/src/styles/tokens.css"
+  ],
+  "criteria_checked": {
+    "AC1 gender locked": "PASS (frontend-only, fail-closed; backend gap reported)",
+    "AC2 women-only toggle female only": "PASS",
+    "AC3 photo upload multipart": "PASS",
+    "AC4 authenticated photo fetch": "PASS",
+    "AC5 status reflects server value": "PASS"
+  },
+  "last_note": "ng build --configuration development succeeded; dist deleted. Backend gaps reported: no first-scan/gender-lock flag or enforcement in user-service."
+}

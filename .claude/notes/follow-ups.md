@@ -1493,3 +1493,26 @@ whose implementation or ticket should pick it up.
 
 4. **Unavailable-state "Back to radar" does not call `markRatingResolved`**, so a later `ChatClosed` push can re-open the unavailable screen (harmless). Also server error messages (`SELF_RATING_NOT_ALLOWED`, `INVALID_RATING_TAG`) are shown verbatim; consider a code-to-copy map.
    Affects: T072 (Offline State Handling); T081/T083 (add coverage on error mapping).
+
+## From T070 (Profile + Settings)
+
+1. **No first-scan / gender-lock flag and no server-side enforcement.** user-service `GET /users/me` exposes no lock state and `PATCH {gender}` is accepted at any time, so the frontend lock (`genderLocked` in `profile.component.ts`, fail-closed on any non-'unspecified' value) is bypassable via the API, and also via `/profile-setup`, which has no onboarding-complete redirect. Add a `gender_locked` / `first_scan_at` field (set on the first scan, e.g. from a `scan.started` event) plus a 409 rejection in `UserProfileService.UpdateProfileAsync`, then switch `genderLocked` to read that flag. Consider redirecting completed users away from `/profile-setup`.
+   Affects: user-service hardening (no task ID yet); T081/T082/T084 (add coverage); T109 (Profile Setup redirect for completed users).
+
+2. **Gender is over-locked versus the spec.** Onboarding requires a non-Unspecified gender, so effectively every user reaching `/profile` is locked immediately, and a mis-tap at setup cannot be fixed before a first scan. Lock copy reads "cannot be changed" instead of the Figma "cannot be changed after first scan". Resolves naturally once item 1 provides a real flag.
+   Affects: T109; the user-service lock task from item 1.
+
+3. **`status` is not normalised in `normalizeProfile`** (`user-profile.service.ts`). Backend default is "Unavailable" (capital U) until first written; later writes are lowercase. Safe today because code compares only `=== 'looking'`. Lowercase `status` in the same anti-corruption step, or have the backend emit lowercase.
+   Affects: T072 (Offline State Handling); any later task comparing status values.
+
+4. **Photo-fetch `catchError` in `profile.component.ts` (~lines 80-86) can wipe a pending local preview.** If the user picks a file while the initial server-photo fetch is still in flight and that fetch fails, the preview disappears. Add `if (this.selectedPhotoFile) { return EMPTY; }` at the top of the handler, and consider keeping the previous photo (not initials) when the post-save fetch fails.
+   Affects: Phase 11 polish pass; T085 (E2E).
+
+5. **Spec scope deviations (documented in the component headers).** Screens 15/16 merged (Save at bottom, no top-bar Save); Trusted badge, rating stars, About and Help rows not built; Screen 18 Notifications/Privacy/About groups not built; desktop two-column layout not built. Also no client-side file-size check (use the backend's `MaxSizeBytes`), and literal px font sizes remain (same tokenisation item as T068/T069 follow-ups).
+   Affects: Phase 11 polish pass; T071 (Admin Dashboard UI, shared app-bar/typography tokens).
+
+6. **Women-only state is in-memory only** (`ScanSessionService`, pre-existing T066 design). It resets on reload, so Settings shows OFF with no user action. Persist it server-side or fetch it on load. Related UX note: the Radar "Profile" link leaves `RadarComponent`, whose `ngOnDestroy` tears down an active scan and sets status to unavailable, with no warning to the user.
+   Affects: T072 (Offline State Handling); Discovery women-only filter work; Phase 11 polish pass.
+
+7. **Retry / edge-case nits.** A background GET dropped while a status PATCH is in flight is not retried (stale until next focus if that PATCH fails); if the photo upload succeeds but the following PATCH fails, a retry re-uploads the photo; a server body-size-limit rejection (no envelope) shows only the generic error.
+   Affects: T081/T083 (add coverage); T085 (E2E).

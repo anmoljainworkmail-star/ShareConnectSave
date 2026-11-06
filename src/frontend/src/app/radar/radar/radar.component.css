@@ -17,7 +17,17 @@
   font-size: 15px;
 }
 
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
   width: 36px;
   height: 36px;
   border-radius: 50%;

@@ -61,6 +61,13 @@ const routes: Routes = [
     path: 'rating',
     canActivate: [AuthGuard],
     loadChildren: () => import('./features/rating/rating.module').then(m => m.RatingModule)
+  },
+  // T070: Profile (/profile) + Settings (/profile/settings), FIGMA_SPEC.md
+  // Screens 15/16/18. Guarded like every protected feature route.
+  {
+    path: 'profile',
+    canActivate: [AuthGuard],
+    loadChildren: () => import('./profile/profile.module').then(m => m.ProfileModule)
   }
 ];
 

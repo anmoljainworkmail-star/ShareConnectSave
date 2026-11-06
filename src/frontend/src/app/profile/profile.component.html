@@ -1,0 +1,122 @@
+<!--
+  FIGMA_SPEC.md SCREENS 15 + 16 (My Profile header + Edit Profile), merged per
+  T070. Top app bar: back | "Profile" | settings gear. Header band uses
+  --gradient-profile-header with the 96px avatar and camera overlay (tap to
+  re-upload), name, and Verified badge when earned. Below it a white card with
+  name, preferred language, gender (display-only + lock once set) and a
+  full-width primary Save. Background is --color-background plus the global
+  slow radar ripple.
+  Not built (no data source yet): Trusted badge, rating stars, About, Help &
+  Support, Privacy Policy, Sign Out -- see T070 report.
+-->
+<div class="profile-page">
+  <svg class="ripple-layer" aria-hidden="true" focusable="false">
+    <circle class="ripple ripple-1" cx="100%" cy="0" r="200"></circle>
+    <circle class="ripple ripple-2" cx="100%" cy="0" r="200"></circle>
+    <circle class="ripple ripple-3" cx="100%" cy="0" r="200"></circle>
+  </svg>
+
+  <div class="profile-shell">
+    <header class="appbar">
+      <button type="button" class="appbar-button" aria-label="Back to radar" (click)="goBack()">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <h1 class="appbar-title">Profile</h1>
+      <a class="appbar-button" routerLink="settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8" />
+          <path
+            d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"
+            fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+      </a>
+    </header>
+
+    <ng-container [ngSwitch]="viewState">
+      <div class="state-panel" *ngSwitchCase="'loading'" role="status">
+        <p class="state-message">Loading your profile&hellip;</p>
+      </div>
+
+      <div class="state-panel" *ngSwitchCase="'error'">
+        <p class="state-message" role="alert">{{ loadError }}</p>
+        <button type="button" class="btn-primary" (click)="loadProfile()">Retry</button>
+      </div>
+
+      <ng-container *ngSwitchCase="'ready'">
+        <section class="profile-header">
+          <button type="button" class="avatar-button" aria-label="Change profile photo" (click)="triggerFilePicker(photoInput)">
+            <!-- photoUrl is the blob: URL from the authenticated fetch (or the
+                 untouched Google CDN URL, or a local preview) -- never the raw
+                 server photo_url, which a plain <img> could not authorise. -->
+            <img *ngIf="photoUrl; else initialsAvatar" [src]="photoUrl" alt="Your profile photo" class="avatar-image" />
+            <ng-template #initialsAvatar><span class="avatar-initials" aria-hidden="true">{{ initials }}</span></ng-template>
+            <span class="avatar-camera-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                <circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </span>
+          </button>
+          <input #photoInput type="file" accept="image/*" class="visually-hidden-input" (change)="onPhotoFileSelected($event)" />
+
+          <h2 class="header-name">{{ name || 'Your name' }}</h2>
+          <div class="badge-row" *ngIf="identityBadge">
+            <span class="badge badge-verified">
+              <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+              </svg>
+              Verified
+            </span>
+          </div>
+        </section>
+
+        <main class="profile-body">
+          <form class="card" (ngSubmit)="save()" novalidate>
+            <label class="field-label" for="edit-name">Name</label>
+            <input id="edit-name" name="name" type="text" class="field-input" maxlength="200"
+                   [(ngModel)]="name" [disabled]="isSaving" placeholder="Your name" autocomplete="name" />
+
+            <label class="field-label" for="edit-language">Preferred language</label>
+            <select id="edit-language" name="language" class="field-input" [(ngModel)]="selectedLanguage" [disabled]="isSaving">
+              <option *ngFor="let language of languageOptions" [value]="language.code">{{ language.label }}</option>
+            </select>
+
+            <span class="field-label" id="gender-label">Gender</span>
+
+            <!-- Locked state (Screen 16): grey, lock icon, read-only text. -->
+            <div *ngIf="genderLocked; else genderEditable" class="gender-locked" role="group" aria-labelledby="gender-label">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8" />
+              </svg>
+              <span>{{ genderLabel }} &mdash; cannot be changed</span>
+            </div>
+
+            <ng-template #genderEditable>
+              <div class="gender-pills" role="radiogroup" aria-labelledby="gender-label">
+                <button *ngFor="let option of genderOptions" type="button" class="gender-pill" role="radio"
+                        [attr.aria-checked]="selectedGender === option.value"
+                        [class.gender-pill--selected]="selectedGender === option.value"
+                        [disabled]="isSaving" (click)="setGender(option.value)">
+                  {{ option.label }}
+                </button>
+              </div>
+              <p class="field-note">
+                You can set this once. After you choose Male or Female it is locked, because women-only matching
+                depends on it. It is never shown to other users.
+              </p>
+            </ng-template>
+
+            <p *ngIf="errorMessage" class="error-text" role="alert">{{ errorMessage }}</p>
+
+            <button type="submit" class="btn-primary save-button" [disabled]="isSaving || !hasChanges">
+              {{ isSaving ? 'Saving…' : 'Save' }}
+            </button>
+          </form>
+        </main>
+      </ng-container>
+    </ng-container>
+  </div>
+</div>

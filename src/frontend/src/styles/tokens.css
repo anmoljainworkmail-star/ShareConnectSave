@@ -222,6 +222,30 @@
   --rating-max-width: 480px;
 
   /*
+   * Profile-family tokens (FIGMA_SPEC.md Screens 15/16/18: My Profile / Edit
+   * Profile / Settings), added for T070. Sizes are the spec's own: top app bar
+   * 56px (3.9), profile avatar 96px (3.2 'profile edit'), 52px input/button
+   * height (3.7 / 3.1), content max-width 880px (section 1a). The switch is a
+   * standard 48x28 toggle -- the spec says 'switch' without dimensions, so
+   * these are flagged sizing choices, not spec values. --profile-card-width
+   * is likewise a choice: the spec only caps content at 880px, which is too
+   * wide for a single-column form card.
+   */
+  --appbar-height: 56px;
+  --profile-avatar-size: 96px;
+  --profile-camera-badge-size: 32px;
+  --profile-control-height: 52px;
+  --profile-max-width: 880px;
+  --profile-card-width: 560px;
+  --switch-width: 48px;
+  --switch-height: 28px;
+  --switch-knob-size: 22px;
+  --switch-transition: 200ms;
+  --disabled-opacity: 0.4;
+  --color-status-unavailable-bg: #F3F4F6;
+  --color-status-unavailable-text: #6B7280;
+
+  /*
    * Atlas background tokens -- the app's FINALIZED ambient background
    * (AmbientBackgroundComponent, SharedModule), used behind every screen
    * (Login, OTP, Profile Setup, Radar), approved design:

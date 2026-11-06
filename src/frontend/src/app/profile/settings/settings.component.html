@@ -1,0 +1,103 @@
+<!--
+  FIGMA_SPEC.md SCREEN 18 (Settings), scoped by T070 to: availability toggle
+  (Looking / Not available, with the spec 3.4 status pill), women-only toggle
+  (rendered ONLY for female users) and account info. Top app bar: back +
+  "Settings". Background is --color-background plus the global slow radar
+  ripple.
+  Not built (outside this ticket / no backend yet): Notifications toggles,
+  Block list, Report history, Change phone, Delete account, About links.
+-->
+<div class="profile-page">
+  <svg class="ripple-layer" aria-hidden="true" focusable="false">
+    <circle class="ripple ripple-1" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-2" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-3" cx="0" cy="100%" r="200"></circle>
+  </svg>
+
+  <div class="profile-shell">
+    <header class="appbar">
+      <button type="button" class="appbar-button" aria-label="Back to profile" (click)="goBack()">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <h1 class="appbar-title">Settings</h1>
+      <span aria-hidden="true"></span>
+    </header>
+
+    <ng-container [ngSwitch]="viewState">
+      <div class="state-panel" *ngSwitchCase="'loading'" role="status">
+        <p class="state-message">Loading&hellip;</p>
+      </div>
+
+      <div class="state-panel" *ngSwitchCase="'error'">
+        <p class="state-message" role="alert">{{ loadError }}</p>
+        <button type="button" class="btn-primary" (click)="retry()">Retry</button>
+      </div>
+
+      <main class="settings-body" *ngSwitchCase="'ready'">
+        <section class="card" aria-labelledby="availability-heading">
+          <h2 class="card-heading" id="availability-heading">Availability</h2>
+          <div class="switch-row">
+            <div>
+              <span class="switch-label" id="status-label">
+                {{ isLooking ? 'Looking for companion' : 'Not available' }}
+              </span>
+              <span class="switch-hint">
+                <span class="status-pill" [class.status-pill--looking]="isLooking">
+                  {{ isLooking ? 'Looking' : 'Unavailable' }}
+                </span>
+                {{ isLooking ? 'You can be found in Discovery.' : 'You are hidden from Discovery.' }}
+              </span>
+            </div>
+            <!-- Pessimistic switch: aria-checked mirrors the SERVER's status,
+                 so it only moves after the PATCH is confirmed. -->
+            <button type="button" class="switch" role="switch" aria-labelledby="status-label"
+                    [attr.aria-checked]="isLooking" [disabled]="isUpdatingStatus" (click)="toggleStatus()"></button>
+          </div>
+          <p *ngIf="errorMessage" class="error-text" role="alert">{{ errorMessage }}</p>
+        </section>
+
+        <!-- Rendered (not merely disabled) only for female users -- gender must
+             never be inferable by showing this control to anyone else. -->
+        <section class="card" *ngIf="isFemale" aria-labelledby="privacy-heading">
+          <h2 class="card-heading" id="privacy-heading">Discovery</h2>
+          <div class="switch-row">
+            <div>
+              <span class="switch-label" id="women-only-label">Women-only mode</span>
+              <span class="switch-hint">Only match with other women. Applies from your next scan.</span>
+            </div>
+            <button type="button" class="switch" role="switch" aria-labelledby="women-only-label"
+                    [attr.aria-checked]="womenOnly" (click)="toggleWomenOnly()"></button>
+          </div>
+        </section>
+
+        <section class="card" *ngIf="account" aria-labelledby="account-heading">
+          <h2 class="card-heading" id="account-heading">Account</h2>
+          <dl class="info-list">
+            <div class="info-row">
+              <dt>Name</dt>
+              <dd>{{ account.name }}</dd>
+            </div>
+            <div class="info-row" *ngIf="account.email">
+              <dt>Email</dt>
+              <dd>{{ account.email }}</dd>
+            </div>
+            <div class="info-row" *ngIf="account.phone">
+              <dt>Phone</dt>
+              <dd>{{ account.phone }}{{ account.phone_verified ? ' (verified)' : '' }}</dd>
+            </div>
+            <div class="info-row">
+              <dt>Identity</dt>
+              <dd>{{ account.identity_badge ? 'Verified' : 'Not verified' }}</dd>
+            </div>
+            <div class="info-row">
+              <dt>Member since</dt>
+              <dd>{{ account.created_at | date: 'mediumDate' }}</dd>
+            </div>
+          </dl>
+        </section>
+      </main>
+    </ng-container>
+  </div>
+</div>

@@ -1,0 +1,204 @@
+/* Screens 15/16. Every value is a tokens.css variable; no literals. */
+@import './profile-shared.css';
+
+.profile-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4) var(--space-10);
+  background: var(--gradient-profile-header);
+  color: var(--color-text-inverse);
+}
+
+.avatar-button {
+  position: relative;
+  width: var(--profile-avatar-size);
+  height: var(--profile-avatar-size);
+  padding: 0;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--violet-600);
+  cursor: pointer;
+}
+
+.avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--color-text-inverse);
+}
+
+.avatar-camera-badge {
+  position: absolute;
+  right: calc(var(--space-1) * -1);
+  bottom: calc(var(--space-1) * -1);
+  width: var(--profile-camera-badge-size);
+  height: var(--profile-camera-badge-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+  color: var(--color-text-inverse);
+}
+
+.avatar-button:focus-visible {
+  outline: 2px solid var(--color-text-inverse);
+  outline-offset: 3px;
+}
+
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.header-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.badge-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* Spec 3.4 Verified badge: Violet-100 background, Violet-600 text, shield icon. */
+.badge-verified {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* The card overlaps the header band's bottom edge. */
+.profile-body {
+  position: relative;
+  margin-top: calc(var(--space-6) * -1);
+  padding: 0 var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+}
+
+.field-label {
+  display: block;
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.field-input {
+  width: 100%;
+  height: var(--profile-control-height);
+  margin-bottom: var(--space-4);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.field-input:focus {
+  border-color: var(--color-primary);
+}
+
+.field-input:disabled {
+  opacity: var(--disabled-opacity);
+}
+
+.gender-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.gender-pill {
+  flex: 1 1 auto;
+  height: var(--space-10);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.gender-pill--selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.gender-pill:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+.gender-pill:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.field-note {
+  margin: 0 0 var(--space-4);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* Spec Screen 16: gender "display only ... grey, locked ... with lock icon". */
+.gender-locked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-button);
+  background: var(--color-status-unavailable-bg);
+  color: var(--color-status-unavailable-text);
+  font-size: 14px;
+}
+
+.save-button {
+  margin-top: var(--space-2);
+}
+
+@media (min-width: 1024px) {
+  .profile-header {
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+  }
+}

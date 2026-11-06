@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
 import { ErrorEnvelope } from '../auth/models/auth.models';
+import { GENDER_OPTIONS, LANGUAGE_OPTIONS } from '../profile/models/profile-options';
 import { Gender, UserProfileDto } from './models/profile-setup.models';
 import { UserProfileService } from './user-profile.service';
 
@@ -17,28 +18,8 @@ type WizardStep = 'photo' | 'basic-info' | 'ready';
 // step would only add indirection without buying anything.
 const STEP_ORDER: WizardStep[] = ['photo', 'basic-info', 'ready'];
 
-const GENDER_OPTIONS: ReadonlyArray<{ value: Gender; label: string }> = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'unspecified', label: 'Prefer not to say' }
-];
-
-// Not Figma-specified (Screen 04 shows "a dropdown" with no option list) --
-// a flagged implementation decision, kept small and explicit rather than
-// invented as a long guessed list. preferred_language is a free-form string
-// to the backend (UserProfileDto.preferred_language), so adding a language
-// later is a config change here, never a validator change (Open/Closed,
-// same shape as the Rating-tags example in CLAUDE.md).
-const LANGUAGE_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
-  { code: 'en', label: 'English' },
-  { code: 'hi', label: 'Hindi' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' },
-  { code: 'ar', label: 'Arabic' },
-  { code: 'pt', label: 'Portuguese' },
-  { code: 'zh', label: 'Mandarin Chinese' }
-];
-
+// GENDER_OPTIONS / LANGUAGE_OPTIONS moved to profile/models/profile-options.ts (T070)
+// so Edit Profile shares the exact same config instead of a second copy.
 @Component({
   selector: 'app-profile-setup',
   templateUrl: './profile-setup.component.html',

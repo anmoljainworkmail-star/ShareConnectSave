@@ -7,6 +7,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { ErrorEnvelope } from '../auth/models/auth.models';
 import {
+  Gender,
   ProfileMutationApiResponse,
   PublicUserProfileDto,
   UpdateProfileRequest,
@@ -27,7 +28,10 @@ export class UserProfileService {
   getMyProfile(): Observable<UserProfileDto> {
     return this.http
       .get<UserProfileDto>(`${environment.apiBase}/user/users/me`)
-      .pipe(catchError(error => this.toApplicationError(error)));
+      .pipe(
+        map(profile => this.normalizeProfile(profile)),
+        catchError(error => this.toApplicationError(error))
+      );
   }
 
   // Another user's public projection (T067: the sender of an inbound
@@ -57,7 +61,7 @@ export class UserProfileService {
   updateProfile(patch: UpdateProfileRequest): Observable<UserProfileDto> {
     return this.http.patch<ProfileMutationApiResponse>(`${environment.apiBase}/user/users/me`, patch).pipe(
       tap(response => this.applyTokenIfPresent(response)),
-      map(response => response.profile),
+      map(response => this.normalizeProfile(response.profile)),
       catchError(error => this.toApplicationError(error))
     );
   }
@@ -71,7 +75,7 @@ export class UserProfileService {
 
     return this.http.post<ProfileMutationApiResponse>(`${environment.apiBase}/user/users/me/photo`, formData).pipe(
       tap(response => this.applyTokenIfPresent(response)),
-      map(response => response.profile),
+      map(response => this.normalizeProfile(response.profile)),
       catchError(error => this.toApplicationError(error))
     );
   }
@@ -108,6 +112,19 @@ export class UserProfileService {
         map(blob => URL.createObjectURL(blob)),
         catchError(error => this.toApplicationError(error))
       );
+  }
+
+  // Anti-Corruption Layer (DDD): the backend's wire vocabulary ("Female",
+  // "Unspecified") is translated into the frontend's own vocabulary ("female",
+  // "unspecified") at this one boundary, so the rest of the UI compares against
+  // a single spelling. Why here and not in components: TypeScript's `Gender`
+  // union only constrains code at compile time -- a JSON response is never
+  // type-checked at runtime, so `'female' === 'Female'` would silently be
+  // false everywhere with no compiler error. Normalising once at the HTTP edge
+  // means no caller can forget. Writes are unaffected: the backend's
+  // AllowedGenders lookup is case-insensitive, so lowercase PATCH bodies are fine.
+  private normalizeProfile(profile: UserProfileDto): UserProfileDto {
+    return { ...profile, gender: (profile.gender?.toLowerCase() ?? 'unspecified') as Gender };
   }
 
   // Reissue-on-claim-change: treat "access_token present in the body" as the

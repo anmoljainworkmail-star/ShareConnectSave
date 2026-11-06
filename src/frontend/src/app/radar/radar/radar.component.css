@@ -1,0 +1,425 @@
+/* Shared Radar-family background/rings/sweep/HUD -- see that file's header
+   comment for why this is a plain CSS @import rather than a component. */
+@import '../radar-shared.css';
+
+.radar-top-bar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+}
+
+.top-bar-label {
+  color: var(--color-text-inverse);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--radar-hud-border);
+  background: var(--radar-hud-bg);
+  color: var(--color-text-inverse);
+  font-size: 16px;
+  cursor: not-allowed;
+}
+
+/* ---------------------------- Idle bottom card (Screen 06) ---------------------------- */
+.idle-bottom-card {
+  position: relative;
+  z-index: 10;
+  background: var(--color-surface);
+  border-radius: var(--radius-bottom-sheet) var(--radius-bottom-sheet) 0 0;
+  box-shadow: var(--shadow-bottom-sheet);
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  color: var(--color-text-primary);
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  margin: 0 auto var(--space-4);
+}
+
+.idle-heading {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 var(--space-4);
+  text-align: center;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* ---------------------------- Destination autocomplete (Google Maps/Rapido style) ---------------------------- */
+.destination-search {
+  position: relative;
+}
+
+/* Floats below the input, overlapping whatever comes after it in the card
+   (the departure-time field) rather than pushing it down -- the same
+   "doesn't reflow the page under it" behaviour Google Maps/Rapido's own
+   destination search uses. */
+.suggestions-panel {
+  position: absolute;
+  top: calc(100% - var(--space-2));
+  left: 0;
+  right: 0;
+  z-index: 15;
+  max-height: 236px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-1);
+  animation: suggestions-drop-in 150ms ease-out;
+}
+
+@keyframes suggestions-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestion-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-button);
+  padding: var(--space-2) var(--space-2);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.suggestion-row:hover,
+.suggestion-row:focus-visible {
+  background: var(--color-background);
+}
+
+.suggestion-row:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.suggestion-row:disabled:hover {
+  background: none;
+}
+
+.suggestion-row + .suggestion-row {
+  margin-top: 2px;
+}
+
+.suggestion-current {
+  border-bottom: 1px solid var(--color-border);
+  border-radius: var(--radius-button) var(--radius-button) 0 0;
+  margin-bottom: var(--space-1);
+}
+
+.suggestion-pin {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.suggestion-pin-current {
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+}
+
+.suggestion-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.suggestion-primary {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-secondary {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-empty {
+  margin: 0;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+
+.field-icon {
+  flex: 0 0 auto;
+}
+
+.field-input {
+  flex: 1 1 auto;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.start-error {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin: 0 0 var(--space-3);
+}
+
+.start-scan-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: var(--radius-button);
+  border: none;
+  font-weight: 600;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--color-text-inverse);
+  background: var(--gradient-primary-btn);
+  cursor: pointer;
+}
+
+.start-scan-btn:disabled {
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+}
+
+/* ---------------------------- User dots (Screen 07) ---------------------------- */
+.user-dot {
+  position: absolute;
+  /* Enlarged from the original 36px -- a Three.js standing figure
+     (UserAvatar3dComponent) needs more room to read clearly than a single
+     initial letter did. */
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  cursor: pointer;
+  /* FIGMA_SPEC.md: "On appear: scale 0 -> 1.2 -> 1 bounce, 400ms." */
+  animation: dot-appear 400ms ease-out;
+}
+
+@keyframes dot-appear {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+  }
+  60% {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.dot-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--radar-dot-pulse);
+  /* FIGMA_SPEC.md: "Idle pulse: soft violet glow ring expands from dot every
+     3s (staggered per dot)." Staggering per dot would need a per-item
+     animation-delay bound from the template; left at a flat 3s here since
+     the stagger is a cosmetic nicety, not a functional requirement. */
+  animation: dot-pulse 3s ease-out infinite;
+}
+
+@keyframes dot-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* No circular platform/border here on purpose -- the standing figure
+   (UserAvatar3dComponent) should read as standing freely on the radar's own
+   background, not boxed inside a circle. Its own Three.js scene draws a
+   small contact shadow under its feet for grounding instead (see that
+   component's buildFigure). .dot-pulse above is a separate, animated "radar
+   ping" ring and is unaffected by this -- this rule only ever controlled the
+   avatar's own static backdrop. */
+.dot-avatar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.verified-tick {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--violet-600);
+  border: 1.5px solid var(--indigo-950);
+  color: var(--color-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.verified-tick svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* ---------------------------- Bottom card (Screen 07, active) ---------------------------- */
+.radar-bottom-card {
+  position: relative;
+  z-index: 20;
+  background: var(--color-surface);
+  border-radius: var(--radius-bottom-sheet) var(--radius-bottom-sheet) 0 0;
+  box-shadow: var(--shadow-bottom-sheet);
+  padding: var(--space-4) var(--space-4) var(--space-5);
+}
+
+.chip-row {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+  width: 56px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.chip-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--violet-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-inverse);
+  font-size: 12px;
+  font-weight: 600;
+  border: 2px solid var(--violet-100);
+}
+
+.chip-name {
+  font-size: 10.5px;
+  color: var(--color-text-primary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 56px;
+}
+
+.stop-scan-btn {
+  width: 100%;
+  height: 46px;
+  border-radius: var(--radius-button);
+  border: 1.5px solid var(--color-danger);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font-weight: 600;
+  font-size: 14.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ---------------------------- User Card bottom sheet overlay ---------------------------- */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet-container {
+  /* Capped and centered, same as .idle-bottom-card/.radar-bottom-card below
+     -- on a phone-width viewport min() resolves to 100% so this is a no-op
+     there. */
+  width: min(430px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: sheet-slide-up 220ms ease-out;
+}
+
+@keyframes sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Desktop/browser presentation: the SAME pattern auth-shared.css's
+   .auth-page already uses for Login/OTP -- the page's own background stays
+   full-bleed edge-to-edge (.radar-page already is, unchanged above), and
+   only the CONTENT within it is capped to a comfortable reading width and
+   centered. A boxed "phone frame" floating in empty space (the previous,
+   wrong attempt at this fix) is a different, heavier-handed pattern this
+   project doesn't use anywhere else -- matching auth's own approach instead
+   keeps every screen's desktop behavior consistent. */
+@media (min-width: 768px) {
+  .idle-bottom-card,
+  .radar-bottom-card {
+    width: min(430px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

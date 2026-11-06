@@ -1,0 +1,445 @@
+<!--
+  Purely visual, never interactive -- aria-hidden here plus `pointer-events:
+  none` on :host (ambient-background.component.css) means none of this can
+  ever steal a click, a hover state, or a screen-reader announcement from the
+  real screen content stacked on top of it.
+
+  This is the finalized "classic atlas map" background (approved design:
+  https://claude.ai/artifact/Fa8U6UyKV2daPnf18c93NV, "Option 2") -- a static,
+  hand-placed illustrated scene (3 landmasses, 1 route, a handful of
+  stickers), not a generated field -- an atlas is a specific illustration,
+  not a repeating pattern, so there's nothing here for *ngFor to usefully
+  loop over, unlike the star field this replaces.
+-->
+
+<!-- Full-bleed fill layer, BEHIND the capped hero scene below -- the hero
+     scene is intentionally capped to a sane max size (ambient-background.
+     component.css's .ambient-decor comment explains why: uncapped, it blew
+     up to an oversized, soft-looking mess on a wide desktop window). That
+     cap is correct for the illustration itself, but on a wide window it
+     leaves the margins around it as flat, empty ocean gradient -- "sharp in
+     the middle, raw and empty everywhere else." This layer only adds things
+     cheap enough to safely span the WHOLE page: a graticule grid, a sparse
+     twinkling star field, and two small, deliberately DISTANT islands
+     positioned a fixed pixel distance from true center (not a percentage) --
+     see .distant-island's own CSS comment for why that specific trick is
+     what makes them appear only once the window is actually wide, never on
+     a phone-width viewport. -->
+<div class="ambient-fill" aria-hidden="true">
+  <div class="graticule"></div>
+
+  <span class="sky-star" style="top: 6%; left: 8%; animation-delay: 0s;"></span>
+  <span class="sky-star" style="top: 12%; left: 92%; animation-delay: 0.6s;"></span>
+  <span class="sky-star" style="top: 24%; left: 3%; animation-delay: 1.2s;"></span>
+  <span class="sky-star" style="top: 34%; left: 97%; animation-delay: 1.8s;"></span>
+  <span class="sky-star" style="top: 48%; left: 6%; animation-delay: 2.1s;"></span>
+  <span class="sky-star" style="top: 58%; left: 94%; animation-delay: 0.3s;"></span>
+  <span class="sky-star" style="top: 72%; left: 4%; animation-delay: 1.5s;"></span>
+  <span class="sky-star" style="top: 80%; left: 96%; animation-delay: 2.4s;"></span>
+  <span class="sky-star" style="top: 90%; left: 10%; animation-delay: 0.9s;"></span>
+  <span class="sky-star" style="top: 94%; left: 88%; animation-delay: 1.8s;"></span>
+
+  <div class="shallow distant-shallow left"></div>
+  <div class="distant-island left"></div>
+  <div class="shallow distant-shallow right"></div>
+  <div class="distant-island right"></div>
+</div>
+
+<div class="ambient-decor" aria-hidden="true">
+  <!-- Top-left landmass, with its own shallow-water halo and mountain
+       glyphs. -->
+  <div class="shallow" style="top: 0%; left: -14%; width: 64%; height: 42%;"></div>
+  <div
+    class="land"
+    style="top: 4%; left: -8%; width: 52%; height: 34%; border-radius: 42% 58% 61% 39% / 51% 44% 56% 49%;"
+  ></div>
+  <div class="mountains" style="top: 14%; left: 18%;">
+    <span class="peak small"></span><span class="peak"></span><span class="peak small"></span>
+  </div>
+
+  <!-- Right landmass -- the air route's other end. -->
+  <div class="shallow" style="top: 40%; left: 52%; width: 62%; height: 38%;"></div>
+  <div
+    class="land"
+    style="top: 46%; left: 58%; width: 50%; height: 30%; border-radius: 55% 45% 48% 52% / 40% 58% 42% 60%;"
+  ></div>
+
+  <!-- Bottom-left landmass -- hosts the car's contour-ring loop and the
+       palm sticker. -->
+  <div class="shallow" style="top: 64%; left: -10%; width: 48%; height: 34%;"></div>
+  <div
+    class="land"
+    style="top: 70%; left: -4%; width: 40%; height: 26%; border-radius: 48% 52% 55% 45% / 58% 40% 60% 42%;"
+  ></div>
+
+  <div class="map-vignette"></div>
+  <div class="aurora"></div>
+
+  <!-- One dashed line, land to land, with a plane flying it -- see
+       .route-path/.plane-sticker's own CSS comments for the shared curve
+       both are built from (the plane's keyframes are sampled from this
+       exact path, not a separately hand-tuned approximation). -->
+  <svg class="route-path" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <path class="air" d="M18,21 Q50,15 83,61"></path>
+  </svg>
+  <div class="plane-sticker">
+    <svg viewBox="-6 -4 12 8">
+      <path
+        d="M5,0 L1.5,-0.5 L0,-3 L-1,-0.6 L-3.5,-0.6 L-4.5,-1.3 L-4.5,-0.25 L-5,0 L-4.5,0.25 L-4.5,1.3 L-3.5,0.6 L-1,0.6 L0,3 L1.5,0.5 Z"
+      ></path>
+    </svg>
+  </div>
+
+  <!-- Car, looping the bottom-left landmass's own inner contour ring. -->
+  <span class="sticker car">🚗</span>
+
+  <!-- Two local drawn steam trains (locomotive + 8 compartments + steam
+       puffs, not the 🚂 emoji -- see .train-sticker's own CSS comment for
+       why), plus two more orbiting the scene's own border (added further
+       below, after the boat). No drawn track under any of them. train-one
+       stays on the top-left landmass, below its mountains and clear of the
+       air route's own start point; train-two stays on the right landmass,
+       clear of the air route's end point and the compass rose. -->
+  <div class="train-sticker one">
+    <svg viewBox="-6 -16 106 28">
+      <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-3" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-4" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-5" cx="4.5" cy="-10"></circle>
+
+      <!-- Realism details: a highlight catching the light along the top of
+           the boiler, a rounded nose/boiler cap at the very front, a
+           cowcatcher (pilot) wedge ahead of that, and a connecting rod
+           joining the three driving wheels -- the four details that make a
+           silhouette read as "real steam engine" instead of "black rounded
+           box on wheels." -->
+      <rect class="chimney" x="3" y="-10" width="3" height="8" rx="1"></rect>
+      <path class="highlight" d="M2,-1.5 Q8,-3 15,-1.5"></path>
+      <rect class="loco-body" x="0" y="-2" width="17" height="10" rx="4"></rect>
+      <circle class="nose" cx="-1" cy="3"></circle>
+      <path class="cowcatcher" d="M-2,8 L-9,8 L-2,-1 Z"></path>
+      <rect class="loco-cab" x="11" y="-7" width="6" height="7" rx="1"></rect>
+      <line class="rod" x1="2" y1="9" x2="14" y2="9"></line>
+      <circle class="wheel" cx="3" cy="9"></circle>
+      <circle class="wheel" cx="8" cy="9"></circle>
+      <circle class="wheel" cx="13" cy="9"></circle>
+
+      <g class="compartment" transform="translate(19,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(29,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(39,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(49,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(59,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(69,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(79,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(89,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+    </svg>
+  </div>
+
+  <div class="train-sticker two">
+    <svg viewBox="-6 -16 106 28">
+      <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-3" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-4" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-5" cx="4.5" cy="-10"></circle>
+
+      <!-- Realism details: a highlight catching the light along the top of
+           the boiler, a rounded nose/boiler cap at the very front, a
+           cowcatcher (pilot) wedge ahead of that, and a connecting rod
+           joining the three driving wheels -- the four details that make a
+           silhouette read as "real steam engine" instead of "black rounded
+           box on wheels." -->
+      <rect class="chimney" x="3" y="-10" width="3" height="8" rx="1"></rect>
+      <path class="highlight" d="M2,-1.5 Q8,-3 15,-1.5"></path>
+      <rect class="loco-body" x="0" y="-2" width="17" height="10" rx="4"></rect>
+      <circle class="nose" cx="-1" cy="3"></circle>
+      <path class="cowcatcher" d="M-2,8 L-9,8 L-2,-1 Z"></path>
+      <rect class="loco-cab" x="11" y="-7" width="6" height="7" rx="1"></rect>
+      <line class="rod" x1="2" y1="9" x2="14" y2="9"></line>
+      <circle class="wheel" cx="3" cy="9"></circle>
+      <circle class="wheel" cx="8" cy="9"></circle>
+      <circle class="wheel" cx="13" cy="9"></circle>
+
+      <g class="compartment" transform="translate(19,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(29,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(39,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(49,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(59,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(69,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(79,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(89,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Two more trains, three/four, circling the scene's own rectangular
+       border (orbit-perimeter-cw/-ccw) rather than riding a landmass --
+       "a train on the edges, like the corners of the phone." Same drawn
+       locomotive, reused rather than redrawn, just smaller (see
+       .train-sticker.three/.four's own CSS size rule) since these are a
+       background/ambient detail circling the frame, not a second pair of
+       hero trains competing with one/two. -->
+  <div class="train-sticker three">
+    <svg viewBox="-6 -16 106 28">
+      <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-3" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-4" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-5" cx="4.5" cy="-10"></circle>
+
+      <rect class="chimney" x="3" y="-10" width="3" height="8" rx="1"></rect>
+      <path class="highlight" d="M2,-1.5 Q8,-3 15,-1.5"></path>
+      <rect class="loco-body" x="0" y="-2" width="17" height="10" rx="4"></rect>
+      <circle class="nose" cx="-1" cy="3"></circle>
+      <path class="cowcatcher" d="M-2,8 L-9,8 L-2,-1 Z"></path>
+      <rect class="loco-cab" x="11" y="-7" width="6" height="7" rx="1"></rect>
+      <line class="rod" x1="2" y1="9" x2="14" y2="9"></line>
+      <circle class="wheel" cx="3" cy="9"></circle>
+      <circle class="wheel" cx="8" cy="9"></circle>
+      <circle class="wheel" cx="13" cy="9"></circle>
+
+      <g class="compartment" transform="translate(19,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(29,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(39,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(49,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(59,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(69,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(79,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(89,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+    </svg>
+  </div>
+
+  <div class="train-sticker four">
+    <svg viewBox="-6 -16 106 28">
+      <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-3" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-4" cx="4.5" cy="-10"></circle>
+      <circle class="steam puff-5" cx="4.5" cy="-10"></circle>
+
+      <rect class="chimney" x="3" y="-10" width="3" height="8" rx="1"></rect>
+      <path class="highlight" d="M2,-1.5 Q8,-3 15,-1.5"></path>
+      <rect class="loco-body" x="0" y="-2" width="17" height="10" rx="4"></rect>
+      <circle class="nose" cx="-1" cy="3"></circle>
+      <path class="cowcatcher" d="M-2,8 L-9,8 L-2,-1 Z"></path>
+      <rect class="loco-cab" x="11" y="-7" width="6" height="7" rx="1"></rect>
+      <line class="rod" x1="2" y1="9" x2="14" y2="9"></line>
+      <circle class="wheel" cx="3" cy="9"></circle>
+      <circle class="wheel" cx="8" cy="9"></circle>
+      <circle class="wheel" cx="13" cy="9"></circle>
+
+      <g class="compartment" transform="translate(19,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(29,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(39,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(49,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(59,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(69,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(79,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+      <g class="compartment" transform="translate(89,0)">
+        <rect x="0" y="-1" width="9" height="9" rx="1.5"></rect>
+        <circle class="window" cx="3" cy="2"></circle>
+        <circle class="window" cx="6.5" cy="2"></circle>
+        <circle class="wheel" cx="2.2" cy="9"></circle>
+        <circle class="wheel" cx="6.8" cy="9"></circle>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Boat, bottom-left to top-right through the open-water corridor. -->
+  <span class="sticker boat">⛵</span>
+  <span class="sticker palm" style="top: 76%; left: 10%;">🌴</span>
+
+  <div class="compass-rose" style="top: 7%; right: 6%;">
+    <span class="n">N</span>
+    <div class="star"></div>
+  </div>
+
+  <span class="geo-label" style="top: 16%; left: 4%;">40°N</span>
+  <span class="geo-label" style="bottom: 14%; right: 5%;">15°E</span>
+</div>

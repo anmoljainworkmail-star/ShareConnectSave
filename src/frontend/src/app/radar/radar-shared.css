@@ -1,0 +1,434 @@
+/*
+ * Shared chrome for every Radar-family screen (FIGMA_SPEC.md Screens 06-08:
+ * Idle, Active-GPS, Active-BLE) -- T064 is the FIRST Radar screen, so per the
+ * figma-compliance skill's "create that family's own shared partial" rule,
+ * this file is the one future Radar tickets (T065 BLE Mode, T066 Discovery
+ * Filters Panel) pull in via @import, the same role auth-shared.css already
+ * plays for every /auth/* screen. A plain CSS partial, not a SharedModule
+ * component -- this project's "Shared UI only in SharedModule" rule governs
+ * reusable Angular components/directives/pipes, not stylesheet partials.
+ *
+ * Screen 07 (Radar Active, GPS Mode) has an approved pixel-perfect reference
+ * mockup (https://claude.ai/artifact/CAu6pBZqysAqa8yKct6jrw) that this file's
+ * values are transcribed from wherever FIGMA_SPEC.md's written text doesn't
+ * give an exact number -- see tokens.css's "Radar-family tokens" block for
+ * where each one comes from.
+ */
+
+/* No background declared here on purpose -- <app-ambient-background>
+   (dropped in as this page's first child, in radar.component.html) now
+   paints the app's one finalized background itself; see that component's
+   own header comment. position:relative + overflow:hidden stay here
+   because they're what let that absolutely-positioned background layer
+   clip to and center within THIS box. */
+.radar-page {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  color: var(--color-text-inverse);
+  display: flex;
+  flex-direction: column;
+}
+
+/* The ring/sweep/dot stage, centered a little above true vertical middle
+   (47% in the mockup) so the bottom sheet below never covers it.
+   --radar-stage-size (tokens.css) scales the WHOLE stage with viewport size
+   via clamp()+vmin, instead of a fixed 320px that looked fine on one phone
+   viewport but left a tiny, lonely circle adrift in a sea of gradient on a
+   wide desktop window (or, worse, got stretched tall-and-thin by the old
+   `flex: 1 1 auto` below, since flex-grow only grows the main-axis
+   dimension -- height here -- while width stayed pinned at 320, breaking
+   the square the ring math below assumes). `margin: auto` (not flex-grow)
+   centers the stage in whatever vertical space is left between the top bar
+   and bottom card, and `aspect-ratio: 1 / 1` is a belt-and-suspenders
+   guarantee it stays a perfect square (so every ring stays a circle, not an
+   ellipse) even if a future layout change feeds it a non-square box.
+   EVERY child below is sized as a PERCENTAGE of this box (not a fixed px
+   value) for exactly this reason -- a percentage scales with the var
+   automatically, a fixed px value would not. */
+.radar-stage {
+  position: relative;
+  width: var(--radar-stage-size);
+  height: var(--radar-stage-size);
+  aspect-ratio: 1 / 1;
+  margin: auto;
+}
+
+.radar-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid var(--radar-ring-border);
+  /* Idle: gentle "breathing" scale pulse, staggered per ring -- FIGMA_SPEC.md
+     Screen 06: "subtle scale pulse (1.0 -> 1.01 -> 1.0) over 4 seconds,
+     staggered per ring -- looks like gentle sonar waves even when idle." */
+  animation: radar-ring-breathe 4s ease-in-out infinite;
+}
+
+/* Percentages of .radar-stage's own box (see that rule's comment), kept at
+   the mockup's original 90/170/250/320-out-of-320px ratios so the rings
+   still land at the same relative radii at any stage size. */
+.radar-ring.ring-1 {
+  width: 28.125%;
+  height: 28.125%;
+  box-shadow: 0 0 14px var(--radar-ring-glow-inner) inset;
+  animation-delay: 0s;
+}
+
+.radar-ring.ring-2 {
+  width: 53.125%;
+  height: 53.125%;
+  box-shadow: 0 0 12px var(--radar-ring-glow-mid) inset;
+  animation-delay: 0.3s;
+}
+
+.radar-ring.ring-3 {
+  width: 78.125%;
+  height: 78.125%;
+  box-shadow: 0 0 10px var(--radar-ring-glow-outer) inset;
+  animation-delay: 0.6s;
+}
+
+.radar-ring.ring-4 {
+  width: 100%;
+  height: 100%;
+  box-shadow: 0 0 8px var(--radar-ring-glow-outermost) inset;
+  animation-delay: 0.9s;
+}
+
+@keyframes radar-ring-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.012);
+  }
+}
+
+/* Outward-travelling sonar pings (idle screen) -- distinct from
+   .radar-ring's own barely-visible 1.2% "breathe" above: these actually
+   travel from the center avatar out to the stage's edge and fade, which is
+   what reads as "waves" rather than "four static circles". Three copies,
+   staggered via animation-delay, keep a continuous stream of pings rather
+   than one ring pulsing in isolation -- the same staggering technique
+   .radar-ring already uses for its own animation-delay values. */
+.radar-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 40/320 = 12.5% of .radar-stage, same percentage-of-stage reasoning as
+     the rings above -- its scale(8) keyframe below still lands on exactly
+     100% of the stage (12.5% * 8) at any stage size. */
+  width: 12.5%;
+  height: 12.5%;
+  border-radius: 50%;
+  border: 1.5px solid var(--radar-wave-border);
+  box-shadow: 0 0 16px var(--radar-wave-glow);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0;
+  animation: radar-wave-ping 3.6s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+
+.radar-wave.wave-2 {
+  animation-delay: 1.2s;
+}
+
+.radar-wave.wave-3 {
+  animation-delay: 2.4s;
+}
+
+@keyframes radar-wave-ping {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.05;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(8);
+    opacity: 0;
+  }
+}
+
+.radar-ring-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  color: var(--radar-label-color);
+  letter-spacing: 0.02em;
+}
+
+/* 85/125/160 out of 320px, as percentages of .radar-stage -- same reasoning
+   as the rings. label-3's 160px was exactly half of 320px, so it lands
+   exactly at the stage's top edge (50% - 50% = 0%) at any stage size. */
+.radar-ring-label.label-1 {
+  top: calc(50% - 26.5625%);
+}
+
+.radar-ring-label.label-2 {
+  top: calc(50% - 39.0625%);
+}
+
+.radar-ring-label.label-3 {
+  top: 0%;
+}
+
+.radar-grid-line {
+  position: absolute;
+  background: var(--radar-grid-line-active);
+}
+
+.radar-grid-line.vertical {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.radar-grid-line.horizontal {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+
+/* Sweep wedge + its phosphor-trail ghost -- FIGMA_SPEC.md Screen 07: "45deg
+   wide conic gradient ... Rotates 360deg every 2.5 seconds. The leading edge
+   leaves a brief phosphor trail ... fades over 0.5s after the sweep passes."
+   Two rotating conic-gradients, the ghost slightly phase-shifted and dimmer,
+   approximate that trailing-fade look without a per-frame JS animation loop
+   (angular-pwa skill: "Animation uses CSS animation ... not JavaScript
+   requestAnimationFrame"). */
+.radar-sweep,
+.radar-sweep-trail {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.radar-sweep {
+  background: conic-gradient(from 0deg, var(--radar-sweep-leading) 0deg, transparent 46deg, transparent 360deg);
+  animation: radar-sweep-spin 2.5s linear infinite;
+  mix-blend-mode: screen;
+}
+
+.radar-sweep-trail {
+  background: conic-gradient(from 0deg, var(--radar-sweep-trail) 0deg, transparent 46deg, transparent 360deg);
+  animation: radar-sweep-spin 2.5s linear infinite;
+  animation-delay: -0.12s;
+  mix-blend-mode: screen;
+}
+
+@keyframes radar-sweep-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.radar-center-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 56/320 = 17.5% of .radar-stage. */
+  width: 17.5%;
+  height: 17.5%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--radar-center-glow), transparent 70%);
+}
+
+/* User-avatar pulse ring, dead center -- FIGMA_SPEC.md: "Violet-600 pulse
+   ring expands outward and fades every 2s." Idle vs Active reuse the same
+   keyframe but different border colors/opacity (see each state's own class). */
+.radar-center-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 40/320 = 12.5% of .radar-stage -- matches .radar-center-avatar below,
+     which it pulses outward from. */
+  width: 12.5%;
+  height: 12.5%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  animation: radar-center-pulse 2s ease-out infinite;
+}
+
+.radar-center-pulse.idle {
+  border: 1.5px solid var(--radar-center-pulse-idle);
+}
+
+.radar-center-pulse.active {
+  border: 1.5px solid var(--radar-center-pulse-active);
+}
+
+@keyframes radar-center-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0;
+  }
+}
+
+.radar-center-avatar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 40/320 = 12.5% of .radar-stage, matching .radar-center-pulse above. */
+  width: 12.5%;
+  height: 12.5%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--violet-600);
+  border: 2px solid var(--color-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-inverse);
+  z-index: 5;
+}
+
+/* Top floating HUD -- pill-shaped, blurred dark card. */
+.radar-hud {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: var(--radar-hud-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--radar-hud-border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+}
+
+.radar-hud .hud-dest {
+  font-size: 12.5px;
+  color: var(--color-text-inverse);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-hud .hud-found {
+  font-size: 11.5px;
+  color: var(--radar-label-color);
+  flex: 0 0 auto;
+}
+
+.radar-mode-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 11px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.radar-mode-badge.mode-gps {
+  background: var(--radar-mode-gps-bg);
+  color: var(--radar-mode-gps-text);
+}
+
+.radar-mode-badge.mode-ble {
+  background: var(--radar-mode-ble-bg);
+  color: var(--radar-mode-ble-text);
+}
+
+.radar-mode-badge .mode-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.radar-mode-badge.mode-gps .mode-dot {
+  background: var(--radar-mode-gps-dot);
+}
+
+.radar-mode-badge.mode-ble .mode-dot {
+  background: var(--radar-mode-ble-dot);
+}
+
+/* BLE-mode banner (Screen 08) -- shown only while an active scan has
+   fallen back to Bluetooth (mode === 'BLE'), directly under the HUD pill.
+   Reuses the same amber/warning tokens as the mode badge above so both
+   "we've switched to Bluetooth" signals read as one consistent color
+   language instead of two unrelated oranges. */
+.radar-ble-banner {
+  position: absolute;
+  /* HUD sits at top: var(--space-4) and is roughly 40px tall (space-2
+     vertical padding + its ~12px text) -- this offset places the banner
+     directly beneath it with a small gap, without needing to restructure
+     .radar-hud's own (shared) absolute positioning. */
+  top: calc(var(--space-4) + 44px);
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 19;
+  background: var(--radar-mode-ble-bg);
+  color: var(--radar-mode-ble-text);
+  border: 1px solid var(--radar-ble-banner-border);
+  border-radius: var(--radius-button);
+  padding: var(--space-2) var(--space-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Desktop/browser: same "cap + center the content, keep the page's own
+   background full-bleed" pattern as radar.component.css's bottom-card rule
+   -- without this, the HUD pill and BLE banner (positioned via left/right:
+   var(--space-4), i.e. the page's own edges) would stretch nearly the full
+   width of a desktop browser window instead of reading as a compact pill. */
+@media (min-width: 768px) {
+  .radar-hud,
+  .radar-ble-banner {
+    left: 50%;
+    right: auto;
+    width: min(430px, calc(100% - 2 * var(--space-4)));
+    transform: translateX(-50%);
+  }
+}
+
+.radar-scan-status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-size: 13px;
+  color: var(--radar-label-color);
+  z-index: 4;
+  pointer-events: none;
+  animation: radar-status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes radar-status-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}

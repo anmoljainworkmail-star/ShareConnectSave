@@ -40,7 +40,6 @@
 
   /* Gradients — use exactly as specified, never improvise a direction */
   --gradient-sidebar: linear-gradient(180deg, var(--violet-900) 0%, var(--violet-950) 100%);
-  --gradient-auth-bg: linear-gradient(135deg, var(--violet-900) 0%, var(--violet-600) 50%, var(--violet-400) 100%);
   --gradient-primary-btn: linear-gradient(135deg, var(--violet-600) 0%, var(--violet-700) 100%);
   --gradient-profile-header: linear-gradient(180deg, var(--violet-700) 0%, var(--violet-900) 100%);
   --gradient-card-hover: linear-gradient(135deg, var(--violet-50), var(--violet-100));
@@ -70,4 +69,120 @@
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
   --shadow-bottom-sheet: 0 -4px 24px rgba(0, 0, 0, 0.12);
   --shadow-fab: 0 4px 16px rgba(124, 58, 237, 0.45);
+
+  /*
+   * Radar-family tokens (FIGMA_SPEC.md Screens 06-08: Idle / Active-GPS /
+   * Active-BLE), added for T064. Screen 07 has an approved, pixel-perfect
+   * reference mockup (see radar-shared.css's header comment) and that
+   * mockup -- not just FIGMA_SPEC.md's prose -- is this ticket's source of
+   * truth for exact opacities, so several values below are transcribed
+   * from the mockup's own rendered CSS rather than from written spec text.
+   *
+   * color-mix() is used instead of hand-computing an rgba() triplet so
+   * every one of these stays visibly derived from a named violet-scale
+   * token (e.g. "Violet-500 at 45%") instead of becoming a second,
+   * untraceable set of magic numbers -- the figma-compliance skill's rule
+   * is "never hardcode a literal hex/rgba value," not "never use opacity."
+   * CSS Color 4 color-mix() always interpolates premultiplied, so mixing
+   * any color with "transparent" only scales alpha -- it never shifts hue
+   * toward black the way a naive non-premultiplied mix would.
+   */
+  /* Responsive stage size (added post-mockup, for the "fixed 320px looks
+     weird at other screen resolutions" follow-up -- the mockup itself only
+     specifies one phone viewport). vmin ties sizing to the SMALLER of
+     viewport width/height, so a wide-but-short desktop browser window and a
+     narrow-but-tall phone both get a sensibly proportioned circle instead
+     of a fixed-size one that's either lost in empty space or doesn't fit.
+     Clamped between a phone-sized floor and the mockup's original 320px-ish
+     ceiling (rounded up slightly) so it never shrinks below legible or grows
+     past the size the ring/glow design was actually tuned for. */
+  --radar-stage-size: clamp(240px, 62vmin, 420px);
+  --radar-ring-glow-inner: color-mix(in srgb, var(--violet-500) 45%, transparent);
+  --radar-ring-glow-mid: color-mix(in srgb, var(--violet-500) 32%, transparent);
+  --radar-ring-glow-outer: color-mix(in srgb, var(--violet-800) 30%, transparent);
+  --radar-ring-glow-outermost: color-mix(in srgb, var(--violet-800) 22%, transparent);
+  --radar-ring-border: color-mix(in srgb, var(--violet-500) 22%, transparent);
+  --radar-grid-line-idle: rgba(255, 255, 255, 0.08);
+  --radar-grid-line-active: rgba(255, 255, 255, 0.07);
+  --radar-sweep-leading: color-mix(in srgb, var(--violet-400) 85%, transparent);
+  --radar-sweep-trail: color-mix(in srgb, var(--violet-300) 22%, transparent);
+  --radar-center-glow: color-mix(in srgb, var(--violet-600) 55%, transparent);
+  --radar-center-pulse-idle: color-mix(in srgb, var(--violet-600) 40%, transparent);
+  --radar-center-pulse-active: color-mix(in srgb, var(--violet-600) 60%, transparent);
+  --radar-dot-pulse: color-mix(in srgb, var(--violet-400) 50%, transparent);
+  --radar-label-color: var(--violet-300);
+  /* Idle-screen outward sonar pings (radar-shared.css's .radar-wave) -- added
+     post-mockup, for the "make the idle screen feel alive" follow-up, not
+     part of Screen 06's original approved mockup. Derived from the same
+     Violet-400 the sweep's own leading edge uses, so the idle and active
+     screens read as the same light source. */
+  --radar-wave-border: color-mix(in srgb, var(--violet-400) 55%, transparent);
+  --radar-wave-glow: color-mix(in srgb, var(--violet-400) 35%, transparent);
+  /* HUD background is a one-off dark navy that doesn't decompose cleanly
+     onto the violet-50..950 scale (it is NOT --indigo-950 or --color-overlay
+     under a different name -- checked against both) -- transcribed verbatim
+     from the approved Screen 07 mockup per that screen's "mockup is the
+     source of truth" rule. */
+  --radar-hud-bg: rgba(18, 16, 46, 0.55);
+  --radar-hud-border: rgba(255, 255, 255, 0.08);
+  /* GPS badge renders violet in the approved Screen 07 mockup, not green --
+     see radar.component.html's header comment for the flagged conflict with
+     SPECS.md/T064's own written "(green)" description. */
+  --radar-mode-gps-bg: color-mix(in srgb, var(--violet-400) 14%, transparent);
+  --radar-mode-gps-text: var(--violet-300);
+  --radar-mode-gps-dot: var(--violet-400);
+  /* BLE badge: FIGMA_SPEC.md Screen 08 and T064's own ticket text agree --
+     amber/orange, using the existing --color-warning token. */
+  --radar-mode-ble-bg: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  --radar-mode-ble-text: var(--color-warning);
+  --radar-mode-ble-dot: var(--color-warning);
+  /* BLE banner border (Screen 08) -- same --color-warning family as the BLE
+     mode badge above, just a stronger mix so the banner's outline reads
+     against the badge's own lighter fill. */
+  --radar-ble-banner-border: color-mix(in srgb, var(--color-warning) 40%, transparent);
+
+  /*
+   * Atlas background tokens -- the app's FINALIZED ambient background
+   * (AmbientBackgroundComponent, SharedModule), used behind every screen
+   * (Login, OTP, Profile Setup, Radar), approved design:
+   * https://claude.ai/artifact/Fa8U6UyKV2daPnf18c93NV ("Option 2: Classic
+   * atlas map"). Replaces the earlier drifting-orbs/star-field/cursor-pin
+   * background explored during design review.
+   *
+   * Deliberately NOT derived from the violet scale via color-mix() -- a
+   * believable ocean/land atlas needs its own blue/green, the one
+   * intentional palette departure this project otherwise avoids (every
+   * other color traces back to the violet scale). Same precedent as
+   * --radar-hud-bg above: a one-off that doesn't decompose onto the scale,
+   * transcribed verbatim from the approved mockup rather than approximated.
+   */
+  --atlas-ocean-gradient: linear-gradient(165deg, #164a63 0%, #0f3a50 55%, #0a2c3d 100%);
+  --atlas-graticule-line: rgba(255, 255, 255, 0.12);
+  --atlas-shallow-water-near: rgba(94, 169, 178, 0.35);
+  --atlas-shallow-water-far: rgba(94, 169, 178, 0.1);
+  --atlas-land-gradient: radial-gradient(ellipse at 32% 28%, #87a86b 0%, #5c8a52 35%, #3f6b4a 62%, #4a3f2c 100%);
+  --atlas-land-coastline: rgba(255, 255, 255, 0.14);
+  --atlas-contour-1: rgba(0, 0, 0, 0.12);
+  --atlas-contour-2: rgba(0, 0, 0, 0.08);
+  --atlas-contour-3: rgba(0, 0, 0, 0.05);
+  --atlas-mountain-peak: rgba(255, 255, 255, 0.22);
+  --atlas-compass-bright: rgba(255, 255, 255, 0.92);
+  --atlas-compass-dim: rgba(255, 255, 255, 0.5);
+  --atlas-compass-border: rgba(255, 255, 255, 0.35);
+  --atlas-compass-label: rgba(255, 255, 255, 0.6);
+  --atlas-geo-label: rgba(255, 255, 255, 0.4);
+  --atlas-aurora-gradient: conic-gradient(from 90deg, #ff8fd6, #ffd36e, #7ff0c2, #7eb8ff, #ff8fd6);
+  --atlas-vignette: radial-gradient(circle, rgba(8, 10, 20, 0.45) 0%, transparent 70%);
+  --atlas-route-line: rgba(255, 255, 255, 0.8);
+  --atlas-plane-fill: #ffffff;
+  --atlas-plane-stroke: rgba(10, 10, 30, 0.35);
+  /* A real black steam train -- a true near-black, not a violet-tinted
+     "black" (--indigo-950 reads as deep blue-violet up close, wrong for
+     "actual black train"), with a warm lit-window glow for a bit of life
+     against all that black, and a soft white steam puff. */
+  --atlas-train-body: #161616;
+  --atlas-train-cab: #2a2a2a;
+  --atlas-train-window: #ffd36e;
+  --atlas-train-wheel: #050505;
+  --atlas-train-steam: rgba(255, 255, 255, 0.65);
 }

@@ -104,7 +104,14 @@ export class UserProfileService {
     const backendEnvelope = error.error as Partial<ErrorEnvelope> | null;
     const envelope: ErrorEnvelope = {
       code: backendEnvelope?.code ?? 'UNKNOWN_ERROR',
-      message: backendEnvelope?.message ?? error.message ?? 'An unexpected error occurred.',
+      // Deliberately NOT error.message here: when the backend response
+      // doesn't match ErrorEnvelope's shape (e.g. the gateway itself
+      // returned the error, not a service behind it), HttpErrorResponse's
+      // own .message can contain the raw request URL and HTTP status text --
+      // internal detail that shouldn't reach the end user. A generic string
+      // is the safe fallback; only a real backend-provided message is ever
+      // shown verbatim.
+      message: backendEnvelope?.message ?? 'Something went wrong — please try again.',
       traceId: backendEnvelope?.traceId ?? ''
     };
     return throwError(() => envelope);

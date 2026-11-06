@@ -1,0 +1,97 @@
+<!--
+  FIGMA_SPEC.md SCREEN 09 -- User Card (Bottom Sheet). Not one of the two
+  pixel-perfect-mockup screens (only Screens 07 and 12 have an approved
+  rendered mockup); this template follows the written spec + tokens.css.
+-->
+<div class="user-card" *ngIf="user as u">
+  <!-- Tapping the handle is a common bottom-sheet affordance for "dismiss" --
+       the backdrop tap in radar.component.html's .sheet-overlay already
+       covers the same action; this just gives it a second, more discoverable
+       target. -->
+  <button type="button" class="handle" aria-label="Close" (click)="onDismiss()"></button>
+
+  <div class="identity-row">
+    <div class="avatar avatar-lg">
+      <img *ngIf="photoUrl" [src]="photoUrl" [alt]="u.name" />
+      <!-- Guard clause (template form): no resolved photo yet, or the fetch
+           failed -- fall back to initials instead of a broken <img>. -->
+      <span *ngIf="!photoUrl" class="avatar-initials">{{ u.name.charAt(0) }}</span>
+    </div>
+    <div class="identity-text">
+      <div class="user-name">{{ u.name }}</div>
+      <div class="rating-row" *ngIf="hasRating">
+        <span class="stars" aria-hidden="true">
+          <span
+            *ngFor="let i of starIndexes"
+            class="star"
+            [class.filled]="i <= starRatingRounded"
+            >★</span
+          >
+        </span>
+        <span class="rating-value">{{ u.rating_average }}</span>
+        <span class="rating-count" *ngIf="u.rating_count !== undefined">({{ u.rating_count }} ratings)</span>
+      </div>
+      <div class="badge-row">
+        <span class="badge badge-trusted" *ngIf="u.trusted">Trusted ✓</span>
+        <span class="badge badge-verified" *ngIf="u.identity_badge">Verified 🛡</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider" aria-hidden="true"></div>
+
+  <!-- Each row below is independently optional -- see radar.models.ts's
+       DiscoveredUserCardDto comment on why discovery-service doesn't return
+       these fields yet. *ngIf hides a row this payload lacks instead of
+       printing "undefined", rather than inventing a value. -->
+  <div class="details-list">
+    <div class="detail-row" *ngIf="u.destination_label as destination">
+      <span class="detail-icon" aria-hidden="true">📍</span>
+      <span>Heading to: {{ destination }}</span>
+    </div>
+    <div class="detail-row" *ngIf="u.leaving_in_minutes !== undefined">
+      <span class="detail-icon" aria-hidden="true">🕐</span>
+      <span>Leaving in: {{ u.leaving_in_minutes }} minutes</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-icon" aria-hidden="true">📏</span>
+      <span>{{ u.distance_km }} km away</span>
+    </div>
+    <div class="detail-row" *ngIf="u.route_match_percent !== undefined">
+      <span class="detail-icon" aria-hidden="true">🛤</span>
+      <span>Route match: {{ u.route_match_percent }}%</span>
+    </div>
+    <div class="detail-row" *ngIf="u.preferred_language as language">
+      <span class="detail-icon" aria-hidden="true">🌐</span>
+      <span>Language: {{ language }}</span>
+    </div>
+  </div>
+
+  <div class="divider" aria-hidden="true"></div>
+
+  <div class="unavailable-banner" *ngIf="bannerMessage as banner">
+    {{ banner }}
+  </div>
+
+  <div class="actions-row" *ngIf="showSendRequest">
+    <!-- States (Screen 09): default (can send) / sent (disabled, accent
+         green) / connected (Open Chat). Unavailable disables sending
+         regardless of connectionState -- a banner already explains why. -->
+    <button
+      *ngIf="connectionState === 'default'"
+      type="button"
+      class="btn-primary"
+      [disabled]="u.unavailable"
+      (click)="onSendRequest()"
+    >
+      Send Request
+    </button>
+    <button *ngIf="connectionState === 'sent'" type="button" class="btn-sent" disabled>Request Sent ✓</button>
+    <!-- Inert for now: wiring this to an actual chat-room navigation is
+         T068's (Chat UI) scope, not this ticket's -- rendered here so the
+         state/layout exists for that ticket to wire a click handler onto. -->
+    <button *ngIf="connectionState === 'connected'" type="button" class="btn-primary">Open Chat</button>
+
+    <button type="button" class="btn-ghost-report" (click)="onReport()">Report</button>
+  </div>
+</div>

@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+import { SharedModule } from '../shared/shared.module';
 import { ProfileSetupRoutingModule } from './profile-setup-routing.module';
 import { ProfileSetupComponent } from './profile-setup.component';
 
@@ -13,9 +14,9 @@ import { ProfileSetupComponent } from './profile-setup.component';
 // alongside a guarded one in the same routes array.
 // UserProfileService is a plain @Injectable({ providedIn: 'root' }), so it
 // deliberately does not appear here -- only the screen itself is
-// feature-module-local.
+// feature-module-local. SharedModule is imported for <app-ambient-background>.
 @NgModule({
   declarations: [ProfileSetupComponent],
-  imports: [CommonModule, FormsModule, ProfileSetupRoutingModule]
+  imports: [CommonModule, FormsModule, ProfileSetupRoutingModule, SharedModule]
 })
 export class ProfileSetupModule {}

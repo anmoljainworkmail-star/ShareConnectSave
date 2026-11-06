@@ -1320,3 +1320,94 @@ whose implementation or ticket should pick it up.
    releases them all with the single new token once it resolves.
    Affects: T067 (Connection Request Flow), T068 (Chat UI) — first screens likely to fire
    multiple concurrent authenticated calls near token expiry.
+
+## From T064 (Radar UI Component)
+
+1. **`discovery-service`'s `UserCardResponse.java` doesn't return rating, destination,
+   "leaving in X min", route-match %, or preferred language — but FIGMA_SPEC.md Screen 09
+   and T064's own ticket spec both require every discovered-user card to show all five.**
+   Confirmed by reading `UserCardResponse.java` directly: it carries only `id`, `name`,
+   `photo_url`, `identity_badge`, `distance_km`, `unavailable`. Two distinct causes worth
+   separating:
+   - The record's own doc comment says rating/trust_score was deliberately left off because
+     "Rating Service ... is Phase 7 and does not exist in this codebase yet." Rating Service
+     (T041-T046) has since shipped — that comment is now stale, and the gap it describes
+     could be closed by having `UserServiceClientImpl`/a new client call Rating Service's
+     `TrustScoreController` and fold the result in.
+   - `destination_label`/`leaving_in_minutes`/`route_match_percent`/`preferred_language`
+     were never part of the contract at all. `ScanStartRequest` carries the CALLER's own
+     destination/departure_time, but nothing propagates the matched CANDIDATE's equivalent
+     values back out through `UserCardResponse` or `ScanQueryServiceImpl`.
+   Per this project's "no fabricated data for a feature that doesn't exist server-side"
+   convention (the same rule `UserCardResponse`'s own comment invokes), the Angular side
+   (`DiscoveredUserCardDto` in `radar.models.ts`) models all five as optional fields and
+   `UserCardComponent`'s template `*ngIf`s away any row the payload doesn't carry, rather
+   than inventing a value. AC "User card renders all required fields" is therefore only
+   fully exercisable once this backend gap closes.
+   Affects: whichever future ticket extends `UserCardResponse` (natural candidates:
+   T066 Discovery Filters Panel, since it already touches the candidate-filtering path, or
+   a dedicated Discovery/Rating integration ticket) — no specific task ID yet in
+   PROGRESS.md/SPECS.md.
+
+2. **No bearing/direction field exists on `UserCardResponse` either**, so a discovered
+   user's position on the radar's rings cannot be placed by their true compass direction
+   from the caller — only `distance_km` (radial position) is a real, backend-given number.
+   `RadarComponent.dotPosition()` uses a stable, id-derived angle (golden-angle spacing)
+   purely for visual separation between dots, documented in that method's own comment as
+   NOT representing real bearing. `ScanQueryServiceImpl` already computes bearing
+   server-side for its own route-overlap filter (REQUIREMENTS.md §3) — it is simply never
+   returned to the client.
+   Affects: whichever future ticket extends `UserCardResponse` to add a `bearing_degrees`
+   field (same natural candidates as finding #1 above, since both are the same DTO).
+
+3. **`RadarComponent.startScan()` sends the caller's CURRENT position as
+   `ScanStartRequest.destination_lat/destination_lng`, not a geocoded destination.** Screen
+   06 calls for "Destination input with map pin icon," which implies a Google Maps
+   Platform places-autocomplete picker (CLAUDE.md lists Google Maps Platform as this
+   project's maps stack) — no such component exists anywhere in this codebase yet, and
+   building one was out of T064's own "Key files to create" list. Using current position is
+   a deliberate, documented stand-in (see the inline comment at the `destination_lat`/
+   `destination_lng` call site) so Start Scan is genuinely end-to-end functional against the
+   real `discovery-service` today, rather than this ticket blocking on an unbuilt Maps
+   integration — but it means a scan's actual filter behavior (radius/route-overlap against
+   the typed `destination_label`) is only correct when the user's current position and
+   their real destination happen to coincide.
+   Affects: whichever future ticket builds a real Google Maps Platform destination picker
+   (no specific task ID yet in PROGRESS.md/SPECS.md — CLAUDE.md lists the Maps stack but no
+   ticket implementing it has shipped).
+
+4. **A hard tab/browser close while a scan is active never reverts `status` to
+   "unavailable" or calls `POST /scan/stop`.** `RadarComponent.ngOnDestroy()` correctly
+   handles the in-SPA case (navigating to a different route while scanning), but a genuine
+   tab/browser close fires neither Angular's `ngOnDestroy` nor a reliable synchronous
+   network call — `beforeunload` cannot await an RxJS `Observable`/HTTP response. The
+   session/status will eventually self-correct (no TTL/expiry mechanism for a `scan_session`
+   row was found in discovery-service beyond manual `/scan/stop`, so this is a real,
+   unbounded "ghost looking" window, not just a cosmetic delay), but it is an accepted,
+   documented gap rather than a fix attempted in this ticket.
+   Affects: whichever future ticket adds a scan-session TTL/heartbeat to discovery-service
+   (symmetric with T031's connection-request TTL expiry job, but for `scan_sessions`) — no
+   specific task ID yet in PROGRESS.md/SPECS.md.
+
+5. **GPS mode badge renders violet in the approved Screen 07 mockup, not green as T064's
+   own ticket text describes ("Mode indicator badge: 'GPS' (green) or 'BLE' (orange...")).**
+   Per the ticket's own instruction that the mockup is authoritative for Screen 07's visual
+   details over the written spec text, `RadarComponent`/`tokens.css`'s `--radar-mode-gps-*`
+   tokens match the mockup (violet), not the ticket prose (green). Flagged explicitly here
+   rather than silently resolved either way — if "(green)" was the intended design and the
+   mockup is itself wrong, tokens.css's `--radar-mode-gps-*` block is the one place to
+   change.
+   Affects: Tech Lead sign-off before this ticket's QA checklist is run; no code change
+   needed unless the sign-off picks the opposite color.
+
+6. **`beginPolling()`'s network-failure fallback (`catchError(() => of(this.discoveredUsers))`,
+   added during `/review-task` cycle 1 to stop one bad `/scan/nearby` tick from permanently
+   killing the poll loop) renders a sustained discovery-service outage identically to a
+   genuine "no one nearby" result — there is no failed/stale indicator distinguishing the
+   two.** Consistent with this codebase's existing silent-best-effort convention elsewhere
+   (`teardownScan()`'s swallowed cleanup-call errors, `beginWatchingLocation()`'s swallowed
+   location-update errors), so not a new defect introduced by the fix, just an existing
+   UX gap now also present on this path. Flagged by the reviewer as a UX nicety, not a
+   blocker.
+   Affects: whichever future ticket adds a shared "stale/offline" indicator pattern across
+   Radar's polling surfaces — no specific task ID yet in PROGRESS.md/SPECS.md.

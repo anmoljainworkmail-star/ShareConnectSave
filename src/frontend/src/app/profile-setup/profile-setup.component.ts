@@ -205,10 +205,11 @@ export class ProfileSetupComponent implements OnInit, OnDestroy {
   }
 
   startExploring(): void {
-    // No protected home screen exists yet (see CLAUDE.md's microservices
-    // list -- Radar/Activity/Chat ship in later tickets), so this is the
-    // only sensible destination regardless of onboardingComplete.
-    this.router.navigate(['/']);
+    // Updated by T064: Radar now exists as the app's real protected home
+    // screen (see app-routing.module.ts's root-redirect comment for the
+    // matching update on the other side of this same gap) -- this no longer
+    // needs to fall back to '/' regardless of onboardingComplete.
+    this.router.navigate(['/radar']);
   }
 
   trackByStep(_index: number, step: WizardStep): WizardStep {

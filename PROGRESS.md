@@ -125,7 +125,7 @@
 
 - [x] T062 — Angular PWA Setup _(ngsw-config, service worker, Lighthouse ≥90)_
 - [x] T063 — Auth Flow _(Google GSI + OTP, AuthGuard, AuthInterceptor)_
-- [ ] T064 — Radar UI Component _(SVG rings + CSS @keyframes sweep animation)_
+- [x] T064 — Radar UI Component _(SVG rings + CSS @keyframes sweep animation)_
 - [ ] T065 — BLE Mode _(Web Bluetooth API, offline detection, iOS fallback message)_
 - [ ] T066 — Discovery Filters Panel _(bottom sheet, radius slider, women-only toggle)_
 - [ ] T067 — Connection Request Flow _(SignalR events, inbound request component)_

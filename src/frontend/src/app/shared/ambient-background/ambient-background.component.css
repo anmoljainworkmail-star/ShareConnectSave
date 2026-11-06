@@ -1,0 +1,983 @@
+/*
+ * Finalized "classic atlas map" background -- see the component class's
+ * header comment for the "why one shared component, why it replaced the
+ * earlier interactive version" reasoning. Colors come from tokens.css's
+ * "Atlas background tokens" block; everything here is layout/animation
+ * (positions, sizes, keyframes), consistent with how radar-shared.css keeps
+ * its own structural numbers inline while sourcing colors from tokens.
+ */
+
+:host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  overflow: hidden;
+  /* Never steals a click/hover from the real content stacked above it. */
+  pointer-events: none;
+  /* The page's own full background -- callers no longer declare one of
+     their own (see radar-shared.css/auth-shared.css). */
+  background: var(--atlas-ocean-gradient);
+}
+
+/* Every decorative element below is positioned/sized as a PERCENTAGE of
+   this box (left/top/width/height) -- fine on a phone-shaped viewport (what
+   the approved mockup was designed at), but this component's :host fills
+   the ENTIRE page, so on a wide desktop browser window those same
+   percentages blow the landmasses up to hundreds of extra pixels (e.g. a
+   "52% wide" landmass becomes ~1000px on a 1920px-wide window) -- both
+   visually oversized/soft ("not sharp") and, with the aurora's blur(22px)
+   now smeared across a similarly huge box, genuinely expensive to paint
+   every animation frame.
+   The fix: give .ambient-decor itself a CAPPED size instead of inset:0 --
+   the same "design a fixed-proportion illustration, then contain it within
+   whatever viewport shows up" idea --radar-stage-size (tokens.css) already
+   uses for the radar rings. min(100%, calc(100vh * 9/16), 480px) /
+   min(100%, calc(100vw * 16/9), 854px) is the standard CSS "fit this
+   element inside its container at a fixed aspect ratio, capped at a max
+   size" formula (the non-replaced-element equivalent of object-fit:
+   contain): each dimension is bounded by (a) never exceeding the host's own
+   size, (b) staying proportioned to the OTHER dimension at the mockup's
+   original ~9:16 aspect, and (c) an absolute ceiling so even a very tall
+   desktop window can't scale it past where the illustration was actually
+   tuned to look right. :host's own ocean gradient still fills the full
+   page edge-to-edge regardless -- only the illustrated scene (landmasses,
+   route, stickers, compass) is contained and centered within it. */
+.ambient-decor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(100%, calc(100vh * 9 / 16), 480px);
+  height: min(100%, calc(100vw * 16 / 9), 854px);
+}
+
+/* The full-bleed layer BEHIND .ambient-decor -- unlike the hero scene, this
+   one is allowed to actually fill the whole page (inset: 0, not capped),
+   because everything in it (a grid, a few small twinkling dots, two small
+   islands) is cheap regardless of how large the page is -- none of it has
+   the oversized-blur problem .ambient-decor's own comment describes. This is
+   what keeps a wide desktop window from reading as "a small sharp card
+   floating in an empty blue void." */
+.ambient-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Graticule -- the latitude/longitude grid every classic globe map or atlas
+   plate carries. Now a child of .ambient-fill (not .ambient-decor), so it
+   extends to the page's actual edges on a wide window instead of stopping at
+   the capped hero scene's own boundary. */
+.graticule {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: repeating-linear-gradient(0deg, var(--atlas-graticule-line) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(90deg, var(--atlas-graticule-line) 0 1px, transparent 1px 48px);
+}
+
+/* A sparse scatter of twinkling dots across the full page -- cheap (a 2px
+   dot, no blur, no large gradient), so unlike the hero scene's own elements
+   it's safe to spread across however wide the page actually is. Named
+   sky-star, not star, so it never collides with .compass-rose's own .star
+   (an unrelated, larger conic-gradient circle). */
+.sky-star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  animation: sky-star-twinkle 3.4s ease-in-out infinite;
+}
+
+@keyframes sky-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Two small, deliberately DISTANT islands -- positioned a fixed PIXEL
+   distance from the page's true center (calc(50% + Npx), not a plain
+   percentage), which is what makes them appear only once the window is
+   actually wide enough to reveal that spot, and never on a phone-width
+   viewport: on a ~400px-wide phone, "50% + 560px" lands far outside the
+   page entirely (clipped by :host's own overflow: hidden), while on a
+   1400px+ desktop window that same point falls inside the visible area, in
+   exactly the margin the capped hero scene (max 480px wide, always
+   centered) leaves empty. Deliberately simpler than the hero landmasses --
+   smaller, no mountains, lighter contour shading -- these read as "more of
+   the same ocean, farther out," not a second focal illustration competing
+   with the real one. */
+.distant-island {
+  position: absolute;
+  z-index: 1;
+  width: 130px;
+  height: 92px;
+  border-radius: 46% 54% 58% 42% / 54% 42% 58% 46%;
+  background: var(--atlas-land-gradient);
+  box-shadow: 0 0 0 2px var(--atlas-land-coastline), inset 0 0 0 6px var(--atlas-contour-1),
+    inset 0 0 0 12px var(--atlas-contour-2);
+}
+
+.distant-island.left {
+  top: 20%;
+  left: calc(50% - 620px);
+}
+
+.distant-island.right {
+  top: 64%;
+  left: calc(50% + 490px);
+}
+
+.distant-shallow {
+  width: 180px;
+  height: 140px;
+}
+
+.distant-shallow.left {
+  top: 14%;
+  left: calc(50% - 650px);
+}
+
+.distant-shallow.right {
+  top: 56%;
+  left: calc(50% + 460px);
+}
+
+/* Shallow-water halo around each coastline -- a real atlas/relief map shades
+   water lighter near shore and darker in open ocean (bathymetric tinting);
+   a halo just outside each landmass is the cheap version of that same cue.
+   Sits behind .land (lower z-index). */
+.shallow {
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    var(--atlas-shallow-water-near) 0%,
+    var(--atlas-shallow-water-far) 55%,
+    transparent 75%
+  );
+}
+
+/* Landmasses -- organic blob silhouettes (an asymmetric border-radius, the
+   standard CSS "blob" trick) rather than geometric shapes, because a
+   continent silhouette reading as a rounded rectangle would tip this back
+   into "generic map icon" instead of "atlas." The fill is an
+   elevation-banded gradient (lowland yellow-green -> mid-green -> highland
+   olive/brown), the same green-to-brown relief shading a school atlas's
+   physical map uses for low-to-high terrain, not a flat single green.
+   Layered inset shadows stand in for topographic contour lines on top of
+   that, and the outer ring is the drawn coastline. */
+.land {
+  position: absolute;
+  z-index: 1;
+  background: var(--atlas-land-gradient);
+  box-shadow: 0 0 0 2px var(--atlas-land-coastline), inset 0 0 0 7px var(--atlas-contour-1),
+    inset 0 0 0 15px var(--atlas-contour-2), inset 0 0 0 23px var(--atlas-contour-3);
+}
+
+/* Small mountain range glyphs -- a cluster of CSS border-triangles, the
+   "terrain" marker almost every illustrated atlas/relief map uses on its
+   highland areas. */
+.mountains {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.mountains .peak {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid var(--atlas-mountain-peak);
+}
+
+.mountains .peak.small {
+  border-left-width: 4px;
+  border-right-width: 4px;
+  border-bottom-width: 7px;
+  opacity: 0.85;
+}
+
+/* Compass rose -- the single most recognizable atlas/globe-map ornament. An
+   8-point star built from one conic-gradient (alternating opaque/
+   transparent wedges) rather than hand-authored SVG points, per this
+   project's "reach for gradients over long hand-drawn paths" default for
+   decorative graphics. */
+.compass-rose {
+  position: absolute;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.compass-rose .star {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--atlas-compass-border);
+  background: conic-gradient(
+    from 0deg,
+    var(--atlas-compass-bright) 0deg 11deg,
+    transparent 11deg 45deg,
+    var(--atlas-compass-dim) 45deg 56deg,
+    transparent 56deg 90deg,
+    var(--atlas-compass-bright) 90deg 101deg,
+    transparent 101deg 135deg,
+    var(--atlas-compass-dim) 135deg 146deg,
+    transparent 146deg 180deg,
+    var(--atlas-compass-bright) 180deg 191deg,
+    transparent 191deg 225deg,
+    var(--atlas-compass-dim) 225deg 236deg,
+    transparent 236deg 270deg,
+    var(--atlas-compass-bright) 270deg 281deg,
+    transparent 281deg 315deg,
+    var(--atlas-compass-dim) 315deg 326deg,
+    transparent 326deg 360deg
+  );
+}
+
+.compass-rose .n {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--atlas-compass-label);
+}
+
+/* Latitude/longitude tick labels along the frame edge -- the coordinate
+   labels every atlas plate prints at its margins. Values are plainly
+   decorative -- this background never claims to show a real place -- picked
+   only to look like a plausible mid-latitude plate. */
+.geo-label {
+  position: absolute;
+  z-index: 2;
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--atlas-geo-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A soft, multi-hue "aurora" glow -- the iridescent gradient blob that's
+   become a default "this app feels current" accent (Spotify, Threads,
+   etc.), used once, small, and blurred rather than tinting the whole scene
+   -- a single intentional sparkle, not a repaint. */
+.aurora {
+  position: absolute;
+  top: -10%;
+  right: -14%;
+  width: 46%;
+  aspect-ratio: 1 / 1;
+  z-index: 1;
+  border-radius: 50%;
+  background: var(--atlas-aurora-gradient);
+  filter: blur(22px);
+  opacity: 0.35;
+  animation: aurora-drift 9s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(25deg) scale(1.1);
+  }
+}
+
+/* One continuous dashed line, land to land -- endpoints are each landmass's
+   own geometric CENTER (top+height/2, left+width/2 of that .land element
+   above), not an edge estimate: two rounds of edge-estimation both read as
+   "stops short" once the contour rings and elevation shading sat on top, so
+   this trades a little "outskirt to outskirt" precision for the line
+   unambiguously reading as connected to both greens. preserveAspectRatio=
+   "none" (set on the <svg> in the markup) lets the 0-100 viewBox map
+   straight onto whatever non-square shape the host page actually is. */
+.route-path {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: visible;
+}
+
+.route-path path.air {
+  fill: none;
+  stroke: var(--atlas-route-line);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 1.2 6;
+}
+
+/* A real top-down airplane silhouette (fuselage, swept wings, tail fins) --
+   a small standalone inline SVG icon, not tied to an SVG motion path (SVG
+   <animateMotion>/<mpath> did not reliably animate in testing -- it sat
+   frozen at the path's start point -- so this uses plain CSS @keyframes
+   driving top/left/rotate instead, the same mechanism .sticker.boat already
+   uses successfully). Authored with its nose on the shape's own +x axis so
+   the `rotate(Ndeg)` values in fly-air-route's keyframes (below) turn into
+   the plane actually pointing where it's heading. */
+.plane-sticker {
+  position: absolute;
+  width: 22px;
+  height: 16px;
+  z-index: 3;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+  /* No `alternate` -- see fly-air-route's own comment for why the whole
+     round trip (there AND back) is baked into one 0%-100% keyframe instead
+     of relying on `alternate` to reverse it. `alternate` only reverses
+     PLAYBACK ORDER, not the rotation values themselves, so the plane used to
+     keep pointing the "there" direction even while visibly flying "back" --
+     this is the actual fix for that, not just a cosmetic tweak.
+     20s, not 10s: a round trip now covers both legs in one cycle, double
+     the distance a single `alternate` leg used to cover, so the duration
+     has to double too to keep the same travel speed as before. */
+  animation: fly-air-route 20s linear infinite;
+}
+
+.plane-sticker svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.plane-sticker path {
+  fill: var(--atlas-plane-fill);
+  stroke: var(--atlas-plane-stroke);
+  stroke-width: 0.25;
+}
+
+/* The FULL round trip, there and back, in one keyframe -- 11 steps (0%-48%)
+   sampled from the EXACT SAME quadratic bezier .route-path path.air draws
+   ("M18,21 Q50,15 83,61"), using the real formula B(t) = (1-t)^2*P0 +
+   2(1-t)t*P1 + t^2*P2 (not hand-eyeballed waypoints, which an earlier
+   5-point version was a loose enough approximation of that the plane
+   visibly drifted off the drawn line between keyframes), then the SAME 10
+   positions MIRRORED in reverse order for the return leg (52%-100%), each
+   with its rotation value +180deg. That +180 is the actual fix for "the
+   plane keeps pointing the wrong way on the return trip": rotation at each
+   forward step is that bezier's tangent angle (its derivative, converted to
+   degrees) -- correct for flying FROM land1 TO land2 -- but flying the
+   return leg (land2 back to land1) means the direction of travel at every
+   one of those same spatial points is the exact opposite, so the nose has
+   to point 180deg from its forward-leg value there, not the same value
+   played backward (which is all `alternate` would have given it). The 4%
+   gap at each end (48%-52%, and the 100%/0% loop seam) is a deliberate brief
+   "arrive, flip, depart" pause -- the same thing a real train does at each
+   terminus -- rather than an instantaneous, jarring 180deg snap mid-flight.
+   translate(-50%, -50%) centers the icon ON its point instead of anchoring
+   the point at the icon's top-left corner. `linear` timing keeps the
+   spacing between these already-close-together points even. */
+@keyframes fly-air-route {
+  0% {
+    top: 21%;
+    left: 18%;
+    transform: translate(-50%, -50%) rotate(-11deg);
+  }
+  4.8% {
+    top: 20.3%;
+    left: 24.4%;
+    transform: translate(-50%, -50%) rotate(-1deg);
+  }
+  9.6% {
+    top: 20.7%;
+    left: 30.8%;
+    transform: translate(-50%, -50%) rotate(8deg);
+  }
+  14.4% {
+    top: 22.1%;
+    left: 37.3%;
+    transform: translate(-50%, -50%) rotate(17deg);
+  }
+  19.2% {
+    top: 24.5%;
+    left: 43.8%;
+    transform: translate(-50%, -50%) rotate(25deg);
+  }
+  24% {
+    top: 28%;
+    left: 50.3%;
+    transform: translate(-50%, -50%) rotate(32deg);
+  }
+  28.8% {
+    top: 32.5%;
+    left: 56.8%;
+    transform: translate(-50%, -50%) rotate(38deg);
+  }
+  33.6% {
+    top: 38.1%;
+    left: 63.3%;
+    transform: translate(-50%, -50%) rotate(43deg);
+  }
+  38.4% {
+    top: 44.7%;
+    left: 69.8%;
+    transform: translate(-50%, -50%) rotate(47deg);
+  }
+  43.2% {
+    top: 52.3%;
+    left: 76.4%;
+    transform: translate(-50%, -50%) rotate(51deg);
+  }
+  48% {
+    top: 61%;
+    left: 83%;
+    transform: translate(-50%, -50%) rotate(54deg);
+  }
+  52% {
+    top: 61%;
+    left: 83%;
+    transform: translate(-50%, -50%) rotate(234deg);
+  }
+  56.8% {
+    top: 52.3%;
+    left: 76.4%;
+    transform: translate(-50%, -50%) rotate(231deg);
+  }
+  61.6% {
+    top: 44.7%;
+    left: 69.8%;
+    transform: translate(-50%, -50%) rotate(227deg);
+  }
+  66.4% {
+    top: 38.1%;
+    left: 63.3%;
+    transform: translate(-50%, -50%) rotate(223deg);
+  }
+  71.2% {
+    top: 32.5%;
+    left: 56.8%;
+    transform: translate(-50%, -50%) rotate(218deg);
+  }
+  76% {
+    top: 28%;
+    left: 50.3%;
+    transform: translate(-50%, -50%) rotate(212deg);
+  }
+  80.8% {
+    top: 24.5%;
+    left: 43.8%;
+    transform: translate(-50%, -50%) rotate(205deg);
+  }
+  85.6% {
+    top: 22.1%;
+    left: 37.3%;
+    transform: translate(-50%, -50%) rotate(197deg);
+  }
+  90.4% {
+    top: 20.7%;
+    left: 30.8%;
+    transform: translate(-50%, -50%) rotate(188deg);
+  }
+  95.2% {
+    top: 20.3%;
+    left: 24.4%;
+    transform: translate(-50%, -50%) rotate(179deg);
+  }
+  100% {
+    top: 21%;
+    left: 18%;
+    transform: translate(-50%, -50%) rotate(169deg);
+  }
+}
+
+/* Two LOCAL trains, no drawn track under them -- placed on the two
+   landmasses the air route doesn't already dominate the middle of
+   (train-one on the top-left landmass, kept below its mountains and clear
+   of the air route's own start point; train-two on the right landmass, kept
+   clear of the air route's end point and the compass rose). Each now
+   travels nearly the full span of its landmass (a bigger, more noticeable
+   run than the original short hop), as a single straight line -- linearly
+   interpolating between two keyframe endpoints IS a straight line exactly,
+   no intermediate sampling needed the way the air route's curve needed for
+   the plane.
+   Rotation is CONSTANT during each one-way leg (a straight line has one
+   tangent angle the whole way), but still needs the same "+180deg on the
+   way back" fix fly-air-route's own comment explains -- without it, a train
+   visibly moving right-to-left would still have its front pointing as if it
+   were going left-to-right. The 46%-54% (train-one) / 47%-53% (train-two)
+   window is the same "arrive, flip, depart" pause used there, sized a
+   little wider here since these are now longer runs. No `alternate` on
+   either .train-sticker -- see .plane-sticker's own comment for why the
+   round trip has to be authored directly into the keyframe instead. */
+@keyframes ride-route-one {
+  0% {
+    top: 33%;
+    left: -4%;
+    transform: translate(-50%, -50%) rotate(163deg);
+  }
+  46% {
+    top: 19%;
+    left: 40%;
+    transform: translate(-50%, -50%) rotate(163deg);
+  }
+  54% {
+    top: 19%;
+    left: 40%;
+    transform: translate(-50%, -50%) rotate(343deg);
+  }
+  100% {
+    top: 33%;
+    left: -4%;
+    transform: translate(-50%, -50%) rotate(343deg);
+  }
+}
+
+@keyframes ride-route-two {
+  0% {
+    top: 74%;
+    left: 62%;
+    transform: translate(-50%, -50%) rotate(145deg);
+  }
+  46% {
+    top: 46%;
+    left: 102%;
+    transform: translate(-50%, -50%) rotate(145deg);
+  }
+  53% {
+    top: 46%;
+    left: 102%;
+    transform: translate(-50%, -50%) rotate(325deg);
+  }
+  100% {
+    top: 74%;
+    left: 62%;
+    transform: translate(-50%, -50%) rotate(325deg);
+  }
+}
+
+/* The two PERIMETER trains -- "a train moving on the edges, like the
+   corners of the phone." Both trace the rectangular border of
+   .ambient-decor itself (0%/100% of its own width/height, the same box
+   every other percentage position on this page already resolves against),
+   one clockwise (three) and one counter-clockwise (four), at different
+   speeds, so the two never meet at the same corner at the same time --
+   "adjusted smartly" means that deliberate offset, not two identical copies
+   chasing each other in lockstep. Unlike the local trains above, these
+   never reverse direction -- they're continuous loops -- so there's no
+   "flip 180deg" fix needed; each corner is a genuine 90deg turn (an
+   instant corner-turn reads as normal cornering, not a glitch the way an
+   instant 180deg reversal would). */
+@keyframes orbit-perimeter-cw {
+  0% {
+    top: 0%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+  24% {
+    top: 0%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+  25% {
+    top: 0%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(270deg);
+  }
+  49% {
+    top: 100%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(270deg);
+  }
+  50% {
+    top: 100%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+  74% {
+    top: 100%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+  75% {
+    top: 100%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(450deg);
+  }
+  99% {
+    top: 0%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(450deg);
+  }
+  100% {
+    top: 0%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(540deg);
+  }
+}
+
+@keyframes orbit-perimeter-ccw {
+  0% {
+    top: 0%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(270deg);
+  }
+  24% {
+    top: 100%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(270deg);
+  }
+  25% {
+    top: 100%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+  49% {
+    top: 100%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+  50% {
+    top: 100%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(450deg);
+  }
+  74% {
+    top: 0%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(450deg);
+  }
+  75% {
+    top: 0%;
+    left: 100%;
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+  99% {
+    top: 0%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+  100% {
+    top: 0%;
+    left: 0%;
+    transform: translate(-50%, -50%) rotate(270deg);
+  }
+}
+
+/* translate(-50%, -50%) centers every sticker ON its top/left point instead
+   of anchoring that point at the sticker's top-left corner -- the same fix
+   the plane needed, needed here too since every sticker position (the car's
+   loop, the boat's lane, the palm's fixed spot) was quietly off-point by
+   half the sticker's own size otherwise. Keyframes that also rotate
+   (sail-water-lane; drive-ring-loop does not) repeat this same translate
+   alongside their rotate() so centering survives the rotation. */
+.sticker {
+  position: absolute;
+  z-index: 3;
+  font-size: 15px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  transform: translate(-50%, -50%);
+}
+
+/* The car: a real 🚗 (already a recognizable red sedan in essentially every
+   emoji font, unlike a hand-drawn shape whose fill color/recognizability
+   depends on getting small vector details right), looping the bottom-left
+   landmass's own inner contour ring via the same reliable CSS-keyframe
+   mechanism as the plane and boat. */
+.sticker.car {
+  font-size: 13px;
+  animation: drive-ring-loop 5s linear infinite;
+}
+
+/* A real drawn black steam train -- a locomotive (rounded boiler with a
+   domed nose cap, cab, chimney, cowcatcher, driving wheels joined by a
+   connecting rod) pulling 8 compartments (each its own body, two windows,
+   and wheels), not the 🚂 emoji (a single engine, no cars, not actually
+   black in most fonts, and no mechanical detail at all). Its own small
+   standalone inline SVG icon, same "draw it, don't rely on a glyph"
+   approach as the plane, for the same reason: a shape this specific needs
+   to be built, not borrowed.
+   FOUR instances, all drawn from the same markup at the same size (no
+   train reads as a "lesser" copy of another): train-one/train-two are
+   LOCAL (each rides its own straight line across one landmass, there and
+   back -- see ride-route-one/two's own comment for the bigger run and the
+   direction-flip fix), and train-three/train-four ORBIT the scene's own
+   rectangular border (orbit-perimeter-cw/ccw) -- "a train on the edges,
+   like the corners of the phone." Durations are picked to match the SAME
+   travel speed throughout -- a round trip now covers roughly double the
+   distance a one-way alternate leg used to (there AND back in one cycle
+   instead of two alternating legs), so each duration here is roughly
+   double what a one-way leg would need, and the perimeter loops get a much
+   longer duration again since that path is several times longer than a
+   single local hop. All four durations stay mutually prime-ish so none
+   ever fall into a repeating lockstep with each other. */
+.train-sticker {
+  position: absolute;
+  width: 100px;
+  height: 22px;
+  z-index: 3;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.train-sticker svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* No `alternate` on the locals -- the round trip (there AND back, nose
+   flipped on the return leg) is baked directly into ride-route-one/two
+   themselves; see fly-air-route's own comment for why `alternate` alone
+   can't do this correctly. */
+.train-sticker.one {
+  animation: ride-route-one 8.4s ease-in-out infinite;
+}
+
+.train-sticker.two {
+  animation: ride-route-two 11.2s ease-in-out infinite;
+}
+
+.train-sticker.three {
+  animation: orbit-perimeter-cw 34s linear infinite;
+}
+
+.train-sticker.four {
+  animation: orbit-perimeter-ccw 40s linear infinite;
+}
+
+.train-sticker .loco-body,
+.train-sticker .loco-cab,
+.train-sticker .nose,
+.train-sticker .chimney,
+.train-sticker .compartment rect {
+  fill: var(--atlas-train-body);
+}
+
+.train-sticker .loco-cab {
+  fill: var(--atlas-train-cab);
+}
+
+/* The cowcatcher (the angled blade at the very front, classic steam-engine
+   silhouette) and the connecting rod joining the driving wheels -- the two
+   details that read as "real mechanical steam engine" rather than "black
+   rounded box on wheels." */
+.train-sticker .cowcatcher {
+  fill: var(--atlas-train-wheel);
+}
+
+.train-sticker .rod {
+  stroke: var(--atlas-train-wheel);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+/* A thin lighter strip along the top of the boiler -- a cheap suggestion of
+   a metallic highlight/sheen catching the light, so the body reads as a
+   rounded cylinder instead of a flat silhouette. */
+.train-sticker .highlight {
+  stroke: var(--atlas-train-cab);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+/* r (radius) is set here, not as an attribute in the markup -- every wheel/
+   window/steam <circle> above is written with just cx/cy, no r, so without
+   this they'd all default to SVG's own r="0" (invisible). The CSS `r`
+   property (supported in every evergreen browser this PWA targets) is one
+   rule instead of repeating the same radius across every circle per train. */
+.train-sticker .wheel {
+  fill: var(--atlas-train-wheel);
+  r: 2;
+}
+
+.train-sticker .nose {
+  r: 4.5;
+}
+
+.train-sticker .window {
+  fill: var(--atlas-train-window);
+  r: 1.1;
+}
+
+/* Steam, puffing continuously from the chimney -- FIVE overlapping circles
+   (not three) with a shorter stagger between them, so a new puff starts
+   well before the last one fades: more smoke in the air at any given
+   instant, which is what actually reads as "putting out a lot of steam"
+   rather than just one faint puff rising. transform-box: fill-box makes
+   `transform-origin: center` mean the circle's OWN center (SVG's default
+   transform origin is the nearest viewport's origin, not the shape's own
+   bounding box, without this). */
+.train-sticker .steam {
+  fill: var(--atlas-train-steam);
+  r: 2.4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: steam-puff 2s ease-out infinite;
+}
+
+.train-sticker .steam.puff-2 {
+  animation-delay: 0.4s;
+}
+
+.train-sticker .steam.puff-3 {
+  animation-delay: 0.8s;
+}
+
+.train-sticker .steam.puff-4 {
+  animation-delay: 1.2s;
+}
+
+.train-sticker .steam.puff-5 {
+  animation-delay: 1.6s;
+}
+
+@keyframes steam-puff {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate(-4px, -14px) scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Eight points around the ellipse centered on the bottom-left landmass that
+   matches one of .land's own inset contour rings (cx=16%, cy=83%, rx=11%,
+   ry=7%) -- a position-only loop (no rotation) since a small emoji icon
+   circling a tight loop reads fine facing one way the whole time, the same
+   way most simplified map UIs don't constantly re-orient a vehicle icon. */
+@keyframes drive-ring-loop {
+  0% {
+    top: 83%;
+    left: 27%;
+    transform: translate(-50%, -50%);
+  }
+  12.5% {
+    top: 87.95%;
+    left: 23.78%;
+    transform: translate(-50%, -50%);
+  }
+  25% {
+    top: 90%;
+    left: 16%;
+    transform: translate(-50%, -50%);
+  }
+  37.5% {
+    top: 87.95%;
+    left: 8.22%;
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    top: 83%;
+    left: 5%;
+    transform: translate(-50%, -50%);
+  }
+  62.5% {
+    top: 78.05%;
+    left: 8.22%;
+    transform: translate(-50%, -50%);
+  }
+  75% {
+    top: 76%;
+    left: 16%;
+    transform: translate(-50%, -50%);
+  }
+  87.5% {
+    top: 78.05%;
+    left: 23.78%;
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    top: 83%;
+    left: 27%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.sticker.boat {
+  font-size: 13px;
+  /* Bottom-left to top-right, staying in open water the whole way -- see
+     sail-water-lane's own comment for the route this actually traces. */
+  animation: sail-water-lane 8s ease-in-out infinite alternate;
+}
+
+.sticker.palm {
+  font-size: 14px;
+}
+
+/* A true corner-to-corner run is blocked by two things: the bottom-left
+   landmass sits almost exactly in that corner, and (on Radar/the auth
+   screens' own bottom sheets) a card covers roughly the last 15% of the
+   frame's height regardless of what's behind it. So this starts as far into
+   the bottom-left as open water actually reaches (right of that landmass),
+   threads the open gap between the top-left and right landmasses in the
+   middle, then clears up past the right landmass's top edge into the open
+   top-right corner -- bottom-left to top-right in spirit and in practice,
+   never crossing a landmass bounding box along the way. */
+@keyframes sail-water-lane {
+  0% {
+    top: 82%;
+    left: 40%;
+    transform: translate(-50%, -50%) rotate(-20deg);
+  }
+  33% {
+    top: 42%;
+    left: 55%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+  }
+  66% {
+    top: 15%;
+    left: 75%;
+    transform: translate(-50%, -50%) rotate(-42deg);
+  }
+  100% {
+    top: 6%;
+    left: 90%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+  }
+}
+
+/* A soft dark pool centered on the stage -- without it, Radar's own violet
+   rings/sweep (tuned for a near-black backdrop) would lose contrast sitting
+   directly on mid-value ocean blue. The same technique dark-mode map apps
+   (Google Maps, Uber) use under a pin cluster. */
+.map-vignette {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 92%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--atlas-vignette);
+}
+
+/* Browser/desktop only: the moving stickers (plane/boat/car/trains) read a
+   little small once .ambient-decor is capped at up to 480x854 (see that
+   rule's own comment) -- the hero scene itself got noticeably bigger on
+   desktop than it was on a phone, but these were still sized for the phone
+   case. Bumped twice now (the first pass still read as "too small for the
+   bigger canvas," per feedback) -- this is the second, larger pass, gated
+   the same way the rest of this project gates its own desktop-only
+   treatments. All four trains share the exact same size, at every
+   breakpoint -- no train reads as a lesser copy of another. */
+@media (min-width: 768px) {
+  .plane-sticker {
+    width: 36px;
+    height: 26px;
+  }
+
+  .sticker.car,
+  .sticker.boat {
+    font-size: 22px;
+  }
+
+  .train-sticker {
+    width: 168px;
+    height: 36px;
+  }
+}

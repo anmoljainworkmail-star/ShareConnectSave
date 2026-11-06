@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+import { SharedModule } from '../shared/shared.module';
 import { AuthRoutingModule } from './auth-routing.module';
 import { LoginComponent } from './login/login.component';
 import { OtpVerifyComponent } from './otp-verify/otp-verify.component';
@@ -11,9 +12,10 @@ import { OtpVerifyComponent } from './otp-verify/otp-verify.component';
 // and AuthInterceptor are plain @Injectable()s with providedIn: 'root' (or
 // root-registered), so they deliberately do not appear in this module at
 // all -- only the two screens that are genuinely feature-module-local live
-// here.
+// here. SharedModule is imported for <app-ambient-background>, used by both
+// screens' templates.
 @NgModule({
   declarations: [LoginComponent, OtpVerifyComponent],
-  imports: [CommonModule, FormsModule, AuthRoutingModule]
+  imports: [CommonModule, FormsModule, AuthRoutingModule, SharedModule]
 })
 export class AuthModule {}

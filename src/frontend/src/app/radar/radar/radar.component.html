@@ -1,0 +1,222 @@
+<!--
+  FIGMA_SPEC.md SCREENS 06 (Idle) & 07 (Active, GPS Mode). Screen 07 has an
+  approved, pixel-perfect reference mockup
+  (https://claude.ai/artifact/CAu6pBZqysAqa8yKct6jrw) that this markup
+  matches ring-for-ring, including its one deviation from this ticket's own
+  written "(green)" GPS-badge description: the mockup renders the GPS badge
+  violet (--radar-mode-gps-*), not green, and per the ticket's own
+  instruction ("the mockup is the source of truth for visual details the
+  spec text doesn't fully capture") this template follows the mockup. Flagged
+  explicitly here and in the implementation report rather than silently
+  picking one.
+-->
+<div class="radar-page">
+  <!-- Shared background decoration (SharedModule) -- the same drifting
+       orbs/arcs/star field/mouse-reactive 3D orb used on Login, OTP and
+       Profile Setup. See AmbientBackgroundComponent's header comment for why
+       this is one shared component instead of a per-screen copy. -->
+  <app-ambient-background></app-ambient-background>
+
+  <!-- ============================= IDLE (Screen 06) ============================= -->
+  <div class="radar-top-bar" *ngIf="view === 'idle'">
+    <!-- No reverse-geocoded city name exists anywhere in this codebase yet
+         (no ticket builds that lookup) -- showing the screen name instead of
+         fabricating a city avoids inventing data Screen 06's own layout
+         calls for but this project has no source for. -->
+    <span class="top-bar-label">Radar</span>
+    <!-- Rendered per Screen 06's layout; wiring this to a real filters panel
+         is T066's (Discovery Filters Panel) scope -- intentionally inert
+         here. -->
+    <button type="button" class="icon-button" aria-label="Filters" disabled>⚙</button>
+  </div>
+
+  <div class="radar-stage" *ngIf="view === 'idle'" aria-hidden="true">
+    <div class="radar-grid-line vertical"></div>
+    <div class="radar-grid-line horizontal"></div>
+    <!-- Outward-travelling sonar pings -- layered on top of the static rings
+         below so the idle screen reads as alive (waves moving in -> out)
+         rather than four motionless circles. See radar-shared.css's
+         .radar-wave for the animation itself. -->
+    <div class="radar-wave wave-1"></div>
+    <div class="radar-wave wave-2"></div>
+    <div class="radar-wave wave-3"></div>
+    <div class="radar-ring ring-4"></div>
+    <div class="radar-ring ring-3"></div>
+    <div class="radar-ring ring-2"></div>
+    <div class="radar-ring ring-1"></div>
+    <span class="radar-ring-label label-1">0.5km</span>
+    <span class="radar-ring-label label-2">1km</span>
+    <span class="radar-ring-label label-3">1.5km</span>
+    <div class="radar-center-glow"></div>
+    <div class="radar-center-pulse idle"></div>
+    <div class="radar-center-avatar">Me</div>
+  </div>
+
+  <div class="idle-bottom-card" *ngIf="view === 'idle'">
+    <div class="handle" aria-hidden="true"></div>
+    <h2 class="idle-heading">Where are you heading?</h2>
+
+    <!-- Google Maps/Rapido-style destination search: text field + a
+         below-field suggestion dropdown (DESTINATION_SUGGESTIONS -- see that
+         const's comment for why it's a local list, not a live Places call). -->
+    <div class="destination-search">
+      <label class="field-label" for="destination">
+        <span class="field-icon" aria-hidden="true">📍</span>
+        <input
+          id="destination"
+          type="text"
+          class="field-input"
+          placeholder="Enter your destination"
+          autocomplete="off"
+          [(ngModel)]="destinationLabel"
+          (ngModelChange)="onDestinationInput()"
+          (focus)="onDestinationFocus()"
+          (blur)="onDestinationBlur()"
+          name="destination"
+        />
+      </label>
+
+      <div class="suggestions-panel" *ngIf="showDestinationSuggestions">
+        <!-- (mousedown), not (click): must fire before the input's (blur)
+             hides this panel -- see onDestinationBlur()'s comment. -->
+        <button
+          type="button"
+          class="suggestion-row suggestion-current"
+          [disabled]="isResolvingCurrentLocation"
+          (mousedown)="useCurrentLocationAsDestination()"
+        >
+          <span class="suggestion-pin suggestion-pin-current" aria-hidden="true">⌖</span>
+          <span class="suggestion-text">
+            <span class="suggestion-primary">{{ isResolvingCurrentLocation ? 'Locating…' : 'Use current location' }}</span>
+          </span>
+        </button>
+
+        <!-- Real search (DestinationSearchService -> Nominatim) needs at
+             least MIN_QUERY_LENGTH characters and a round trip to resolve --
+             these three states (too short / in flight / resolved) replace
+             the old dummy list's always-instant filter. -->
+        <p class="suggestion-empty" *ngIf="destinationLabel.trim().length < 2">Type at least 2 characters to search</p>
+        <p class="suggestion-empty" *ngIf="destinationLabel.trim().length >= 2 && isSearchingDestinations">Searching…</p>
+        <ng-container *ngIf="destinationLabel.trim().length >= 2 && !isSearchingDestinations">
+          <button
+            type="button"
+            class="suggestion-row"
+            *ngFor="let suggestion of destinationSuggestions"
+            (mousedown)="selectSuggestion(suggestion)"
+          >
+            <span class="suggestion-pin" aria-hidden="true">📍</span>
+            <span class="suggestion-text">
+              <span class="suggestion-primary">{{ suggestion.label }}</span>
+              <span class="suggestion-secondary">{{ suggestion.subLabel }}</span>
+            </span>
+          </button>
+
+          <p class="suggestion-empty" *ngIf="destinationSuggestions.length === 0">No matching places</p>
+        </ng-container>
+      </div>
+    </div>
+
+    <label class="field-label" for="departure">
+      <span class="field-icon" aria-hidden="true">🕐</span>
+      <select id="departure" class="field-input" [(ngModel)]="departureOffsetMinutes" name="departure">
+        <option *ngFor="let option of departureOptions" [ngValue]="option.minutes">{{ option.label }}</option>
+      </select>
+    </label>
+
+    <p class="start-error" *ngIf="startError">{{ startError }}</p>
+
+    <button type="button" class="start-scan-btn" [disabled]="!canStartScan" (click)="startScan()">
+      {{ isStartingScan ? 'Starting…' : 'Start Scan' }}
+    </button>
+  </div>
+
+  <!-- ============================= ACTIVE (Screen 07) ============================= -->
+  <ng-container *ngIf="view === 'scanning'">
+    <div class="radar-hud">
+      <span class="hud-dest">→ {{ destinationLabel }}</span>
+      <span class="hud-found" *ngIf="scanState === 'results'">{{ discoveredUsers.length }} found</span>
+      <!-- FIGMA_SPEC.md Screen 08: BLE badge copy is "BLE · Nearby only",
+           not the bare mode name -- GPS keeps rendering its plain mode
+           value unchanged. -->
+      <span class="radar-mode-badge" [class.mode-gps]="mode === 'GPS'" [class.mode-ble]="mode === 'BLE'">
+        <span class="mode-dot"></span>{{ mode === 'BLE' ? 'BLE · Nearby only' : mode }}
+      </span>
+    </div>
+
+    <!-- FIGMA_SPEC.md Screen 08: amber banner shown only while an active
+         scan has fallen back to Bluetooth (navigator.onLine-driven mode
+         toggle -- actual Web Bluetooth scanning stays T065's scope). -->
+    <div class="radar-ble-banner" *ngIf="mode === 'BLE'">
+      No internet · Bluetooth mode active · Range ~20m
+    </div>
+
+    <div class="radar-stage">
+      <div class="radar-grid-line vertical"></div>
+      <div class="radar-grid-line horizontal"></div>
+      <div class="radar-ring ring-4"></div>
+      <div class="radar-ring ring-3"></div>
+      <div class="radar-ring ring-2"></div>
+      <div class="radar-ring ring-1"></div>
+      <span class="radar-ring-label label-1">0.5km</span>
+      <span class="radar-ring-label label-2">1km</span>
+      <span class="radar-ring-label label-3">1.5km</span>
+
+      <div class="radar-sweep-trail"></div>
+      <div class="radar-sweep"></div>
+
+      <div class="radar-center-glow"></div>
+      <div class="radar-center-pulse active"></div>
+      <div class="radar-center-avatar">Me</div>
+
+      <span class="radar-scan-status" *ngIf="scanState === 'searching'">Searching…</span>
+      <span class="radar-scan-status" *ngIf="scanState === 'empty'">No one nearby · Try wider radius</span>
+
+      <!-- User dots: bearing is a visual-spacing placement only, NOT a real
+           compass direction -- see dotPosition()'s comment in the component. -->
+      <div
+        class="user-dot"
+        *ngFor="let discoveredUser of discoveredUsers; trackBy: trackByUserId"
+        [style.left]="dotPosition(discoveredUser).left"
+        [style.top]="dotPosition(discoveredUser).top"
+        (click)="selectUser(discoveredUser)"
+      >
+        <div class="dot-pulse"></div>
+        <div class="dot-avatar">
+          <!-- Snap Map-style standing figure instead of a name/initials
+               circle -- see UserAvatar3dComponent's header comment for why
+               its body-shape preset is a decorative visual-variety choice,
+               not a real gender field (none exists on this DTO). -->
+          <app-user-avatar-3d [userId]="discoveredUser.id"></app-user-avatar-3d>
+          <span class="verified-tick" *ngIf="discoveredUser.identity_badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="radar-bottom-card">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="chip-row" *ngIf="scanState === 'results'">
+        <button
+          type="button"
+          class="chip"
+          *ngFor="let discoveredUser of discoveredUsers; trackBy: trackByUserId"
+          (click)="selectUser(discoveredUser)"
+        >
+          <span class="chip-avatar">{{ initials(discoveredUser.name) }}</span>
+          <span class="chip-name">{{ discoveredUser.name }}</span>
+        </button>
+      </div>
+      <button type="button" class="stop-scan-btn" (click)="stopScan()">Stop Scan</button>
+    </div>
+  </ng-container>
+
+  <!-- User Card (Screen 09) bottom sheet -- tapping a dot or chip opens it. -->
+  <div class="sheet-overlay" *ngIf="selectedUser" (click)="closeUserCard()">
+    <div class="sheet-container" (click)="$event.stopPropagation()">
+      <app-user-card [user]="selectedUser" (dismissed)="closeUserCard()"></app-user-card>
+    </div>
+  </div>
+</div>

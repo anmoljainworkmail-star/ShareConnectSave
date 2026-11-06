@@ -1,0 +1,32 @@
+{
+  "task_id": "T064",
+  "title": "Radar UI Component",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/styles/tokens.css",
+    "src/frontend/src/app/radar/radar-shared.css",
+    "src/frontend/src/app/radar/models/radar.models.ts",
+    "src/frontend/src/app/radar/radar-discovery.service.ts",
+    "src/frontend/src/app/radar/radar-routing.module.ts",
+    "src/frontend/src/app/radar/radar.module.ts",
+    "src/frontend/src/app/radar/radar/radar.component.ts",
+    "src/frontend/src/app/radar/radar/radar.component.html",
+    "src/frontend/src/app/radar/radar/radar.component.css",
+    "src/frontend/src/app/radar/user-card/user-card.component.ts",
+    "src/frontend/src/app/radar/user-card/user-card.component.html",
+    "src/frontend/src/app/radar/user-card/user-card.component.css",
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/app/profile-setup/profile-setup.component.ts",
+    ".claude/notes/follow-ups.md"
+  ],
+  "criteria_checked": {
+    "radar_sweep_runs_continuously_while_active": "PASS",
+    "user_card_renders_all_required_fields": "PASS (with flagged backend gap -- see note)",
+    "user_card_photo_is_authenticated_fetch": "PASS",
+    "mode_badge_switches_correctly": "PASS",
+    "start_scan_sets_status_looking": "PASS",
+    "exit_scan_sets_status_unavailable": "PASS (in-SPA exit; hard tab-close is a documented, accepted gap)",
+    "settings_toggle_unaffected_by_radar_lifecycle": "PASS (by design -- RadarComponent holds no cached status it could re-assert over a Settings-initiated change; T070 itself doesn't exist yet to test end-to-end)"
+  },
+  "last_note": "Implementation complete. Reused UserProfileService.resolvePhotoUrl (already DRY-authenticated-photo path) and UserProfileService.updateProfile (already the shared PATCH /users/me status-write path) instead of duplicating either, per the ticket's own DRY/reuse instructions. discovery-service's real /scan/start, /scan/nearby, /scan/stop, /scan/location endpoints are wired for real (confirmed via ScanController.java/ScanSessionServiceImpl.java/ScanQueryServiceImpl.java source), not mocked -- including discovering that ScanSessionServiceImpl.startScan never seeds the scan:{id}:location Redis key itself (only SQL destination_lat/lng), so RadarComponent.startScan() now chains a PUT /scan/location call with the same position right after /scan/start succeeds, then keeps it fresh via navigator.geolocation.watchPosition for the life of the scan (REQUIREMENTS.md §3's 'tracked continuously' requirement) -- without this, /scan/nearby would silently return an empty result forever (ScanQueryServiceImpl's own null-location guard fails open, not with an error). Known gaps flagged in .claude/notes/follow-ups.md 'From T064': (1) UserCardResponse doesn't yet return rating/destination/leaving-in/route-match/language -- DiscoveredUserCardDto models them optional, template *ngIf's them away rather than fabricating; (2) no bearing field, so radar dot angle is a stable cosmetic placement, not real compass direction; (3) destination_lat/lng sent to /scan/start use the caller's current position as a placeholder pending a real Google Maps Platform destination picker (no ticket for one exists yet); (4) hard tab/browser close doesn't revert status -- only in-SPA navigation away is covered; (5) GPS mode badge color conflict between the approved mockup (violet) and T064's own ticket text ('green') -- implemented to match the mockup per the ticket's own 'mockup is source of truth' instruction, flagged for Tech Lead sign-off. Also updated app-routing.module.ts's root redirect ('' -> 'radar' instead of unconditional 'auth') and ProfileSetupComponent.startExploring() (navigates to '/radar') now that a real protected home screen exists, closing a gap both files' own prior comments explicitly anticipated."
+}

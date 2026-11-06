@@ -301,6 +301,9 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`*ngFor="let item of items; trackBy: trackByKey"`** — tells Angular how to tell list rows apart (by a stable key rather than object identity), so appending one message adds one DOM node instead of re-rendering the whole list. _(T068, `chat.component.html`)_
 - **`router.navigate([path, id], { state: { ... } })`** — passes data to the destination route via navigation state instead of the URL, so it does not show up in the address bar and cannot be forged by editing the URL (used to tell the rating screen which entry path the user came from). _(T068, `chat-flow.service.ts`)_
 - **`[a, b, c] as const`** — freezes an array literal into a readonly tuple of literal types, so `RECONNECT_DELAYS_MS[retryCount]` is typed per position and the schedule cannot be mutated by accident. _(T068, `unlimited-retry-policy.ts`)_
+- **`router.getCurrentNavigation()?.extras.state`** — returns the navigation currently in flight, whose `state` carries the data the sender passed; it is only non-null during that navigation (so it must be read in the constructor), and outside one you fall back to `history.state`, which during a navigation still describes the previous page. _(T069, `rating.component.ts`)_
+- **`router.navigate([...], { replaceUrl: true })`** — swaps the current history entry instead of pushing a new one, so Back does not return to a screen that can no longer do anything useful. _(T069, `rating.component.ts`)_
+- **`@Component({ styleUrl: './x.css' })`** — the Angular 17+ singular form of `styleUrls: [...]`, for the common one-stylesheet case. _(T069, `rating.component.ts`)_
 
 ## PowerShell
 

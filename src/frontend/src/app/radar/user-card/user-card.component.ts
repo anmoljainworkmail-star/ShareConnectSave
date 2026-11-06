@@ -2,12 +2,14 @@ import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleCha
 import { Subscription } from 'rxjs';
 
 import { UserProfileService } from '../../profile-setup/user-profile.service';
-import { DiscoveredUserCardDto } from '../models/radar.models';
+import { UserCardData } from '../models/radar.models';
 
 // Screen 09 (User Card, Bottom Sheet) button states. 'unavailable' is driven
 // by the card's own `user.unavailable` field, not a connection state, so it
-// is intentionally NOT one of these three -- see `bannerMessage` below.
-export type ConnectionState = 'default' | 'sent' | 'connected';
+// is intentionally NOT one of these -- see `bannerMessage` below. 'sending' (T067)
+// is the in-flight POST /connections window: it disables the button so a
+// double-tap cannot fire two requests.
+export type ConnectionState = 'default' | 'sending' | 'sent' | 'connected';
 
 // Interface Segregation (I), applied to UI reuse (named in the ticket's
 // "Patterns demonstrated"): this component is shaped around "show one
@@ -28,7 +30,7 @@ export type ConnectionState = 'default' | 'sent' | 'connected';
   standalone: false
 })
 export class UserCardComponent implements OnChanges, OnDestroy {
-  @Input() user: DiscoveredUserCardDto | null = null;
+  @Input() user: UserCardData | null = null;
   @Input() connectionState: ConnectionState = 'default';
   // T067's InboundRequestComponent reuses this component for the SENDER's
   // card alongside its own Accept/Decline buttons -- it has no use for a

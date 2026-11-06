@@ -35,6 +35,15 @@ const routes: Routes = [
     path: 'radar',
     canActivate: [AuthGuard],
     loadChildren: () => import('./radar/radar.module').then(m => m.RadarModule)
+  },
+  // T067: Inbound Request screen (FIGMA_SPEC.md Screen 10). Guarded like
+  // every protected feature route. Note the always-on part of this feature
+  // (hub connection, banner, sound) is NOT behind this route: it is started
+  // from AppComponent so it runs on every screen.
+  {
+    path: 'connections',
+    canActivate: [AuthGuard],
+    loadChildren: () => import('./connections/connections.module').then(m => m.ConnectionsModule)
   }
 ];
 

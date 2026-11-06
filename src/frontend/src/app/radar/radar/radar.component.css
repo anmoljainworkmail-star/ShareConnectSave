@@ -25,7 +25,7 @@
   background: var(--radar-hud-bg);
   color: var(--color-text-inverse);
   font-size: 16px;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 /* ---------------------------- Idle bottom card (Screen 06) ---------------------------- */

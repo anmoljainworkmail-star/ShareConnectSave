@@ -1,0 +1,30 @@
+<!--
+  FIGMA_SPEC.md 3.6 Toast / Snackbar (dark Violet-950 surface, white text,
+  left accent bar: green success / red error) + this ticket's in-app banner
+  for an incoming request. aria-live so a screen reader announces a toast
+  without stealing focus.
+-->
+<div class="banner-stack" aria-live="assertive">
+  <div class="banner" *ngFor="let banner of banners$ | async; trackBy: trackById" [class.leaving]="banner.leaving">
+    <div class="banner-text">
+      <div class="banner-title">{{ banner.title }}</div>
+      <div class="banner-message">{{ banner.message }}</div>
+    </div>
+    <a class="banner-action" [routerLink]="banner.actionRoute" (click)="dismissBanner(banner)">
+      {{ banner.actionLabel }}
+    </a>
+  </div>
+</div>
+
+<div class="toast-stack" aria-live="polite">
+  <div
+    class="toast"
+    *ngFor="let toast of toasts$ | async; trackBy: trackById"
+    [class.toast-success]="toast.kind === 'success'"
+    [class.toast-error]="toast.kind === 'error'"
+    [class.leaving]="toast.leaving"
+    role="status"
+  >
+    {{ toast.message }}
+  </div>
+</div>

@@ -6,6 +6,7 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { ServiceWorkerModule } from '@angular/service-worker';
 import { AuthInterceptor } from './auth/auth.interceptor';
+import { SharedModule } from './shared/shared.module';
 
 @NgModule({
   declarations: [
@@ -15,6 +16,8 @@ import { AuthInterceptor } from './auth/auth.interceptor';
     BrowserModule,
     HttpClientModule,
     AppRoutingModule,
+    // For <app-toast-host> in AppComponent's template (T067).
+    SharedModule,
     ServiceWorkerModule.register('ngsw-worker.js', {
       enabled: !isDevMode(),
       // Register the ServiceWorker as soon as the application is stable

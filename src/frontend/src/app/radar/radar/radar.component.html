@@ -24,10 +24,9 @@
          fabricating a city avoids inventing data Screen 06's own layout
          calls for but this project has no source for. -->
     <span class="top-bar-label">Radar</span>
-    <!-- Rendered per Screen 06's layout; wiring this to a real filters panel
-         is T066's (Discovery Filters Panel) scope -- intentionally inert
-         here. -->
-    <button type="button" class="icon-button" aria-label="Filters" disabled>⚙</button>
+    <!-- Screen 17 trigger ("Filter icon on radar screen"). Opens the
+         Discovery Filters bottom sheet (T066). -->
+    <button type="button" class="icon-button" aria-label="Filters" aria-haspopup="dialog" (click)="openFilters()">⚙</button>
   </div>
 
   <div class="radar-stage" *ngIf="view === 'idle'" aria-hidden="true">
@@ -213,10 +212,25 @@
     </div>
   </ng-container>
 
+  <!-- Discovery Filters (Screen 17) bottom sheet. *ngIf re-creates the panel
+       on every open so its draft always re-seeds from the stored filters. -->
+  <app-discovery-filters-panel
+    *ngIf="isFiltersPanelOpen"
+    [filters]="currentFilters"
+    [showWomenOnly]="canUseWomenOnlyFilter"
+    (applied)="applyFilters($event)"
+    (dismissed)="closeFilters()"
+  ></app-discovery-filters-panel>
+
   <!-- User Card (Screen 09) bottom sheet -- tapping a dot or chip opens it. -->
   <div class="sheet-overlay" *ngIf="selectedUser" (click)="closeUserCard()">
     <div class="sheet-container" (click)="$event.stopPropagation()">
-      <app-user-card [user]="selectedUser" (dismissed)="closeUserCard()"></app-user-card>
+      <app-user-card
+        [user]="selectedUser"
+        [connectionState]="connectionStateFor(selectedUser.id)"
+        (sendRequest)="sendRequestTo($event)"
+        (dismissed)="closeUserCard()"
+      ></app-user-card>
     </div>
   </div>
 </div>

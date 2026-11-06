@@ -10,6 +10,10 @@
        target. -->
   <button type="button" class="handle" aria-label="Close" (click)="onDismiss()"></button>
 
+  <!-- Optional header slot (T067: Screen 10's "New Request" title sits
+       between the handle and the identity row). Empty for every other host. -->
+  <ng-content select="[cardHeader]"></ng-content>
+
   <div class="identity-row">
     <div class="avatar avatar-lg">
       <img *ngIf="photoUrl" [src]="photoUrl" [alt]="u.name" />
@@ -53,7 +57,7 @@
       <span class="detail-icon" aria-hidden="true">🕐</span>
       <span>Leaving in: {{ u.leaving_in_minutes }} minutes</span>
     </div>
-    <div class="detail-row">
+    <div class="detail-row" *ngIf="u.distance_km !== undefined">
       <span class="detail-icon" aria-hidden="true">📏</span>
       <span>{{ u.distance_km }} km away</span>
     </div>
@@ -81,11 +85,12 @@
       *ngIf="connectionState === 'default'"
       type="button"
       class="btn-primary"
-      [disabled]="u.unavailable"
+      [disabled]="!!u.unavailable"
       (click)="onSendRequest()"
     >
       Send Request
     </button>
+    <button *ngIf="connectionState === 'sending'" type="button" class="btn-primary" disabled>Sending...</button>
     <button *ngIf="connectionState === 'sent'" type="button" class="btn-sent" disabled>Request Sent ✓</button>
     <!-- Inert for now: wiring this to an actual chat-room navigation is
          T068's (Chat UI) scope, not this ticket's -- rendered here so the
@@ -94,4 +99,10 @@
 
     <button type="button" class="btn-ghost-report" (click)="onReport()">Report</button>
   </div>
+
+  <!-- Content projection: a host that sets [showSendRequest]="false" (T067's
+       InboundRequestComponent) supplies its own action row here, so the
+       buttons render INSIDE this card's sheet chrome instead of a second
+       box underneath it. -->
+  <ng-content></ng-content>
 </div>

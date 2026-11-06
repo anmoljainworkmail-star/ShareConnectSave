@@ -292,6 +292,8 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`NgZone.runOutsideAngular(fn)`** — runs a callback (here, the three.js render loop) outside Angular's change-detection zone, so a 60fps `requestAnimationFrame` loop doesn't trigger a full change-detection pass every frame. _(T064, `user-avatar-3d.component.ts`)_
 - **`@Component({ standalone: false })`** — Angular 19 defaults new components to standalone; this project is NgModule-only, so every hand-written component must opt out explicitly. _(T064, `radar.component.ts`)_
 - **`@Injectable({ providedIn: 'root' })`** — registers a service (or guard) as an app-wide singleton without listing it in any `NgModule`'s `providers` array; the first thing that injects it is what triggers its construction, and an unused one is tree-shaken out of the production bundle entirely. _(T063, `auth.service.ts`, `auth.guard.ts`)_
+- **`@HostListener('document:keydown.escape')`** — registers an event listener on a target outside the component's own template (here the whole document) and removes it automatically when the component is destroyed, so no manual `addEventListener`/cleanup pair. _(T066, `discovery-filters-panel.component.ts`)_
+- **`observable$ | async`** — the `async` pipe subscribes to an Observable in the template, renders its latest value, and unsubscribes automatically on destroy, so no manual `subscribe`/`takeUntil` is needed for display-only streams. _(T067, `toast-host.component.html`)_
 
 ## PowerShell
 
@@ -326,6 +328,14 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`cacheConfig.maxAge` / `maxSize`** (a `dataGroups` entry) — `maxAge` is a real TTL: a cached response older than this is treated as not cached at all. `maxSize` caps how many responses the group keeps, oldest evicted first beyond that. Neither field exists for `assetGroups`, whose entries never expire by time. _(T062, `ngsw-config.json`)_
 - **`navigationUrls`** (`ngsw-config.json`) — lists route patterns for which the service worker serves the cached app shell (`index.html`) on a direct navigation/refresh, instead of letting the request hit the server; these are Angular client-side router routes, not real files, so they're listed here rather than in an `assetGroups` file list. _(T062, `ngsw-config.json`)_
 - **`process.env.*` inside `environment.ts`** — a build-time string substitution performed by esbuild's `define` step (wired per build configuration in `angular.json`), not a runtime read; the browser has no Node `process` object, so every `process.env.*` reference is replaced with a literal string before the bundle ever reaches the browser. _(T062, `environment.ts`)_
+
+## SignalR Client (Angular, `@microsoft/signalr`)
+
+- **`new HubConnectionBuilder().withUrl(url, { accessTokenFactory }).build()`** — builds the client side of a SignalR hub connection; `accessTokenFactory` is a function (not a fixed string) called on every connect and reconnect, so a refreshed JWT is picked up automatically. Browsers cannot set an `Authorization` header on a WebSocket upgrade, so the library sends this value as an `?access_token=` query parameter. _(T067, `notification.service.ts`)_
+- **`connection.on('EventName', handler)`** — subscribes a client callback to a method the server invokes by name (`Clients.Group(...).SendAsync("EventName", payload)`); the name must match the server's string exactly, and registration must happen before `start()` so no early push is missed. _(T067, `notification.service.ts`)_
+- **`withAutomaticReconnect(retryPolicy)` + `IRetryPolicy`** — turns on automatic reconnect for a connection that had started and then dropped; the default schedule gives up after about four attempts (~42 s), while a custom `IRetryPolicy.nextRetryDelayInMilliseconds` that always returns a number (never `null`) keeps retrying indefinitely. It does not cover a first `start()` that fails, which needs its own retry loop. _(T067, `notification.service.ts`)_
+- **`onreconnecting` / `onreconnected` / `onclose`** — lifecycle callbacks for the connection: dropped and retrying, successfully re-established, and permanently stopped. `onreconnected` is the hook for re-syncing state, since SignalR does not replay messages missed while disconnected. _(T067, `notification.service.ts`)_
+- **Web Audio `AudioContext` (`resume()`, `state`)** — the browser's programmatic sound API; a context created before any user gesture starts `'suspended'` under autoplay policy, and `resume()` only succeeds after a gesture, so code must check `state === 'running'` before scheduling tones. _(T067, `notification-sound.service.ts`)_
 
 ---
 

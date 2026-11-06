@@ -71,6 +71,26 @@
   --shadow-fab: 0 4px 16px rgba(124, 58, 237, 0.45);
 
   /*
+   * Toast / in-app banner tokens (FIGMA_SPEC.md 3.6 Toast / Snackbar), added
+   * for T067. Values are the spec's own: Violet-950 surface, white text,
+   * 300ms slide/fade, left accent bar green (success) / red (error). The
+   * bottom offset sits a nav-bar height (spec 3.8: 64px + safe-area inset)
+   * plus one spacing step above the bottom edge -- "appears at bottom above
+   * navigation bar". Banner is this ticket's "in-app banner" for an incoming
+   * request: a light surface card pinned to the TOP so it reads as a
+   * different thing from the dark bottom toast.
+   */
+  --toast-bg: var(--violet-950);
+  --toast-text: var(--color-text-inverse);
+  --toast-accent-neutral: var(--violet-400);
+  --toast-accent-success: var(--color-success);
+  --toast-accent-error: var(--color-danger);
+  --toast-transition: 300ms;
+  --toast-bottom-offset: calc(64px + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  --banner-top-offset: calc(env(safe-area-inset-top, 0px) + var(--space-3));
+  --z-toast: 1000;
+
+  /*
    * Radar-family tokens (FIGMA_SPEC.md Screens 06-08: Idle / Active-GPS /
    * Active-BLE), added for T064. Screen 07 has an approved, pixel-perfect
    * reference mockup (see radar-shared.css's header comment) and that

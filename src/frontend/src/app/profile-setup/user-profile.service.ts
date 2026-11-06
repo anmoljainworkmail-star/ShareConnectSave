@@ -6,7 +6,12 @@ import { catchError, map, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { ErrorEnvelope } from '../auth/models/auth.models';
-import { ProfileMutationApiResponse, UpdateProfileRequest, UserProfileDto } from './models/profile-setup.models';
+import {
+  ProfileMutationApiResponse,
+  PublicUserProfileDto,
+  UpdateProfileRequest,
+  UserProfileDto
+} from './models/profile-setup.models';
 
 // Single Responsibility (S): AuthService (see its own file header comment)
 // deliberately only knows the four /auth/* endpoints and the two tokens they
@@ -23,6 +28,30 @@ export class UserProfileService {
     return this.http
       .get<UserProfileDto>(`${environment.apiBase}/user/users/me`)
       .pipe(catchError(error => this.toApplicationError(error)));
+  }
+
+  // Another user's public projection (T067: the sender of an inbound
+  // connection request). Lives here, not in ConnectionService, because
+  // "who is this person" is User Service's data -- same Database-per-Service
+  // boundary the backend draws; connection-service only knows ids.
+  getPublicProfile(userId: number): Observable<PublicUserProfileDto> {
+    return this.http
+      .get<PublicUserProfileDto>(`${environment.apiBase}/user/users/${userId}`)
+      .pipe(catchError(error => this.toApplicationError(error)));
+  }
+
+  // Least-knowledge exposure (T066): the Discovery Filters panel only needs
+  // to answer "should the women-only toggle exist for this user?" -- it must
+  // never hold the gender value itself (REQUIREMENTS.md section 10: gender is
+  // a server-side filter predicate, not something UI code passes around). So
+  // this collapses the full profile to the one boolean the caller needs
+  // instead of handing back `gender` for every caller to compare on its own.
+  // Fails closed: a lookup error means "no", i.e. the toggle stays absent.
+  isFemale(): Observable<boolean> {
+    return this.getMyProfile().pipe(
+      map(profile => profile.gender === 'female'),
+      catchError(() => of(false))
+    );
   }
 
   updateProfile(patch: UpdateProfileRequest): Observable<UserProfileDto> {

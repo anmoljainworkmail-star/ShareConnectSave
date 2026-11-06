@@ -11,10 +11,14 @@ import {
 } from 'rxjs/operators';
 
 import { ErrorEnvelope } from '../../auth/models/auth.models';
+import { ConnectionService } from '../../connections/connection.service';
 import { UserProfileService } from '../../profile-setup/user-profile.service';
-import { DiscoveredUserCardDto, ScanMode, ScanStartResponse } from '../models/radar.models';
+import { ToastService } from '../../shared/toast/toast.service';
+import { DiscoveredUserCardDto, DiscoveryFilters, ScanMode, ScanStartResponse } from '../models/radar.models';
 import { DestinationSearchService, DestinationSuggestion } from '../destination-search.service';
 import { RadarDiscoveryService } from '../radar-discovery.service';
+import { ScanSessionService } from '../scan-session.service';
+import { ConnectionState } from '../user-card/user-card.component';
 
 // A real search needs at least this many characters before it's worth a
 // network round trip -- "h" or "hy" matches too much of Nominatim's whole
@@ -147,14 +151,39 @@ export class RadarComponent implements OnInit, OnDestroy {
     this.mode = 'BLE';
   };
 
+  // T066 Discovery Filters Panel (Screen 17). Container/presentational split:
+  // this component only decides WHEN the panel is open and carries its
+  // result into ScanSessionService -- the panel renders, the service stores.
+  isFiltersPanelOpen = false;
+  // The one gender-derived fact the filters UI may know (see
+  // UserProfileService.isFemale). Defaults to false so the women-only toggle
+  // stays absent until a lookup positively says otherwise.
+  canUseWomenOnlyFilter = false;
+
   constructor(
     private readonly radarDiscoveryService: RadarDiscoveryService,
     private readonly userProfileService: UserProfileService,
-    private readonly destinationSearchService: DestinationSearchService
+    private readonly destinationSearchService: DestinationSearchService,
+    private readonly scanSessionService: ScanSessionService,
+    private readonly connectionService: ConnectionService,
+    private readonly toastService: ToastService
   ) {}
+
+  // Read-through to the single source of truth -- the template never holds
+  // its own copy of the filter values.
+  get currentFilters(): DiscoveryFilters {
+    return this.scanSessionService.filters;
+  }
 
   ngOnInit(): void {
     this.mode = navigator.onLine ? 'GPS' : 'BLE';
+
+    this.userProfileService
+      .isFemale()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(isFemale => {
+        this.canUseWomenOnlyFilter = isFemale;
+      });
     // 'online'/'offline' are standard DOM events, patched by zone.js the
     // same way every other addEventListener call is (unlike LoginComponent's
     // GSI callback, which fires from a plain <script> tag Angular never
@@ -321,6 +350,28 @@ export class RadarComponent implements OnInit, OnDestroy {
       });
   }
 
+  openFilters(): void {
+    this.isFiltersPanelOpen = true;
+  }
+
+  closeFilters(): void {
+    this.isFiltersPanelOpen = false;
+  }
+
+  // Persists the panel's choice into ScanSessionService only -- nothing is
+  // sent to the backend here. The values ride along on the NEXT
+  // POST /scan/start, which is what "filter changes apply on next scan
+  // start" means.
+  applyFilters(filters: DiscoveryFilters): void {
+    this.scanSessionService.updateFilters({
+      ...filters,
+      // Defence in depth: the panel already refuses to emit true for a user
+      // the toggle doesn't apply to; this re-checks at the point of storage.
+      womenOnly: this.canUseWomenOnlyFilter && filters.womenOnly
+    });
+    this.closeFilters();
+  }
+
   startScan(): void {
     // Guard clause: mirrors Screen 06's own disabled-button state so a
     // programmatic call (or a stale click queued before re-render) can't
@@ -335,7 +386,10 @@ export class RadarComponent implements OnInit, OnDestroy {
     this.getCurrentPosition()
       .pipe(
         switchMap(position =>
-          this.radarDiscoveryService
+          // Goes through ScanSessionService (not RadarDiscoveryService
+          // directly) so the stored filters are always merged into the
+          // request -- see ScanSessionService.startScan.
+          this.scanSessionService
             .startScan({
               // Known simplification (flagged, not hidden): ScanStartRequest's
               // destination_lat/destination_lng are meant to be a GEOCODED
@@ -353,11 +407,9 @@ export class RadarComponent implements OnInit, OnDestroy {
               destination_lat: this.selectedDestination?.lat ?? position.coords.latitude,
               destination_lng: this.selectedDestination?.lng ?? position.coords.longitude,
               destination_label: this.destinationLabel.trim(),
-              departure_time: this.computeDepartureIso(),
-              // T066 (Discovery Filters Panel) owns the UI control for this --
-              // always false here until that ticket adds it, rather than this
-              // ticket inventing a toggle for a screen it doesn't build.
-              women_only: false
+              departure_time: this.computeDepartureIso()
+              // women_only / radius_km / departure_window_minutes are
+              // deliberately absent: ScanSessionService owns them.
             })
             // Carries `position` forward alongside the response -- the very
             // next step needs it again (see the PUT /scan/location call
@@ -429,6 +481,44 @@ export class RadarComponent implements OnInit, OnDestroy {
 
   closeUserCard(): void {
     this.selectedUser = null;
+  }
+
+  // T067: per-recipient request state for this radar session, keyed by user
+  // id so closing and reopening a card (or switching between two people)
+  // keeps each person's own "Request Sent" button correct. In-memory only:
+  // the server is the real record (it rejects a duplicate PENDING request),
+  // this just drives the button for the current screen.
+  private readonly connectionStates = new Map<number, ConnectionState>();
+
+  connectionStateFor(userId: number): ConnectionState {
+    return this.connectionStates.get(userId) ?? 'default';
+  }
+
+  // Thin component: it decides only WHEN to send and what the button shows;
+  // the HTTP call lives in ConnectionService and failure copy comes from the
+  // backend's own error envelope.
+  sendRequestTo(userId: number): void {
+    // Guard clause: a second tap while the first POST is in flight, or on an
+    // already-sent card, must not create a second request.
+    if (this.connectionStateFor(userId) !== 'default') {
+      return;
+    }
+
+    this.connectionStates.set(userId, 'sending');
+    this.connectionService
+      .sendRequest(userId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.connectionStates.set(userId, 'sent');
+        },
+        error: (error: ErrorEnvelope) => {
+          // Back to default so the user can retry, and say why it failed
+          // (request limit reached, already connected, ...).
+          this.connectionStates.set(userId, 'default');
+          this.toastService.show(error.message, 'error');
+        }
+      });
   }
 
   // Dot placement on the SVG/CSS radar stage. The one real, backend-provided

@@ -1,0 +1,164 @@
+/* All colours/spacing/radii/shadows come from tokens.css (figma-compliance
+   skill). FIGMA_SPEC.md Screen 17 + section 3.5 (Bottom Sheet). */
+.filters-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.filters-sheet {
+  /* Same cap-and-center treatment as the radar's other bottom sheets (user
+     card, idle card) so every sheet on this screen shares one width. */
+  width: min(430px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-bottom-sheet) var(--radius-bottom-sheet) 0 0;
+  box-shadow: var(--shadow-bottom-sheet);
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  color: var(--color-text-primary);
+  animation: filters-slide-up 220ms ease-out;
+}
+
+@keyframes filters-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.handle {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  margin: 0 auto var(--space-4);
+}
+
+.filters-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 var(--space-5);
+}
+
+.filter-group {
+  margin-bottom: var(--space-5);
+}
+
+.filter-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.filter-value {
+  color: var(--color-primary);
+}
+
+/* ---------------------------- Radius slider ---------------------------- */
+.radius-slider {
+  width: 100%;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* ---------------------------- Segmented control ---------------------------- */
+.segmented {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.segment {
+  flex: 1 1 0;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segment.selected {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+/* ---------------------------- Women-only toggle ---------------------------- */
+.filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-row .filter-label {
+  margin-bottom: 0;
+}
+
+/* Native checkbox restyled as a switch, so keyboard/screen-reader behaviour
+   stays the browser's own instead of being re-implemented on a div. */
+.toggle {
+  appearance: none;
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  cursor: pointer;
+  transition: background 150ms ease-out;
+  margin: 0;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  transition: transform 150ms ease-out;
+}
+
+.toggle:checked {
+  background: var(--color-primary);
+}
+
+.toggle:checked::after {
+  transform: translateX(20px);
+}
+
+.toggle:focus-visible,
+.segment:focus-visible,
+.apply-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ---------------------------- Apply button ---------------------------- */
+.apply-btn {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-button);
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}

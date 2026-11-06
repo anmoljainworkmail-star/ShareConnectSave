@@ -1,0 +1,158 @@
+/* Screen 10 chrome. The card itself (surface, radius, shadow, handle) is
+   UserCardComponent's; only the page frame, heading, countdown and action row
+   are styled here. Every colour/space/radius is a tokens.css variable. */
+.inbound-page {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+/* Same dimmed-backdrop bottom-sheet frame the radar's user-card sheet uses
+   (FIGMA_SPEC.md 3.5), pinned to the bottom, capped on wide screens. */
+.sheet-overlay {
+  position: relative;
+  z-index: 10;
+  min-height: 100dvh;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet-container {
+  width: min(430px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: sheet-slide-up 300ms ease-out;
+}
+
+.request-heading {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.waiting-behind {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin-bottom: var(--space-1);
+}
+
+.expiry-note {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin-bottom: var(--space-3);
+}
+
+.inbound-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.btn-primary,
+.btn-ghost {
+  height: 46px;
+  border-radius: var(--radius-button);
+  font-weight: 600;
+  font-size: 14.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-primary {
+  width: 100%;
+  border: none;
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+}
+
+.btn-ghost {
+  flex: 1 1 0;
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-primary);
+}
+
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.accept-wrap {
+  position: relative;
+  flex: 1 1 0;
+}
+
+/* Ring sits just outside the button; pointer-events off so it never steals
+   the tap. vector-effect keeps the stroke a constant width even though the
+   viewBox is stretched to the button's box. */
+.expiry-ring {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.expiry-ring rect {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+/* Loading / nothing-waiting / error sheet. */
+.empty-sheet {
+  background: var(--color-surface);
+  border-radius: var(--radius-bottom-sheet) var(--radius-bottom-sheet) 0 0;
+  box-shadow: var(--shadow-bottom-sheet);
+  padding: var(--space-4) var(--space-4) var(--space-6);
+  color: var(--color-text-primary);
+}
+
+.handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border: none;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  margin: 0 auto var(--space-4);
+  cursor: pointer;
+}
+
+.empty-message {
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-4);
+}
+
+.back-button {
+  width: 100%;
+}
+
+@keyframes sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-container {
+    animation: none;
+  }
+  .expiry-ring rect {
+    transition: none;
+  }
+}

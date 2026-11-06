@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Radar Map Texture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /*
+    Design plan
+    Color: sampled directly from this project's real tokens.css violet scale
+      (not a new palette) -- violet-950 #2E1065, violet-900 #4C1D95,
+      violet-600 #7C3AED, violet-400 #A78BFA, violet-300 #C4B5FD,
+      indigo-950 #1E1B4B, plus --radar-bg-gradient's own stops. This mockup
+      represents a real screen in a real app with an established system, so
+      "honor what's already there" wins over inventing a new identity.
+    Type: Inter only, the one family FIGMA_SPEC.md specifies project-wide.
+      Utilitarian document, not an editorial page -- one face, used for real
+      hierarchy (weight/size/spacing), not a second display face.
+    Layout: a short memo header, then three labeled phone-shaped radar
+      previews that reflow 3-up/1-up by width -- "Current", "Option 1: street
+      texture", "Option 2: classic atlas map" -- built from the same
+      ring/sweep/dot CSS the real radar-shared.css uses, so the comparison is
+      honest, not a rough sketch. Option 2 is the one deliberate palette
+      departure on this page: a real atlas needs its own green/blue, which
+      the app's violet-only token scale doesn't have -- see that panel's own
+      note on how it's kept from fighting the violet UI chrome on top of it.
+    Single-theme on purpose: the real Radar screen is always the dark violet
+      gradient regardless of the device's light/dark setting (confirmed in
+      tokens.css/radar-shared.css -- no light variant exists for it), so this
+      preview matches that rather than inventing a light mode no screen it
+      represents actually has.
+  */
+  :root {
+    --violet-950: #2E1065;
+    --violet-900: #4C1D95;
+    --violet-700: #6D28D9;
+    --violet-600: #7C3AED;
+    --violet-400: #A78BFA;
+    --violet-300: #C4B5FD;
+    --violet-200: #DDD6FE;
+    --indigo-950: #1E1B4B;
+    --ground: #15132E;
+    --surface: #1B1836;
+    --text-primary: #F5F3FF;
+    --text-muted: #B9ADEB;
+    --text-faint: #8176B8;
+    --radar-bg: radial-gradient(ellipse at center, #3B1F7A 0%, #1E1B4B 60%, #12102E 100%);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    padding-block: 40px;
+    padding-inline: 20px;
+    background: var(--ground);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .page {
+    max-width: 920px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(24px, 3.4vw, 32px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .deck {
+    max-width: 62ch;
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  .panels {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .panels {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 560px) {
+    .panels {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  figcaption {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .panel-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  /* ---------------- Phone-shaped radar preview, shared by both panels ---------------- */
+  .phone {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    max-height: 480px;
+    margin: 0 auto;
+    border-radius: 28px;
+    overflow: hidden;
+    background: var(--radar-bg);
+    box-shadow: 0 20px 48px -16px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  /* Option 1's decorative map texture -- deliberately desaturated/low-contrast
+     violet-only lines (no literal street colors), NOT geo-accurate: it never
+     claims to be the viewer's real neighborhood. See the page's own
+     explanatory copy below for why that distinction matters. */
+  .map-texture {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(196, 181, 253, 0.1) 0 1px, transparent 1px 64px),
+      repeating-linear-gradient(90deg, rgba(196, 181, 253, 0.1) 0 1px, transparent 1px 64px),
+      repeating-linear-gradient(0deg, rgba(196, 181, 253, 0.05) 0 1px, transparent 1px 21.3px),
+      repeating-linear-gradient(90deg, rgba(196, 181, 253, 0.05) 0 1px, transparent 1px 21.3px);
+  }
+
+  .map-block {
+    position: absolute;
+    border-radius: 6px;
+    background: rgba(123, 92, 219, 0.14);
+    border: 1px solid rgba(196, 181, 253, 0.08);
+  }
+
+  /* ---------------- Option 2: classic atlas map (globe-style, green land / blue
+     ocean) -- the one deliberate departure from the violet-only token scale
+     on this page, because a convincing atlas needs its own palette. Both
+     colors are desaturated/muted rather than a postcard-bright blue+green so
+     they sit behind the violet rings/sweep/figures instead of competing with
+     them -- a saturated "real atlas" blue and green next to saturated violet
+     would read as two different apps stacked on each other. */
+  .phone.atlas {
+    background: linear-gradient(165deg, #164a63 0%, #0f3a50 55%, #0a2c3d 100%);
+  }
+
+  /* Graticule -- the latitude/longitude grid every classic globe map or atlas
+     plate carries. Faint and off-axis-curved would be truer to a real globe
+     projection, but a straight grid at this icon scale reads the same cue
+     for far less CSS. */
+  .graticule {
+    position: absolute;
+    inset: 0;
+    opacity: 0.35;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 48px),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 48px);
+  }
+
+  /* Shallow-water halo around each coastline -- a real atlas/relief map
+     shades water lighter near shore and darker in open ocean (bathymetric
+     tinting); a halo just outside each landmass is the cheap version of
+     that same cue. Sits behind .land (lower z-index). */
+  .shallow {
+    position: absolute;
+    z-index: 0;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(94, 169, 178, 0.35) 0%, rgba(94, 169, 178, 0.1) 55%, transparent 75%);
+  }
+
+  /* Landmasses -- organic blob silhouettes (an asymmetric border-radius, the
+     standard CSS "blob" trick) rather than geometric shapes, because a
+     continent silhouette reading as a rounded rectangle is what would tip
+     this back into "generic map icon" instead of "atlas." The fill is an
+     elevation-banded gradient (lowland yellow-green -> mid-green ->
+     highland olive/brown), the same green-to-brown relief shading a school
+     atlas's physical map uses for low-to-high terrain, not a flat single
+     green. Layered inset shadows stand in for topographic contour lines on
+     top of that, and the outer ring is the drawn coastline. */
+  .land {
+    position: absolute;
+    z-index: 1;
+    background: radial-gradient(ellipse at 32% 28%, #87a86b 0%, #5c8a52 35%, #3f6b4a 62%, #4a3f2c 100%);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.14),
+      inset 0 0 0 7px rgba(0, 0, 0, 0.12),
+      inset 0 0 0 15px rgba(0, 0, 0, 0.08),
+      inset 0 0 0 23px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Small mountain range glyphs -- a cluster of CSS border-triangles, the
+     "terrain" marker almost every illustrated atlas/relief map uses on its
+     highland areas. */
+  .mountains {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .mountains .peak {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 10px solid rgba(255, 255, 255, 0.22);
+  }
+
+  .mountains .peak.small {
+    border-left-width: 4px;
+    border-right-width: 4px;
+    border-bottom-width: 7px;
+    opacity: 0.85;
+  }
+
+  /* Compass rose -- the single most recognizable atlas/globe-map ornament.
+     An 8-point star built from one conic-gradient (alternating opaque/
+     transparent wedges) rather than hand-authored SVG points, per this
+     project's "reach for Canvas/gradients over long hand-drawn paths"
+     default for decorative graphics. */
+  .compass-rose {
+    position: absolute;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .compass-rose .star {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: conic-gradient(
+      from 0deg,
+      rgba(255, 255, 255, 0.92) 0deg 11deg, transparent 11deg 45deg,
+      rgba(255, 255, 255, 0.5) 45deg 56deg, transparent 56deg 90deg,
+      rgba(255, 255, 255, 0.92) 90deg 101deg, transparent 101deg 135deg,
+      rgba(255, 255, 255, 0.5) 135deg 146deg, transparent 146deg 180deg,
+      rgba(255, 255, 255, 0.92) 180deg 191deg, transparent 191deg 225deg,
+      rgba(255, 255, 255, 0.5) 225deg 236deg, transparent 236deg 270deg,
+      rgba(255, 255, 255, 0.92) 270deg 281deg, transparent 281deg 315deg,
+      rgba(255, 255, 255, 0.5) 315deg 326deg, transparent 326deg 360deg
+    );
+  }
+
+  .compass-rose .n {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Latitude/longitude tick labels along the frame edge -- the coordinate
+     labels every atlas plate prints at its margins. Values are plainly
+     decorative (this page's own copy already says the map isn't tied to any
+     real place), picked only to look like a plausible mid-latitude plate. */
+  .geo-label {
+    position: absolute;
+    z-index: 2;
+    font-size: 7.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.4);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------- "What new-gen will like" pass: playful stickers + a
+     flight path, the same sticker-and-emoji visual language apps like
+     BeReal/Snap/Partiful lean on for a map/plan screen, instead of a purely
+     academic atlas read. Kept as accents on top of the muted atlas base
+     (not a repaint of it) so the rings/sweep/figures stay the clear focal
+     layer. */
+
+  /* A soft, multi-hue "aurora" glow -- the iridescent gradient blob that's
+     become the default "this app feels current" accent (Spotify, Threads,
+     etc.), used once, small, and blurred rather than tinting the whole
+     scene -- a single intentional sparkle, not a repaint. */
+  .aurora {
+    position: absolute;
+    top: -10%;
+    right: -14%;
+    width: 46%;
+    aspect-ratio: 1 / 1;
+    z-index: 1;
+    border-radius: 50%;
+    background: conic-gradient(from 90deg, #ff8fd6, #ffd36e, #7ff0c2, #7eb8ff, #ff8fd6);
+    filter: blur(22px);
+    opacity: 0.35;
+    animation: aurora-drift 9s ease-in-out infinite alternate;
+  }
+
+  @keyframes aurora-drift {
+    from { transform: rotate(0deg) scale(1); }
+    to { transform: rotate(25deg) scale(1.1); }
+  }
+
+  /* NOTE on this revision: SVG <animateMotion>/<mpath> (used in the previous
+     version) turned out not to animate reliably in this environment -- the
+     plane sat frozen at its path's start point instead of flying it. Rather
+     than keep debugging SMIL, both the plane and the car below go back to
+     plain CSS @keyframes driving top/left/rotate -- the same mechanism
+     .sticker.boat has used successfully this whole time. It's an
+     approximation of the curve (a handful of keyframe steps, not a
+     mathematically exact path-follow), but it reliably animates, which an
+     exact-but-frozen path does not. */
+
+  /* One continuous dashed line, land to land -- endpoints are now each
+     landmass's own geometric CENTER (top+height/2, left+width/2 of that
+     .land element, computed directly from its own CSS values), not an
+     "edge"/"sweet spot" estimate. Two rounds of edge-estimation both still
+     read as not quite reaching the green once .land's own inset contour
+     rings and gradient shading sat on top -- landing dead center removes
+     all ambiguity about which landmass the line is attached to, at the cost
+     of the line running further into each landmass than "outskirt to
+     outskirt" would. preserveAspectRatio="none" (set on the <svg> in the
+     markup) lets the 0-100 viewBox map straight onto this non-square phone
+     frame, same as every percentage top/left used elsewhere on this
+     mockup. */
+  .route-path {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: visible;
+  }
+
+  .route-path path.air {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.8);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-dasharray: 1.2 6;
+  }
+
+  /* A real top-down airplane silhouette (fuselage, swept wings, tail fins) --
+     a small standalone inline SVG icon, not tied to a motion path. Authored
+     with its nose on the shape's own +x axis so the `rotate(Ndeg)` values in
+     fly-air-route's keyframes (below) turn into the plane actually pointing
+     where it's heading, not just a shape that happens to face some
+     direction. */
+  .plane-sticker {
+    position: absolute;
+    width: 22px;
+    height: 16px;
+    z-index: 3;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+    animation: fly-air-route 7s linear infinite alternate;
+  }
+
+  .plane-sticker svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .plane-sticker path {
+    fill: #ffffff;
+    stroke: rgba(10, 10, 30, 0.35);
+    stroke-width: 0.25;
+  }
+
+  /* 11 keyframe steps (every 10% of the animation), not 5 -- sampled from
+     the EXACT SAME quadratic bezier .route-path path.air draws
+     ("M18,21 Q50,15 83,61"), using the real formula B(t) =
+     (1-t)^2*P0 + 2(1-t)t*P1 + t^2*P2, not hand-eyeballed waypoints. The
+     previous 5-point version was a loose enough approximation that the
+     plane visibly drifted off the drawn line between keyframes ("its own
+     trajectory") -- this many points on a curve this gentle is close enough
+     to the true bezier that the gap is no longer visible. Rotation at each
+     step is that same bezier's tangent angle (its derivative, converted to
+     degrees), so the plane's heading tracks the curve's actual direction of
+     travel, not a hand-picked value. `linear` timing (not ease-in-out) keeps
+     the spacing between these 11 already-close-together points even, rather
+     than layering a second, separate speed curve on top of them. */
+  @keyframes fly-air-route {
+    0% { top: 21%; left: 18%; transform: translate(-50%, -50%) rotate(-11deg); }
+    10% { top: 20.3%; left: 24.4%; transform: translate(-50%, -50%) rotate(-1deg); }
+    20% { top: 20.7%; left: 30.8%; transform: translate(-50%, -50%) rotate(8deg); }
+    30% { top: 22.1%; left: 37.3%; transform: translate(-50%, -50%) rotate(17deg); }
+    40% { top: 24.5%; left: 43.8%; transform: translate(-50%, -50%) rotate(25deg); }
+    50% { top: 28%; left: 50.3%; transform: translate(-50%, -50%) rotate(32deg); }
+    60% { top: 32.5%; left: 56.8%; transform: translate(-50%, -50%) rotate(38deg); }
+    70% { top: 38.1%; left: 63.3%; transform: translate(-50%, -50%) rotate(43deg); }
+    80% { top: 44.7%; left: 69.8%; transform: translate(-50%, -50%) rotate(47deg); }
+    90% { top: 52.3%; left: 76.4%; transform: translate(-50%, -50%) rotate(51deg); }
+    100% { top: 61%; left: 83%; transform: translate(-50%, -50%) rotate(54deg); }
+  }
+
+  /* The car: a real 🚗 (already red/sedan-colored in essentially every
+     emoji font, unlike a hand-drawn shape whose fill color/recognizability
+     depends on getting small vector details right), looping one of the
+     bottom-left landmass's own inner contour rings via the same reliable
+     CSS-keyframe mechanism as the plane and boat. */
+  .sticker.car {
+    font-size: 13px;
+    animation: drive-ring-loop 5s linear infinite;
+  }
+
+  /* Eight points around the ellipse centered on the bottom-left landmass
+     that matches one of .land's own inset contour rings (cx=16%, cy=83%,
+     rx=11%, ry=7%) -- a position-only loop (no rotation) since a small
+     emoji icon circling a tight loop reads fine facing one way the whole
+     time, the same way most simplified map UIs don't constantly re-orient a
+     vehicle icon. */
+  @keyframes drive-ring-loop {
+    0% { top: 83%; left: 27%; transform: translate(-50%, -50%); }
+    12.5% { top: 87.95%; left: 23.78%; transform: translate(-50%, -50%); }
+    25% { top: 90%; left: 16%; transform: translate(-50%, -50%); }
+    37.5% { top: 87.95%; left: 8.22%; transform: translate(-50%, -50%); }
+    50% { top: 83%; left: 5%; transform: translate(-50%, -50%); }
+    62.5% { top: 78.05%; left: 8.22%; transform: translate(-50%, -50%); }
+    75% { top: 76%; left: 16%; transform: translate(-50%, -50%); }
+    87.5% { top: 78.05%; left: 23.78%; transform: translate(-50%, -50%); }
+    100% { top: 83%; left: 27%; transform: translate(-50%, -50%); }
+  }
+
+  /* translate(-50%, -50%) centers the sticker ON its top/left point instead
+     of anchoring that point at the sticker's top-left corner (an
+     absolutely-positioned element's default) -- the same fix just applied
+     to the plane, needed here too since every sticker position (the car's
+     loop, the boat's lane, the palm's fixed spot) was quietly off-point by
+     half the sticker's own size. Keyframes that also rotate (drive-ring-loop
+     doesn't; sail-water-lane does) repeat this same translate alongside
+     their rotate() so centering survives the rotation. */
+  .sticker {
+    position: absolute;
+    z-index: 3;
+    font-size: 15px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+    transform: translate(-50%, -50%);
+  }
+
+  .sticker.boat {
+    font-size: 13px;
+    /* Bottom-left to top-right, staying in open water the whole way -- see
+       sail-water-lane's own comment for the route this actually traces. */
+    animation: sail-water-lane 8s ease-in-out infinite alternate;
+  }
+
+  .sticker.palm {
+    font-size: 14px;
+  }
+
+  /* A true corner-to-corner run is blocked by two things: the bottom-left
+     landmass (bottom-left blob, x:-4-36%/y:70-96%) sits almost exactly in
+     that corner, and the bottom navigation card covers roughly the last 15%
+     of the frame's height regardless of what's behind it. So this starts as
+     far into the bottom-left as open water actually reaches (right of that
+     landmass, just above the card), threads the open gap between the
+     top-left and right landmasses in the middle, then clears up past the
+     right landmass's top edge into the open top-right corner -- bottom-left
+     to top-right in spirit and in practice, never crossing a landmass
+     bounding box along the way. */
+  @keyframes sail-water-lane {
+    0% { top: 82%; left: 40%; transform: translate(-50%, -50%) rotate(-20deg); }
+    33% { top: 42%; left: 55%; transform: translate(-50%, -50%) rotate(-35deg); }
+    66% { top: 15%; left: 75%; transform: translate(-50%, -50%) rotate(-42deg); }
+    100% { top: 6%; left: 90%; transform: translate(-50%, -50%) rotate(-30deg); }
+  }
+
+  /* A soft dark pool centered on the stage -- without it, the violet rings
+     and sweep (tuned for a near-black backdrop) lose contrast sitting
+     directly on mid-value ocean blue. The same technique dark-mode map apps
+     (Google Maps, Uber) use under a pin cluster. */
+  .map-vignette {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 92%;
+    aspect-ratio: 1 / 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(8, 10, 20, 0.45) 0%, transparent 70%);
+  }
+
+  .top-bar {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .top-bar .icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(18, 16, 46, 0.5);
+  }
+
+  .stage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 78%;
+    aspect-ratio: 1 / 1;
+    transform: translate(-50%, -50%);
+  }
+
+  .ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    border: 1px solid rgba(167, 139, 250, 0.22);
+    transform: translate(-50%, -50%);
+  }
+
+  .ring.r1 { width: 28%; height: 28%; box-shadow: 0 0 14px rgba(139, 92, 246, 0.35) inset; }
+  .ring.r2 { width: 53%; height: 53%; box-shadow: 0 0 12px rgba(139, 92, 246, 0.26) inset; }
+  .ring.r3 { width: 78%; height: 78%; box-shadow: 0 0 10px rgba(91, 33, 182, 0.24) inset; }
+  .ring.r4 { width: 100%; height: 100%; box-shadow: 0 0 8px rgba(91, 33, 182, 0.18) inset; }
+
+  .grid-line {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .grid-line.v { top: 0; bottom: 0; left: 50%; width: 1px; }
+  .grid-line.h { left: 0; right: 0; top: 50%; height: 1px; }
+
+  .sweep {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(167, 139, 250, 0.75) 0deg, transparent 46deg, transparent 360deg);
+    mix-blend-mode: screen;
+    animation: spin 5s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .me {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 15%;
+    aspect-ratio: 1 / 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: var(--violet-600);
+    border: 2px solid var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-primary);
+    z-index: 3;
+  }
+
+  .person {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+  }
+
+  .person .shadow {
+    width: 20px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    filter: blur(1px);
+  }
+
+  .person .head {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--violet-200);
+    margin-bottom: -4px;
+  }
+
+  .person .body {
+    width: 20px;
+    height: 24px;
+    border-radius: 9px;
+    background: var(--violet-700);
+  }
+
+  .bottom-card {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    background: #FFFFFF;
+    border-radius: 18px 18px 0 0;
+    padding: 12px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bottom-card .handle {
+    width: 28px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--violet-200);
+  }
+
+  .bottom-card .stop {
+    width: 100%;
+    height: 30px;
+    border-radius: 10px;
+    border: 1.5px solid #EF4444;
+    color: #EF4444;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .notes h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+  }
+
+  .notes ul {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  .notes strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <span class="eyebrow">ShareConnectSave · Radar screen</span>
+    <h1>Map background options, side by side</h1>
+    <p class="deck">
+      Same rings, sweep and standing figures in all three — only the backdrop changes. Option 2 is the
+      classic green-land/blue-ocean atlas look: no real coastline, no real location, just that visual
+      language. Neither option claims to show anyone's actual street or coastline — distance rings still
+      mean real distance; figure position is still spread for legibility, not real bearing, same as today.
+    </p>
+  </header>
+
+  <div class="panels">
+    <figure>
+      <figcaption>
+        <span class="panel-label">Current</span>
+        <span class="panel-title">Plain radial gradient</span>
+      </figcaption>
+      <div class="phone">
+        <div class="top-bar"><span>Radar</span><span class="icon"></span></div>
+        <div class="stage">
+          <div class="grid-line v"></div>
+          <div class="grid-line h"></div>
+          <div class="ring r4"></div>
+          <div class="ring r3"></div>
+          <div class="ring r2"></div>
+          <div class="ring r1"></div>
+          <div class="sweep"></div>
+          <div class="me">Me</div>
+          <div class="person" style="top:22%; left:28%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+          <div class="person" style="top:68%; left:70%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+          <div class="person" style="top:78%; left:30%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+        </div>
+        <div class="bottom-card">
+          <div class="handle"></div>
+          <div class="stop">Stop Scan</div>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>
+        <span class="panel-label">Option 1</span>
+        <span class="panel-title">Decorative map texture</span>
+      </figcaption>
+      <div class="phone">
+        <div class="map-texture"></div>
+        <div class="map-block" style="top:8%; left:6%; width:26%; height:16%;"></div>
+        <div class="map-block" style="top:30%; left:62%; width:30%; height:13%;"></div>
+        <div class="map-block" style="top:58%; left:10%; width:22%; height:14%;"></div>
+        <div class="map-block" style="top:72%; left:56%; width:28%; height:12%;"></div>
+        <div class="top-bar"><span>Radar</span><span class="icon"></span></div>
+        <div class="stage">
+          <div class="ring r4"></div>
+          <div class="ring r3"></div>
+          <div class="ring r2"></div>
+          <div class="ring r1"></div>
+          <div class="sweep"></div>
+          <div class="me">Me</div>
+          <div class="person" style="top:22%; left:28%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+          <div class="person" style="top:68%; left:70%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+          <div class="person" style="top:78%; left:30%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+        </div>
+        <div class="bottom-card">
+          <div class="handle"></div>
+          <div class="stop">Stop Scan</div>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>
+        <span class="panel-label">Option 2</span>
+        <span class="panel-title">Classic atlas map</span>
+      </figcaption>
+      <div class="phone atlas">
+        <div class="graticule"></div>
+
+        <div class="shallow" style="top:0%; left:-14%; width:64%; height:42%;"></div>
+        <div class="land" style="top:4%; left:-8%; width:52%; height:34%; border-radius:42% 58% 61% 39% / 51% 44% 56% 49%;"></div>
+        <div class="mountains" style="top:14%; left:18%;">
+          <span class="peak small"></span><span class="peak"></span><span class="peak small"></span>
+        </div>
+
+        <div class="shallow" style="top:40%; left:52%; width:62%; height:38%;"></div>
+        <div class="land" style="top:46%; left:58%; width:50%; height:30%; border-radius:55% 45% 48% 52% / 40% 58% 42% 60%;"></div>
+
+        <div class="shallow" style="top:64%; left:-10%; width:48%; height:34%;"></div>
+        <div class="land" style="top:70%; left:-4%; width:40%; height:26%; border-radius:48% 52% 55% 45% / 58% 40% 60% 42%;"></div>
+
+        <div class="map-vignette"></div>
+
+        <div class="aurora"></div>
+
+        <!-- One dashed line, land to land -- see .route-path's own CSS
+             comment for why the endpoints sit further into each green than
+             a strict "right at the edge" reading, and for why the plane
+             below is a CSS-animated sticker rather than riding this path via
+             <animateMotion> (the previous revision's approach, which did not
+             reliably animate here). -->
+        <svg class="route-path" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path class="air" d="M18,21 Q50,15 83,61"></path>
+        </svg>
+
+        <!-- Plane -- CSS-animated (fly-air-route), not SVG motion; see
+             .plane-sticker's own comment. -->
+        <div class="plane-sticker">
+          <svg viewBox="-6 -4 12 8">
+            <path d="M5,0 L1.5,-0.5 L0,-3 L-1,-0.6 L-3.5,-0.6 L-4.5,-1.3 L-4.5,-0.25 L-5,0 L-4.5,0.25 L-4.5,1.3 L-3.5,0.6 L-1,0.6 L0,3 L1.5,0.5 Z"></path>
+          </svg>
+        </div>
+
+        <!-- Car, looping one of the bottom-left landmass's own inner contour
+             rings -- see .sticker.car's own comment. -->
+        <span class="sticker car">🚗</span>
+
+        <!-- Bottom-left to top-right, staying in open water the whole way --
+             see sail-water-lane's own comment for the exact route and why a
+             perfectly straight corner-to-corner line isn't possible here. -->
+        <span class="sticker boat">⛵</span>
+        <span class="sticker palm" style="top:76%; left:10%;">🌴</span>
+
+        <div class="compass-rose" style="top:7%; right:6%;">
+          <span class="n">N</span>
+          <div class="star"></div>
+        </div>
+
+        <span class="geo-label" style="top:16%; left:4%;">40°N</span>
+        <span class="geo-label" style="bottom:14%; right:5%;">15°E</span>
+
+        <div class="top-bar"><span>Radar</span><span class="icon"></span></div>
+        <div class="stage">
+          <div class="ring r4"></div>
+          <div class="ring r3"></div>
+          <div class="ring r2"></div>
+          <div class="ring r1"></div>
+          <div class="sweep"></div>
+          <div class="me">Me</div>
+          <div class="person" style="top:22%; left:28%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+          <div class="person" style="top:68%; left:70%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+          <div class="person" style="top:78%; left:30%;">
+            <div class="head"></div><div class="body"></div><div class="shadow"></div>
+          </div>
+        </div>
+        <div class="bottom-card">
+          <div class="handle"></div>
+          <div class="stop">Stop Scan</div>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="notes">
+    <h2>What would actually change</h2>
+    <ul>
+      <li><strong>Background only, either option</strong> — a new layer behind the rings. Rings, sweep, "Me", and the standing figures are untouched in both.</li>
+      <li><strong>Option 1 stays inside the violet token scale</strong> — street-grid lines + muted blocks, all existing violet tokens, zero new colors.</li>
+      <li><strong>Option 2 steps outside it, on purpose</strong> — a real atlas needs its own green/blue; both are muted and a dark vignette sits under the rings so the violet UI chrome still reads clearly on top. Worth deciding deliberately, the same way the earlier avatar-gender question was, not drifting into it as "just a background."</li>
+      <li><strong>Option 2's extra atlas cues</strong> — elevation-shaded terrain (green lowland fading to olive/brown highland, not a flat green), a lighter shallow-water halo around each coastline, small mountain-range glyphs, a compass rose, and decorative lat/long tick labels at the margins.</li>
+      <li><strong>Option 2's "feels current" pass</strong> — a small blurred aurora/iridescent glow (the same accent Spotify/Threads-style apps use) and the sticker/emoji visual language apps like BeReal and Partiful use, rather than a strictly academic atlas read.</li>
+      <li><strong>Fixed: the plane now actually flies</strong> — the previous version rode an SVG `animateMotion` path that looked exact on paper but didn't reliably animate here (it sat frozen). Swapped to the same plain CSS `@keyframes` mechanism the boat has used successfully the whole time; it's an approximation of the curve rather than a mathematically exact path-lock, but it actually moves.</li>
+      <li><strong>Dashed line now connects dead center to dead center</strong> — two rounds of "near the edge" estimates both still read as not quite reaching the green, so this goes all the way to each landmass's own geometric center instead, removing any ambiguity about which landmass it's attached to.</li>
+      <li><strong>Plane now flies the actual drawn line</strong> — the previous version's 5 hand-picked waypoints were a loose enough approximation that the plane visibly drifted off the dashes between them. Re-sampled the identical quadratic curve at 11 points using the real bezier formula (not eyeballed), so the plane's path and the dashed line's path are now mathematically the same curve, not two similar-looking ones.</li>
+      <li><strong>Car is a real red car</strong> — swapped the hand-drawn car shape (which wasn't reading as a car) for the 🚗 emoji, already a recognizable red sedan in essentially every font, looping the bottom-left landmass's inner contour ring via the same reliable CSS-keyframe approach.</li>
+      <li><strong>Boat: bottom-left to top-right, blue only</strong> — threads the one open-water gap between the two landmasses the whole way, checked against both landmasses' bounding boxes and the bottom card's own footprint so it never crosses into a landmass.</li>
+      <li><strong>Neither is geo-accurate</strong> — generic repeating pattern or generic continent blobs, not your real streets or coastline.</li>
+      <li><strong>Low implementation cost either way</strong> — pure CSS, no map library, no API key, no extra network request.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

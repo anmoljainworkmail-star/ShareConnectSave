@@ -127,8 +127,8 @@
 - [x] T063 — Auth Flow _(Google GSI + OTP, AuthGuard, AuthInterceptor)_
 - [x] T064 — Radar UI Component _(SVG rings + CSS @keyframes sweep animation)_
 - [ ] T065 — BLE Mode _(Web Bluetooth API, offline detection, iOS fallback message)_
-- [ ] T066 — Discovery Filters Panel _(bottom sheet, radius slider, women-only toggle)_
-- [ ] T067 — Connection Request Flow _(SignalR events, inbound request component)_
+- [x] T066 — Discovery Filters Panel _(bottom sheet, radius slider, women-only toggle)_
+- [x] T067 — Connection Request Flow _(SignalR events, inbound request component)_
 - [ ] T068 — Chat UI _(SignalR client, Met Successfully button, offline banner)_
 - [ ] T069 — Rating Flow _(tag grid, mandatory on Met path, Skip on timeout)_
 - [ ] T070 — Profile + Settings _(gender locked after first scan, women-only toggle)_

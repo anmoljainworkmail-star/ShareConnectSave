@@ -1411,3 +1411,45 @@ whose implementation or ticket should pick it up.
    blocker.
    Affects: whichever future ticket adds a shared "stale/offline" indicator pattern across
    Radar's polling surfaces — no specific task ID yet in PROGRESS.md/SPECS.md.
+
+## From T066 (Discovery Filters Panel)
+
+1. **`radius_km` and `departure_window_minutes` are sent in `POST /scan/start` but discovery-service's `ScanStartRequest.java` has no such fields.** Radius and window come only from `discovery.radius.km` / `departure-window-minutes` in `application.yml`, so the 0.5-5 km slider and the +-15/30/60 window are inert server-side. Spring Boot's default Jackson ignores the unknown properties so the request is safe, but users will see a "5 km" setting that does nothing. Flagged by a comment in `radar.models.ts`.
+   Affects: a discovery-service backend ticket (extend `ScanStartRequest` + the scan/nearby query to honour the per-session radius and window, validated against sane bounds) — no task ID exists yet in SPECS.md; the T025-era discovery-service tickets own this service.
+
+2. **`RadarComponent.applyFilters` resets a stored `womenOnly: true` to false if the `isFemale()` profile lookup transiently failed.** It fails safe (no leak, no wrong data to others) but silently drops the user's choice. Option: only override `womenOnly` when the lookup definitively resolved, or document the trade-off.
+   Affects: T067/T068 only if they touch radar profile loading; otherwise whichever ticket next revisits `RadarComponent` gender handling.
+
+3. **A few literal px values (font sizes 13.5/14/15/18px, toggle 44x24/20px, segment height 40px, apply button height 52px) in `discovery-filters-panel.component.css` have no matching token.** `tokens.css` has no typography or control-size tokens; the project rule only bans hardcoded colors/spacing/radii/gradients, so not a violation.
+   Affects: any future ticket that adds typography/control-size tokens to `tokens.css` (T065, T067-T069 will build more radar-area UI and could motivate it).
+
+## From T067 (Connection Request Flow)
+
+1. **The ticket's event names do not match the server's, and one event does not exist.** notification-service pushes `RequestReceived` (not `ConnectionRequest`), `RequestAccepted` and `RequestExpired`. There is NO decline push: `ConnectionServiceImpl.declineConnection` writes no outbox row and no `connection.declined` topic exists, so a requester is never told their request was declined (it just sits PENDING until it expires). `NotificationService` subscribes to the real names plus `RequestDeclined` forward-compatibly, so a backend ticket adding `connection.declined` + a `ConnectionDeclinedHandler` needs no Angular change. Until then the "Decline shows correct feedback" AC is met only for the decliner's own toast ("Request declined.") and for expiry.
+   Affects: a connection-service + notification-service backend ticket (new Kafka topic + schema in `contracts/kafka`, outbox write in decline, consumer + `RequestDeclined` dispatch) — no task ID yet.
+
+2. **Pushes carry only `connectionId`, no sender identity.** So the in-app banner can only say "Someone nearby wants to connect with you", and the Inbound screen must call `GET /connections/pending` then `GET /user/users/{id}` per sender. The inbound card therefore shows name/photo/badge only; rating, destination, leaving-in and route-match (FIGMA Screen 10) are not available from any endpoint the recipient can call (same root gap as T064 follow-up 1).
+   Affects: whichever backend ticket enriches the connection/discovery contract.
+
+3. **`/chat/:connectionId` has no route yet.** `ConnectionFlowService.openChat` navigates there on `RequestAccepted` and after the recipient's Accept; until T068 registers the route the navigation is caught and a fallback toast shows. The param is the CONNECTION id (chat-service keys a room by connection id); T068 should resolve the room from it or decide to use the Mongo chat id from the chat hub's `ChatOpened` push instead.
+   Affects: T068 (Chat UI).
+
+4. **SignalR hub reconnect uses a stale token after expiry.** `accessTokenFactory` reads the stored access token on every (re)connect, and a 401 on the initial negotiate triggers `AuthService.refreshToken()`, but a 401 during an automatic reconnect attempt just retries with the same token until some REST call (via `AuthInterceptor`) refreshes it. Fine while the radar polls REST every few seconds; on an idle screen after token expiry the socket could keep failing until the next REST call.
+   Affects: a future auth-hardening pass (proactive refresh before expiry).
+
+5. **`@microsoft/signalr` was missing from `package.json`.** Added `^8.0.7` by hand; the Tech Lead must run `npm install` (updates `package-lock.json`).
+
+6. **(Review) Failed first `start()` retries at a fixed 2 s with no backoff and no logout.** `notification.service.ts:170-177` — with a missing/expired token the negotiate 401 triggers `refreshToken()` (fails fast) and the loop repeats every 2 s forever, contradicting the file's own "never hammer" comment. Use the `RECONNECT_DELAYS_MS` ladder and call `authService.clearToken()` (-> login redirect) when the refresh fails.
+   Affects: a future auth-hardening pass (same item as follow-up 4); T068 (Chat UI) if it reuses the hub/auth plumbing.
+
+7. **(Review) JWT written to the browser console in non-production builds.** `notification.service.ts:112` configures `LogLevel.Information`, and SignalR's `WebSocketTransport` logs `WebSocket connected to <url>` including `?access_token=<full JWT>`. Use `LogLevel.Warning` (or None) in all builds, or gate Information behind an explicit opt-in flag. The same applies to any hub service T068 adds.
+   Affects: T068 (Chat UI — chat hub service must copy the fixed log level, not the current one).
+
+8. **(Review) Small robustness fixes in the connection flow.** (a) `notification.service.ts:128` — `onclose` does not check `this.connection === connection`, so a quick logout/login could let the old socket's close restart the new one. (b) `inbound-request.component.ts:171-173` — after Accept succeeds `isActing` resets and the card stays live until navigation; call `removeCurrent()` or keep `isActing` true so a failed pre-T068 chat navigation does not leave a live Accept button. (c) `connection-flow.service.ts:107` — an empty-string `connectionId` becomes `0` and navigates to `/chat/0`; use `Number(...)` with a `> 0` check.
+   Affects: T068 (Chat UI — the Accept -> chat navigation first becomes real here).
+
+9. **(Review) Radar "Request Sent" state never resets.** `radar.component.ts:513` discards `connection_id` from the `POST /connections` response and RadarComponent does not react to `RequestExpired` / `RequestDeclined`, so after an expiry toast that user's card stays "Request Sent" and disabled until the component is recreated, even though the server would allow a re-send. Store `connection_id` per userId and reset the card state on those pushes.
+   Affects: next Phase 11 task that touches RadarComponent; the backend decline-push ticket from follow-up 1.
+
+10. **(Review) Requester side has no resync after a reconnect.** Inbound requests are re-fetched from `GET /connections/pending` on every `established$`, but a `RequestAccepted` / `RequestExpired` push missed while the socket was down is never recovered, so the requester can sit on "Request Sent" indefinitely. Also, a redelivered Kafka event can push twice (notification-service records `processed_events` after dispatch), giving duplicate banners/sounds/toasts — consider client-side dedupe by connectionId.
+    Affects: a backend ticket exposing the requester's outbound-request status (no task ID yet); T068 (Chat UI) for accept recovery.

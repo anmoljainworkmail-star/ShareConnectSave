@@ -1,0 +1,74 @@
+<!--
+  FIGMA_SPEC.md SCREEN 17 -- Discovery Filters (half-height bottom sheet over
+  a violet-tinted overlay). Clicking the overlay dismisses; clicks inside the
+  sheet are stopped from bubbling to it.
+-->
+<div class="filters-overlay" (click)="dismiss()">
+  <div
+    class="filters-sheet"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="filters-title"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="handle" aria-hidden="true"></div>
+    <h2 id="filters-title" class="filters-title">Discovery Filters</h2>
+
+    <div class="filter-group">
+      <label class="filter-label" for="radius">
+        <span>Radius</span>
+        <span class="filter-value">{{ radiusKm | number: '1.1-1' }} km</span>
+      </label>
+      <input
+        id="radius"
+        name="radius"
+        type="range"
+        class="radius-slider"
+        [min]="minRadiusKm"
+        [max]="maxRadiusKm"
+        [step]="radiusStepKm"
+        [(ngModel)]="radiusKm"
+      />
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label" id="window-label">Departure window</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="window-label">
+        <button
+          type="button"
+          role="radio"
+          class="segment"
+          *ngFor="let minutes of departureWindowOptions"
+          [class.selected]="departureWindowMinutes === minutes"
+          [attr.aria-checked]="departureWindowMinutes === minutes"
+          (click)="selectDepartureWindow(minutes)"
+        >
+          &plusmn;{{ minutes }} min
+        </button>
+      </div>
+    </div>
+
+    <!--
+      Structural directive (*ngIf), NOT [hidden]/display:none: for a user this
+      toggle does not apply to, the element and its binding are never created,
+      so DevTools shows nothing. A CSS-hidden control would still sit in the
+      DOM and quietly reveal that a gender-based mode exists and how it is
+      wired -- REQUIREMENTS.md section 10 keeps gender strictly a server-side
+      filter predicate. Principle: don't ship (even invisibly) what the user
+      isn't entitled to use.
+    -->
+    <div class="filter-group filter-row" *ngIf="showWomenOnly">
+      <label class="filter-label" for="women-only">Women-only mode</label>
+      <input
+        id="women-only"
+        name="womenOnly"
+        type="checkbox"
+        role="switch"
+        class="toggle"
+        [(ngModel)]="womenOnly"
+      />
+    </div>
+
+    <button type="button" class="apply-btn" (click)="apply()">Apply Filters</button>
+  </div>
+</div>

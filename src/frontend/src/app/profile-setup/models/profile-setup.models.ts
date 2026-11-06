@@ -45,3 +45,13 @@ export interface ProfileMutationApiResponse {
   profile: UserProfileDto;
   access_token?: string;
 }
+
+// Mirrors user-service's PublicUserProfileDto.cs (GET /users/{id}) exactly --
+// by construction it has no gender/phone, so anything that renders another
+// person from it (T067's inbound-request card) cannot leak them.
+export interface PublicUserProfileDto {
+  id: number;
+  name: string;
+  photo_url: string | null;
+  identity_badge: boolean;
+}

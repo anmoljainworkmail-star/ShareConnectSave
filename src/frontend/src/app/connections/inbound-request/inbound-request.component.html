@@ -1,0 +1,76 @@
+<!--
+  FIGMA_SPEC.md SCREEN 10 -- Inbound Request. Not one of the two
+  pixel-perfect-mockup screens; follows the written spec + tokens.css.
+  Half-height bottom sheet: "New Request" title, the sender's card, a
+  countdown ("Expires in 8:42") with a shrinking ring around Accept, and
+  [Decline] [Accept]. States: default / expired (buttons disabled, "This
+  request has expired.") / loading / nothing waiting / load error.
+-->
+<div class="inbound-page">
+  <app-ambient-background></app-ambient-background>
+
+  <div class="sheet-overlay">
+    <div class="sheet-container">
+      <!-- Sender's card: reused from T064 (UserCardModule), photo fetch and
+           all. [showSendRequest]="false" hides its Send/Report row; our own
+           buttons are projected into its <ng-content>. -->
+      <app-user-card
+        *ngIf="current as request; else emptyState"
+        [user]="request.sender"
+        [showSendRequest]="false"
+        (dismissed)="closeSheet()"
+      >
+        <div cardHeader class="request-heading">New Request</div>
+        <div class="waiting-behind" *ngIf="waitingBehind > 0">{{ waitingBehind }} more waiting</div>
+
+        <div class="expiry-note" *ngIf="isExpired; else countdown">This request has expired.</div>
+        <ng-template #countdown>
+          <div class="expiry-note">{{ countdownLabel }}</div>
+        </ng-template>
+
+        <div class="inbound-actions">
+          <ng-container *ngIf="!isExpired; else expiredActions">
+            <button type="button" class="btn-ghost" [disabled]="isActing" (click)="decline()">Decline</button>
+
+            <div class="accept-wrap">
+              <!-- Request-expiry ring (FIGMA_SPEC.md section 6): pathLength=1
+                   lets the dash math be a plain 0..1 fraction regardless of
+                   the button's rendered size. -->
+              <svg class="expiry-ring" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <rect
+                  x="1"
+                  y="1"
+                  width="98"
+                  height="98"
+                  rx="7"
+                  ry="24"
+                  pathLength="1"
+                  stroke-dasharray="1"
+                  [attr.stroke-dashoffset]="1 - ringFraction"
+                ></rect>
+              </svg>
+              <button type="button" class="btn-primary" [disabled]="isActing" (click)="accept()">
+                {{ isActing ? 'Please wait...' : 'Accept' }}
+              </button>
+            </div>
+          </ng-container>
+          <ng-template #expiredActions>
+            <button type="button" class="btn-ghost" (click)="dismissExpired()">Dismiss</button>
+            <button type="button" class="btn-primary" disabled>Accept</button>
+          </ng-template>
+        </div>
+      </app-user-card>
+
+      <ng-template #emptyState>
+        <div class="empty-sheet">
+          <button type="button" class="handle" aria-label="Close" (click)="closeSheet()"></button>
+          <div class="request-heading">New Request</div>
+          <p class="empty-message" *ngIf="isLoading">Checking for requests...</p>
+          <p class="empty-message" *ngIf="!isLoading && loadError">{{ loadError }}</p>
+          <p class="empty-message" *ngIf="!isLoading && !loadError">No requests are waiting for you.</p>
+          <button type="button" class="btn-primary back-button" (click)="closeSheet()">Back to radar</button>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>

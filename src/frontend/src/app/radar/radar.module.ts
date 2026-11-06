@@ -4,22 +4,17 @@ import { FormsModule } from '@angular/forms';
 
 import { SharedModule } from '../shared/shared.module';
 import { RadarRoutingModule } from './radar-routing.module';
+import { DiscoveryFiltersPanelComponent } from './discovery-filters-panel/discovery-filters-panel.component';
 import { RadarComponent } from './radar/radar.component';
 import { UserAvatar3dComponent } from './user-avatar-3d/user-avatar-3d.component';
-import { UserCardComponent } from './user-card/user-card.component';
+import { UserCardModule } from './user-card/user-card.module';
 
 // Module-based only (project-wide Angular rule, no standalone components) --
 // both screen components this ticket builds are declared here.
-// UserCardComponent is declared (not just used) in THIS module because
-// Angular requires every component to be declared by exactly one NgModule,
-// but it is written to be import-and-reuse-able from a different feature
-// module too: T067's InboundRequestComponent (a different module,
-// ConnectionModule) will need RadarModule added to ITS `imports` array and
-// UserCardComponent added to RadarModule's `exports` array below -- the same
-// shape SharedModule components use, just scoped to this one reusable
-// component rather than the whole module, since UserCardComponent is
-// Radar-family-specific (Interface Segregation note in the ticket: it is
-// shaped around "show one discovered user's data," not around Radar itself).
+// UserCardComponent (T064) is no longer declared here: T067 needed it in a
+// second feature module (ConnectionsModule's InboundRequestComponent), so it
+// moved into its own UserCardModule -- see that file's comment for why
+// importing RadarModule itself would have dragged Radar's routes along.
 // RadarDiscoveryService/UserProfileService are plain
 // @Injectable({ providedIn: 'root' }) services, so neither appears here --
 // only the two screen components are feature-module-local.
@@ -29,8 +24,9 @@ import { UserCardComponent } from './user-card/user-card.component';
 // unlike AmbientBackgroundComponent which genuinely spans unrelated feature
 // modules.
 @NgModule({
-  declarations: [RadarComponent, UserCardComponent, UserAvatar3dComponent],
-  imports: [CommonModule, FormsModule, RadarRoutingModule, SharedModule],
-  exports: [UserCardComponent]
+  // DiscoveryFiltersPanelComponent (T066) is declared here -- Radar-specific
+  // (opened only from RadarComponent), same reasoning as UserAvatar3dComponent.
+  declarations: [RadarComponent, UserAvatar3dComponent, DiscoveryFiltersPanelComponent],
+  imports: [CommonModule, FormsModule, RadarRoutingModule, SharedModule, UserCardModule]
 })
 export class RadarModule {}

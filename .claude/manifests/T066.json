@@ -1,0 +1,23 @@
+{
+  "task_id": "T066",
+  "title": "Discovery Filters Panel",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/app/radar/scan-session.service.ts",
+    "src/frontend/src/app/radar/discovery-filters-panel/discovery-filters-panel.component.ts",
+    "src/frontend/src/app/radar/discovery-filters-panel/discovery-filters-panel.component.html",
+    "src/frontend/src/app/radar/discovery-filters-panel/discovery-filters-panel.component.css",
+    "src/frontend/src/app/radar/models/radar.models.ts",
+    "src/frontend/src/app/radar/radar.module.ts",
+    "src/frontend/src/app/radar/radar/radar.component.ts",
+    "src/frontend/src/app/radar/radar/radar.component.html",
+    "src/frontend/src/app/radar/radar/radar.component.css",
+    "src/frontend/src/app/profile-setup/user-profile.service.ts"
+  ],
+  "criteria_checked": {
+    "AC1 women-only toggle hidden for non-female users": "PASS",
+    "AC2 filter changes apply on next scan start": "PASS",
+    "AC3 defaults 1 km / +-30 min": "PASS"
+  },
+  "last_note": "Complete. tsc --noEmit and ngc --noEmit (tsconfig.app.json) both clean. Flags: backend ScanStartRequest has no radius_km/departure_window_minutes fields yet (ignored by Jackson); ScanSessionService did not exist so created; UserProfileService.isFemale() added; desktop popover variant (Screen 17 desktop note) not built, bottom sheet used at all widths like the other radar sheets."
+}

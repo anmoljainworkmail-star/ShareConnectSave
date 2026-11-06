@@ -67,6 +67,7 @@ public interface IChatRoomRepository
     Task<ChatRoomEntity?> CloseRoomAsync(
         string chatId,
         DateTime closedAtUtc,
+        string closedReason,
         string outboxEventType,
         string outboxPayload,
         DateTime outboxCreatedAtUtc);

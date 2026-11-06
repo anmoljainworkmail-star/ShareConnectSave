@@ -1,0 +1,133 @@
+<!--
+  FIGMA_SPEC.md SCREEN 12 -- Chat, plus SCREEN 13 -- Met Successfully
+  confirmation. Screen 12 has an approved pixel-perfect mockup
+  (https://claude.ai/artifact/CAu6pBZqysAqa8yKct6jrw): sent bubbles use the
+  primary gradient, received bubbles Violet-100 with a small avatar, system
+  lines are grey italics, and "Met Successfully" is the one green element,
+  always visible above the input, with a slow pulse ring. Per the spec the page
+  is plain --color-background (no ambient atlas, no ripple behind the scroll
+  area -- "too distracting while reading").
+-->
+<div class="chat-page">
+  <div class="chat-shell">
+    <header class="chat-appbar">
+      <button type="button" class="icon-button" aria-label="Back to radar" (click)="goBack()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+
+      <!-- Header shows BOTH users' names (ticket): the companion is the title,
+           the signed-in user is the subtitle. -->
+      <div class="who">
+        <div class="avatar avatar-header">
+          <img *ngIf="photoUrl; else headerInitials" [src]="photoUrl" alt="" />
+          <ng-template #headerInitials>{{ initials(otherName) }}</ng-template>
+        </div>
+        <div class="who-text">
+          <span class="name">{{ otherName }}</span>
+          <span class="subtitle" *ngIf="participants as people">You: {{ people.myName }}</span>
+        </div>
+      </div>
+
+      <button type="button" class="icon-button" aria-label="Report this user" (click)="reportUser()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 21V4m0 0h13l-2 4 2 4H4" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- Offline banner (required, not polish): amber bar under the app bar
+         whenever the socket is not live. role=status announces it to screen
+         readers without stealing focus. -->
+    <div class="offline-banner" *ngIf="isOffline && viewState !== 'unavailable'" role="status">
+      <span class="offline-dot" aria-hidden="true"></span>
+      {{ offlineLabel }}
+    </div>
+
+    <ng-container [ngSwitch]="viewState">
+      <div class="state-panel" *ngSwitchCase="'resolving'" role="status">
+        <p class="state-message">Opening your chat...</p>
+      </div>
+
+      <div class="state-panel" *ngSwitchCase="'unavailable'">
+        <p class="state-message">This chat is not available.</p>
+        <p class="state-hint">It may have closed, or it could not be opened from this screen.</p>
+        <button type="button" class="btn-primary" (click)="goBack()">Back to radar</button>
+      </div>
+
+      <ng-container *ngSwitchCase="'ready'">
+        <!-- role=log + aria-live: new messages are announced politely. -->
+        <div class="chat-body" #scrollArea (scroll)="onScroll()" role="log" aria-live="polite">
+          <ng-container *ngFor="let item of timeline; trackBy: trackByKey">
+            <div class="sys-msg" *ngIf="item.kind === 'system'">{{ item.text }}</div>
+
+            <div class="timestamp" *ngIf="item.kind === 'timestamp'">{{ item.at | date: 'shortTime' }}</div>
+
+            <ng-container *ngIf="item.kind === 'message'">
+              <div class="bubble-row" [class.sent]="isSentByMe(item.message)" [class.received]="!isSentByMe(item.message)">
+                <div class="avatar avatar-bubble" *ngIf="!isSentByMe(item.message)" aria-hidden="true">
+                  {{ initials(otherName) }}
+                </div>
+                <!-- Interpolation (not innerHTML): message text is untrusted
+                     input from another user and must never be parsed as HTML. -->
+                <div class="bubble">{{ item.message.content }}</div>
+              </div>
+            </ng-container>
+          </ng-container>
+        </div>
+
+        <div class="chat-footer">
+          <!-- Always visible, never skips the dialog: the button only OPENS
+               the confirmation. -->
+          <button type="button" class="met-btn" (click)="openMetDialog()">Met Successfully</button>
+
+          <div class="input-row">
+            <input
+              class="field"
+              type="text"
+              name="message"
+              autocomplete="off"
+              aria-label="Type a message"
+              [placeholder]="isOffline ? 'Reconnecting...' : 'Type a message...'"
+              [(ngModel)]="draft"
+              [disabled]="isOffline"
+              (keydown.enter)="send()"
+            />
+            <button type="button" class="send-btn" aria-label="Send message" [disabled]="!canSend" (click)="send()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 2L11 13" />
+                <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </ng-container>
+    </ng-container>
+  </div>
+
+  <!-- SCREEN 13: confirmation modal over Screen 12. Backdrop is the
+       violet-tinted --color-overlay; click-outside and Esc both mean "Not yet". -->
+  <div class="dialog-backdrop" *ngIf="showMetDialog" (click)="cancelMet()">
+    <div
+      class="dialog-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="met-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <svg class="dialog-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M8 12.5l3 3 5-6" />
+      </svg>
+      <h2 id="met-dialog-title" class="dialog-title">Did you meet {{ otherName }}?</h2>
+      <p class="dialog-body">This will close the chat and prompt you both to rate each other.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-ghost" [disabled]="isConfirmingMet" (click)="cancelMet()">Not yet</button>
+        <button type="button" class="btn-primary" [disabled]="isConfirmingMet" (click)="confirmMet()">
+          {{ isConfirmingMet ? 'Please wait...' : 'Yes, Met!' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

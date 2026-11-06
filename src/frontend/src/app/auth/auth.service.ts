@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, firstValueFrom, throwError } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
@@ -13,6 +13,10 @@ import {
 } from './models/auth.models';
 
 const ACCESS_TOKEN_STORAGE_KEY = 'scs_access_token';
+
+// Refresh this long BEFORE the access token's exp, so a token is never handed
+// to a handshake with only seconds left (it could expire mid-negotiate).
+const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 60_000;
 
 // Separate storage key, not a second field inside the access-token record:
 // an access token and a refresh token are two different credentials with
@@ -128,6 +132,24 @@ export class AuthService {
     return this.readStorage(ACCESS_TOKEN_STORAGE_KEY);
   }
 
+  // Proactive refresh (vs reactive): a long-lived SignalR connection reconnects
+  // for hours, and every reconnect re-sends whatever token the factory returns.
+  // Waiting for the server to answer 401 first means the reconnect loop keeps
+  // retrying with an expired token forever. So we check the token's own exp
+  // BEFORE handing it out and refresh if it is about to lapse.
+  // This reads the client's OWN expiry to decide when to ask for a new token.
+  // It trusts no claim: the gateway still verifies the signature on every request.
+  getFreshAccessToken(): Promise<string> {
+    const token = this.getToken();
+    // Guard clause: nothing stored, or still comfortably valid -- hand it out as is.
+    if (token === null || !this.isNearExpiry(token)) {
+      return Promise.resolve(token ?? '');
+    }
+    // On refresh failure, return the old token: the handshake then fails with a
+    // 401, and the retry loop surfaces that as a disconnected state (no silent swallow).
+    return firstValueFrom(this.refreshToken()).catch(() => token);
+  }
+
   storeToken(token: string): void {
     this.writeStorage(ACCESS_TOKEN_STORAGE_KEY, token);
     this.authenticated$.next(true);
@@ -153,6 +175,32 @@ export class AuthService {
 
   private getRefreshToken(): string | null {
     return this.readStorage(REFRESH_TOKEN_STORAGE_KEY);
+  }
+
+  // A JWT is three base64url segments; the middle one is a JSON claims object.
+  // exp is seconds since the epoch (RFC 7519). An unreadable token reports
+  // "not near expiry" -- the 401 path in the hub services still covers it.
+  private isNearExpiry(token: string): boolean {
+    const expiresAtMs = this.readExpiryMs(token);
+    if (expiresAtMs === null) {
+      return false;
+    }
+    return expiresAtMs - Date.now() < ACCESS_TOKEN_REFRESH_LEEWAY_MS;
+  }
+
+  private readExpiryMs(token: string): number | null {
+    const payload = token.split('.')[1];
+    if (!payload) {
+      return null;
+    }
+    try {
+      // base64url -> base64; atob() tolerates the missing padding.
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const claims = JSON.parse(atob(base64)) as { exp?: unknown };
+      return typeof claims.exp === 'number' ? claims.exp * 1000 : null;
+    } catch {
+      return null;
+    }
   }
 
   private hasStoredToken(): boolean {

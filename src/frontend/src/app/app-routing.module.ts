@@ -44,6 +44,15 @@ const routes: Routes = [
     path: 'connections',
     canActivate: [AuthGuard],
     loadChildren: () => import('./connections/connections.module').then(m => m.ConnectionsModule)
+  },
+  // T068: Chat (FIGMA_SPEC.md Screen 12), /chat/:connectionId. Guarded like
+  // every protected feature route; like connections above, the always-on part
+  // (hub connection, ChatOpened/ChatClosed navigation) is started from
+  // AppComponent, not behind this lazy route.
+  {
+    path: 'chat',
+    canActivate: [AuthGuard],
+    loadChildren: () => import('./features/chat/chat.module').then(m => m.ChatModule)
   }
 ];
 

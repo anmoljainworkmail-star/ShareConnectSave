@@ -11,5 +11,6 @@
 export const environment = {
   production: true,
   apiBase: process.env['API_BASE_URL'] as string,
-  googleClientId: process.env['GOOGLE_CLIENT_ID'] as string
+  googleClientId: process.env['GOOGLE_CLIENT_ID'] as string,
+  chatLifetimeMinutes: Number(process.env['CHAT_LIFETIME_MINUTES'])
 };

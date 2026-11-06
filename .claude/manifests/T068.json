@@ -1,0 +1,31 @@
+{
+  "task_id": "T068",
+  "title": "Chat UI",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/app/shared/signalr/unlimited-retry-policy.ts",
+    "src/frontend/src/app/features/chat/models/chat.models.ts",
+    "src/frontend/src/app/features/chat/services/chat-signalr.service.ts",
+    "src/frontend/src/app/features/chat/services/chat-api.service.ts",
+    "src/frontend/src/app/features/chat/services/chat-flow.service.ts",
+    "src/frontend/src/app/features/chat/chat.component.ts",
+    "src/frontend/src/app/features/chat/chat.component.html",
+    "src/frontend/src/app/features/chat/chat.component.css",
+    "src/frontend/src/app/features/chat/chat.module.ts",
+    "src/frontend/src/app/features/chat/chat-routing.module.ts",
+    "src/frontend/src/app/connections/notification.service.ts",
+    "src/frontend/src/app/connections/connection.service.ts",
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/app/app.component.ts",
+    "src/frontend/src/environments/environment.ts",
+    "src/frontend/src/environments/environment.prod.ts",
+    "src/frontend/angular.json",
+    "src/frontend/src/styles/tokens.css"
+  ],
+  "criteria_checked": {
+    "AC1": "PASS",
+    "AC2": "PASS",
+    "AC3": "PASS"
+  },
+  "last_note": "Implementation complete; ng build --configuration development passes. Backend gaps (no ChatClosed push, no connection->chat lookup) documented in report."
+}

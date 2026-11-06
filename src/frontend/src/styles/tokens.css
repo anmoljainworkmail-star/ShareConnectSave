@@ -162,6 +162,38 @@
   --radar-ble-banner-border: color-mix(in srgb, var(--color-warning) 40%, transparent);
 
   /*
+   * Chat-family tokens (FIGMA_SPEC.md Screens 12-13: Chat / Met Successfully
+   * confirmation), added for T068. Screen 12 has an approved pixel-perfect
+   * mockup (https://claude.ai/artifact/CAu6pBZqysAqa8yKct6jrw); sizes the
+   * written spec leaves open (bar height, avatar sizes, bubble padding/tail,
+   * the pulse ring) are transcribed from that mockup's rendered CSS, the same
+   * "mockup is the source of truth" rule the radar-family tokens above follow.
+   * --radius-dialog is Screen 13's written "20px radius" -- not an existing
+   * token (--radius-pill is also 20px but means something else).
+   */
+  --radius-dialog: 20px;
+  --chat-gutter: 14px;
+  --chat-appbar-height: 56px;
+  --chat-avatar-size: 32px;
+  --chat-bubble-avatar-size: 26px;
+  --chat-bubble-radius: 18px;
+  --chat-bubble-tail-radius: 6px;
+  --chat-bubble-padding: 10px 13px;
+  --chat-bubble-max-width: 78%;
+  --chat-control-height: 46px;
+  --chat-send-size: 40px;
+  /* "Met Successfully" pulse: a soft success-green ring that expands and
+     fades every 4s (mockup's met-pulse keyframes). Derived from
+     --color-success so it can never drift from the button's own green. */
+  --chat-met-pulse-ring: color-mix(in srgb, var(--color-success) 35%, transparent);
+  --chat-met-pulse-spread: 7px;
+  --chat-met-pulse-duration: 4s;
+  /* Offline banner (FIGMA_SPEC.md Screen 12: "amber bar below app bar"). */
+  --chat-offline-bg: var(--color-warning-light);
+  --chat-offline-text: var(--color-text-primary);
+  --chat-offline-border: color-mix(in srgb, var(--color-warning) 40%, transparent);
+
+  /*
    * Atlas background tokens -- the app's FINALIZED ambient background
    * (AmbientBackgroundComponent, SharedModule), used behind every screen
    * (Login, OTP, Profile Setup, Radar), approved design:

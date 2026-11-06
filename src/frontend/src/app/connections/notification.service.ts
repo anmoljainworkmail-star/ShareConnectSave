@@ -1,10 +1,15 @@
 import { Injectable } from '@angular/core';
-import { HttpError, HubConnection, HubConnectionBuilder, IRetryPolicy, LogLevel, RetryContext } from '@microsoft/signalr';
+import { HttpError, HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import {
+  RECONNECT_DELAYS_MS,
+  RECONNECT_STEADY_DELAY_MS,
+  UnlimitedRetryPolicy
+} from '../shared/signalr/unlimited-retry-policy';
 import {
   HubConnectionStatus,
   NOTIFICATION_EVENT_NAMES,
@@ -13,24 +18,9 @@ import {
   NotificationPayload
 } from './models/connection.models';
 
-// Reconnect schedule (milliseconds). SignalR's built-in default gives up after
-// four attempts (~42 seconds total) and then the connection is dead until the
-// page reloads -- a phone that walks through a tunnel or lets the tab sleep
-// for a minute would silently stop receiving connection requests forever.
-// "SignalR reconnects automatically" (T067 AC3) therefore needs a custom
-// IRetryPolicy that never returns null: quick first retries for a blip, then
-// a steady 30 s heartbeat for a long outage.
-const RECONNECT_DELAYS_MS = [0, 2_000, 5_000, 10_000] as const;
-const RECONNECT_STEADY_DELAY_MS = 30_000;
-
-// Backoff-with-a-ceiling: never hammer a struggling server (delay grows),
-// never give up either (delay stops growing, retries continue).
-class UnlimitedRetryPolicy implements IRetryPolicy {
-  nextRetryDelayInMilliseconds(retryContext: RetryContext): number {
-    return RECONNECT_DELAYS_MS[retryContext.previousRetryCount] ?? RECONNECT_STEADY_DELAY_MS;
-  }
-}
-
+// "SignalR reconnects automatically" (T067 AC3) needs a custom IRetryPolicy
+// that never gives up -- moved to a shared file in T068 so the chat hub reuses
+// the exact same schedule instead of keeping a second copy.
 // Observer (GoF) -- the project's own Kafka-topics pattern, here on the
 // browser end of a WebSocket. Plain English: a newspaper does not know who its
 // subscribers are or what they do with it; it just gets delivered, and each
@@ -103,10 +93,12 @@ export class NotificationService {
         // request, so SignalR sends this as `?access_token=` -- exactly what
         // the gateway's JwtValidationMiddleware accepts for /hubs/ paths
         // (T067 "Known follow-ups"; do not replace with a header). A factory
-        // (not a captured string) so every reconnect reads the CURRENT token,
-        // including one AuthInterceptor refreshed in the meantime. The token
-        // comes from AuthService's storage -- never hardcoded here.
-        accessTokenFactory: () => this.authService.getToken() ?? ''
+        // (not a captured string) so every reconnect asks for the CURRENT token.
+        // getFreshAccessToken() refreshes it BEFORE it expires, because SignalR's
+        // own HTTP calls bypass AuthInterceptor -- without this, a reconnect
+        // after the 60-minute access token lapses would 401 forever. The token
+        // itself comes from AuthService's storage -- never hardcoded here.
+        accessTokenFactory: () => this.authService.getFreshAccessToken()
       })
       .withAutomaticReconnect(new UnlimitedRetryPolicy())
       .configureLogging(environment.production ? LogLevel.Warning : LogLevel.Information)

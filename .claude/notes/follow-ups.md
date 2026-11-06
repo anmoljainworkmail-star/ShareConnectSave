@@ -1453,3 +1453,29 @@ whose implementation or ticket should pick it up.
 
 10. **(Review) Requester side has no resync after a reconnect.** Inbound requests are re-fetched from `GET /connections/pending` on every `established$`, but a `RequestAccepted` / `RequestExpired` push missed while the socket was down is never recovered, so the requester can sit on "Request Sent" indefinitely. Also, a redelivered Kafka event can push twice (notification-service records `processed_events` after dispatch), giving duplicate banners/sounds/toasts — consider client-side dedupe by connectionId.
     Affects: a backend ticket exposing the requester's outbound-request status (no task ID yet); T068 (Chat UI) for accept recovery.
+
+## From T068 (Chat UI)
+
+1. **Concurrent token refreshes are not de-duplicated.** `auth.service.ts` `getFreshAccessToken` — when both hubs (chat + notification) reconnect near expiry, each fires its own `POST /auth/refresh`. Harmless today because refresh tokens are not rotated, but it breaks the day rotation is added. Share one in-flight refresh promise. Also remove the stale "plain synchronous getter" comment at `auth.service.ts:123-133` and the redundant refresh in `chat-signalr.service.ts` `refreshTokenIfRejected`.
+   Affects: a future auth-hardening pass (same item as follow-ups 4 and 6).
+
+2. **A lost `ChatClosed` push is not recovered while the socket stays up.** `CloseChatRoomService.cs:154-161` swallows a failed `SendAsync` (e.g. Redis backplane down); `established$` never fires, so the user stays in a dead chat and sees a generic "Message not sent". On a send failure / "closed" HubException, re-run `getChatByConnection` and route to rating if `CLOSED`.
+   Affects: T069 (Rating Flow entry path), a future chat-service hardening pass.
+
+3. **Hub reconnect can stay on "Reconnecting..." with clock skew or an expired refresh token.** If the device clock is behind, `isNearExpiry` stays false and the automatic-reconnect loop has no 401 handler; a hub-only session never logs out. Read `retryContext.retryReason` in `UnlimitedRetryPolicy` or force a refresh after N failures, and clear the token (login redirect) when refresh fails.
+   Affects: a future auth-hardening pass.
+
+4. **15 s room-resolve timeout leaves a dead "not available" screen.** `ROOM_RESOLVE_TIMEOUT_MS` in `chat.component.ts`; a later `ChatOpened` is ignored because `handleChatOpened` returns early when the URL already matches. Re-enter the room on `chatOpened$` while `viewState === 'unavailable'`, or retry the lookup on `established$`.
+   Affects: next Phase 11 task touching `ChatFlowService`; T096 (chat-opened confirmation).
+
+5. **Legacy met-closed rooms have a null `closed_reason`** and map to the lenient 'timeout' rating path (Skip offered). Only affects rooms closed before T068.
+   Affects: T069 (Rating Flow) — ignore or backfill when rating entry rules are finalised.
+
+6. **Figma Screen 12 gaps:** the "Chat closing in 5 minutes..." grace-period system line (needs a server push or status for the second user), header tap-to-view-profile, and raw px font sizes in `chat.component.css` that should become typography tokens.
+   Affects: a Phase 11 polish pass; backend push for CLOSING state (no task ID yet).
+
+7. **Robustness nits:** `loadParticipants` `forkJoin` fails the whole screen if either call errors (degrade to fallback names); `connected` status is emitted before `JoinRoom` resolves (small window where own echo is missed); no `maxlength` on the input and no server-side max message length in `SendMessageAsync`; `POST /chats/{id}/met` and `GET /chats/{id}/messages` still return 403 NOT_A_PARTICIPANT vs 404 (low risk, ObjectIds).
+   Affects: T081/T083 test tasks (add coverage), a chat-service hardening pass.
+
+8. **T069 question:** the first user to confirm Met is navigated to rating immediately, before the chat reaches CLOSED, but rating-service validates against `chat.closed`. Confirm the intended flow in the T069 spec before building the rating screen.
+   Affects: T069 (Rating Flow).

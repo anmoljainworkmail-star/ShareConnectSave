@@ -17,5 +17,10 @@
 export const environment = {
   production: false,
   apiBase: process.env['API_BASE_URL'] as string,
-  googleClientId: process.env['GOOGLE_CLIENT_ID'] as string
+  googleClientId: process.env['GOOGLE_CLIENT_ID'] as string,
+  // T068: mirrors chat-service's CHAT_AUTO_CLOSE_THRESHOLD_HOURS (2h, in
+  // minutes). Display-only -- it feeds the "Chat opened. You have 2 hours." and
+  // "closes in 30 minutes" system messages; the SERVER alone decides when a
+  // chat actually closes, so a drift here is cosmetic, never a behaviour bug.
+  chatLifetimeMinutes: Number(process.env['CHAT_LIFETIME_MINUTES'])
 };

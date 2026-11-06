@@ -47,6 +47,25 @@ public class ChatController(IChatService chatService, IChatLifecycleService chat
         };
     }
 
+    // Pull twin of the ChatOpened push - see ChatRoomLookupResponse's comment.
+    [HttpGet("/chats/by-connection/{connectionId}")]
+    public async Task<IActionResult> GetByConnection(string connectionId)
+    {
+        if (!HttpContext.TryGetUserId(out var userId))
+        {
+            return MissingIdentity();
+        }
+
+        var outcome = await chatService.GetChatByConnectionAsync(connectionId, userId);
+
+        return outcome.Result switch
+        {
+            GetChatByConnectionResult.Success => Ok(outcome.Room),
+            GetChatByConnectionResult.ChatRoomNotFound => ChatNotFound(),
+            _ => throw new InvalidOperationException($"Unhandled {nameof(GetChatByConnectionResult)}: {outcome.Result}"),
+        };
+    }
+
     [HttpPost("/chats/{id}/met")]
     public async Task<IActionResult> MarkMetSuccessfully(string id)
     {

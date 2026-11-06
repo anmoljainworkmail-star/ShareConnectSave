@@ -32,7 +32,29 @@ public interface IChatService
     // real room the caller isn't part of collapse to the same false, same as
     // every other method's chatId guard below.
     Task<bool> IsParticipantAsync(string chatId, long userId);
+
+    // T068 follow-up: the Angular route is /chat/:connectionId (the id the
+    // connection flow already has) but every chat operation keys on the Mongo
+    // chat id. This is the lookup that bridges the two, so a client that
+    // missed the one-time ChatOpened push (page reload, late connect) can
+    // still find its room. A non-participant gets the same ChatRoomNotFound as
+    // a missing room - see GetChatByConnectionResult's comment.
+    Task<GetChatByConnectionOutcome> GetChatByConnectionAsync(string connectionId, long requestingUserId);
 }
+
+// Existence oracle (security): if "exists but not yours" had its own result,
+// a caller could walk connection ids and learn which ones have rooms. Plain
+// English: a hotel that answers "room is occupied" to strangers and "no such
+// room" to nobody has told them which doors are used. So "not yours" and
+// "does not exist" share one outcome, and the controller maps both to the
+// same 404.
+public enum GetChatByConnectionResult
+{
+    Success,
+    ChatRoomNotFound,
+}
+
+public record GetChatByConnectionOutcome(GetChatByConnectionResult Result, ChatRoomLookupResponse? Room);
 
 // Result Object (same convention as user-service's ProfileUpdateResult):
 // ChatHub.SendMessage and ChatController share this exact outcome shape -

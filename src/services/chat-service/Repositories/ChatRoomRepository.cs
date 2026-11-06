@@ -85,6 +85,7 @@ public sealed class ChatRoomRepository : IChatRoomRepository
     public async Task<ChatRoomEntity?> CloseRoomAsync(
         string chatId,
         DateTime closedAtUtc,
+        string closedReason,
         string outboxEventType,
         string outboxPayload,
         DateTime outboxCreatedAtUtc)
@@ -101,6 +102,7 @@ public sealed class ChatRoomRepository : IChatRoomRepository
         var update = Builders<ChatRoomEntity>.Update.Combine(
             Builders<ChatRoomEntity>.Update.Set(r => r.Status, ChatRoomStatus.CLOSED),
             Builders<ChatRoomEntity>.Update.Set(r => r.ClosedAt, closedAtUtc),
+            Builders<ChatRoomEntity>.Update.Set(r => r.ClosedReason, closedReason),
             Builders<ChatRoomEntity>.Update.Set(r => r.OutboxEventType, outboxEventType),
             Builders<ChatRoomEntity>.Update.Set(r => r.OutboxPayload, outboxPayload),
             Builders<ChatRoomEntity>.Update.Set(r => r.OutboxCreatedAt, outboxCreatedAtUtc),

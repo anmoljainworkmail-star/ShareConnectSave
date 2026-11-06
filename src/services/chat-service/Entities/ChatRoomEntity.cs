@@ -50,6 +50,14 @@ public sealed class ChatRoomEntity
     [BsonElement("closed_at")]
     public DateTime? ClosedAt { get; set; }
 
+    // T068 addition: why the room closed ("met_successfully" / "timeout" /
+    // "admin_closed"). Persisted on the room, not only inside the outbox
+    // payload, so the lookup endpoint can answer a reconnecting client
+    // without parsing JSON. Written in the same atomic CloseRoomAsync update
+    // as Status and ClosedAt, so it can never disagree with them.
+    [BsonElement("closed_reason")]
+    public string? ClosedReason { get; set; }
+
     // T036 addition (not part of T007's original schema, but Mongo is
     // schemaless so no migration/init-script change is needed to add a
     // field going forward): per-user "Met Successfully" confirmation.

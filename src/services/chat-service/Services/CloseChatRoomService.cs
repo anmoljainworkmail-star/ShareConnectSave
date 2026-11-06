@@ -1,10 +1,13 @@
 namespace chat_service.Services;
 
 using System.Text.Json;
+using chat_service.Dtos;
 using chat_service.Entities;
 using chat_service.Events;
+using chat_service.Hubs;
 using chat_service.Repositories.Interfaces;
 using chat_service.Services.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 
 // The ONE place in this codebase that implements "what closing a chat room
 // means" - see ICloseChatRoomService's comment for the Single
@@ -17,15 +20,18 @@ public class CloseChatRoomService : ICloseChatRoomService
 {
     private readonly IChatRoomRepository _chatRoomRepository;
     private readonly IMessageRepository _messageRepository;
+    private readonly IHubContext<ChatHub> _hubContext;
     private readonly ILogger<CloseChatRoomService> _logger;
 
     public CloseChatRoomService(
         IChatRoomRepository chatRoomRepository,
         IMessageRepository messageRepository,
+        IHubContext<ChatHub> hubContext,
         ILogger<CloseChatRoomService> logger)
     {
         _chatRoomRepository = chatRoomRepository;
         _messageRepository = messageRepository;
+        _hubContext = hubContext;
         _logger = logger;
     }
 
@@ -92,6 +98,7 @@ public class CloseChatRoomService : ICloseChatRoomService
         var closed = await _chatRoomRepository.CloseRoomAsync(
             chatId,
             closedAtUtc,
+            closedReason: closedReason,
             outboxEventType: "chat.closed",
             outboxPayload: payload,
             outboxCreatedAtUtc: closedAtUtc);
@@ -120,5 +127,39 @@ public class CloseChatRoomService : ICloseChatRoomService
             "chat.closed event durably enqueued via the Mongo-native outbox fields; " +
             "Kafka relay is T039's responsibility, not yet implemented.",
             chatId, closedReason);
+
+        await NotifyBothUsersClosedAsync(room, chatId, closedReason);
+    }
+
+    // Pattern: Observer (via events) - the outbox event above tells OTHER
+    // SERVICES (Rating) the chat closed; this push tells the two CLIENTS. They
+    // are two independent subscribers of the same fact, and neither knows the
+    // other exists. Without this push the Angular app has no way to learn a
+    // chat ended (it only listens on the hub, not on Kafka) and would leave
+    // the user staring at a dead chat screen instead of moving to rating.
+    //
+    // Sent to each user's PERSONAL group (user:{id}), not chat:{id}: a client
+    // that navigated away from the chat screen has left the per-chat group
+    // but must still be told to go rate.
+    //
+    // Best-effort by design: the room is already CLOSED and chat.closed is
+    // durably in the outbox, so a failed push (hub down, client offline) must
+    // never fail or retry the close itself. An offline client simply learns
+    // on its next lookup/reconnect; the authoritative state change is done.
+    private async Task NotifyBothUsersClosedAsync(ChatRoomEntity room, string chatId, string closedReason)
+    {
+        var notification = new ChatClosedNotification(chatId, room.ConnectionId, closedReason);
+
+        try
+        {
+            await _hubContext.Clients.Group(SignalRGroupNames.User(room.UserAId))
+                .SendAsync("ChatClosed", notification);
+            await _hubContext.Clients.Group(SignalRGroupNames.User(room.UserBId))
+                .SendAsync("ChatClosed", notification);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to push ChatClosed for chat {ChatId}; the close itself already succeeded.", chatId);
+        }
     }
 }

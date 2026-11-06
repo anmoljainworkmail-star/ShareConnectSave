@@ -194,6 +194,41 @@ public class ChatService : IChatService
         return room is not null && (room.UserAId == userId || room.UserBId == userId);
     }
 
+    public async Task<GetChatByConnectionOutcome> GetChatByConnectionAsync(string connectionId, long requestingUserId)
+    {
+        // Guard Clause: FindByConnectionIdAsync is an equality match on a
+        // string field, so no ObjectId format check is needed - an unknown or
+        // garbage value simply finds nothing.
+        if (string.IsNullOrWhiteSpace(connectionId))
+        {
+            return new GetChatByConnectionOutcome(GetChatByConnectionResult.ChatRoomNotFound, null);
+        }
+
+        var room = await _chatRoomRepository.FindByConnectionIdAsync(connectionId);
+
+        // Guard Clause, merged on purpose: "no room" and "room belongs to
+        // someone else" return the same outcome, so the response cannot be
+        // used to probe which connection ids have rooms (see
+        // GetChatByConnectionResult's comment).
+        if (room is null || room.Id is null)
+        {
+            return new GetChatByConnectionOutcome(GetChatByConnectionResult.ChatRoomNotFound, null);
+        }
+
+        if (room.UserAId != requestingUserId && room.UserBId != requestingUserId)
+        {
+            return new GetChatByConnectionOutcome(GetChatByConnectionResult.ChatRoomNotFound, null);
+        }
+
+        return new GetChatByConnectionOutcome(
+            GetChatByConnectionResult.Success,
+            new ChatRoomLookupResponse(
+                room.Id,
+                room.ConnectionId,
+                room.Status.ToString(),
+                room.ClosedReason));
+    }
+
     // Guard Clause helper, shared by every method above that takes a chatId.
     // ChatRoomEntity.Id is [BsonRepresentation(BsonType.ObjectId)], so the
     // Mongo driver builds an ObjectId filter out of chatId under the hood -

@@ -51,6 +51,16 @@ export class ConnectionService {
       .pipe(catchError(error => this.toApplicationError(error)));
   }
 
+  // T068: the chat header needs both participants' ids, and chat-service does
+  // not expose them -- connection-service does (requester_id / recipient_id).
+  // The server answers 204 when there is no active connection, which
+  // HttpClient surfaces as a null body; callers must handle null.
+  getActiveConnection(): Observable<ConnectionResponse | null> {
+    return this.http
+      .get<ConnectionResponse | null>(`${environment.apiBase}/connection/connections/active`)
+      .pipe(catchError(error => this.toApplicationError(error)));
+  }
+
   // Same normalization AuthService/UserProfileService/RadarDiscoveryService
   // each keep as their own private copy -- see UserProfileService's comment
   // for the duplication-vs-coupling reasoning this repeats.

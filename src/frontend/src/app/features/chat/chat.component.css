@@ -1,0 +1,429 @@
+/* Screen 12 (Chat) + Screen 13 (Met confirmation). Matched to the approved
+   Screen 12 mockup; every colour / space / radius / shadow is a tokens.css
+   variable (chat sizes live in tokens.css's chat-family block). */
+
+.chat-page {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: var(--color-background);
+  font-family: var(--font-family-base);
+}
+
+/* Same "cap + centre the content, keep the page background full-bleed" pattern
+   the radar/inbound screens use on wide viewports. (The two-panel desktop
+   shell from FIGMA_SPEC.md section 1a does not exist in the app yet.) */
+.chat-shell {
+  position: relative;
+  width: min(430px, 100%);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+}
+
+/* ---- App bar ---- */
+.chat-appbar {
+  flex: 0 0 auto;
+  height: calc(var(--chat-appbar-height) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) var(--chat-gutter) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.icon-button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-primary);
+}
+
+.icon-button svg {
+  width: var(--space-5);
+  height: var(--space-5);
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.who-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.avatar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-text-inverse);
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.avatar-header {
+  width: var(--chat-avatar-size);
+  height: var(--chat-avatar-size);
+  background: var(--violet-600);
+  font-size: 11px;
+}
+
+.avatar-header img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-bubble {
+  width: var(--chat-bubble-avatar-size);
+  height: var(--chat-bubble-avatar-size);
+  margin-top: var(--space-1);
+  background: var(--violet-500);
+  font-size: 9.5px;
+}
+
+/* ---- Offline banner (amber, below the app bar) ---- */
+.offline-banner {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--chat-gutter);
+  background: var(--chat-offline-bg);
+  color: var(--chat-offline-text);
+  border-bottom: 1px solid var(--chat-offline-border);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.offline-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-warning);
+  animation: offline-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes offline-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---- Loading / unavailable states ---- */
+.state-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.state-message {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.state-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Message list: newest at the bottom, scrolls ---- */
+.chat-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--chat-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sys-msg {
+  margin: 2px 0;
+  text-align: center;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+.timestamp {
+  margin: 2px 0;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.bubble-row {
+  display: flex;
+  gap: var(--space-2);
+  max-width: var(--chat-bubble-max-width);
+}
+
+.bubble-row.received {
+  align-self: flex-start;
+}
+
+.bubble-row.sent {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.bubble {
+  padding: var(--chat-bubble-padding);
+  border-radius: var(--chat-bubble-radius);
+  font-size: 13.5px;
+  line-height: 1.45;
+  /* Other people's text: wrap long unbroken strings, keep line breaks. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.received .bubble {
+  background: var(--violet-100);
+  color: var(--color-text-primary);
+  border-bottom-left-radius: var(--chat-bubble-tail-radius);
+}
+
+.sent .bubble {
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+  border-bottom-right-radius: var(--chat-bubble-tail-radius);
+}
+
+/* ---- Footer: Met Successfully above the input ---- */
+.chat-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-3) var(--chat-gutter) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  background: var(--color-background);
+}
+
+.met-btn {
+  width: 100%;
+  height: var(--chat-control-height);
+  border: none;
+  border-radius: var(--radius-button);
+  background: var(--color-success);
+  color: var(--color-text-inverse);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  animation: met-pulse var(--chat-met-pulse-duration) ease-in-out infinite;
+}
+
+@keyframes met-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--chat-met-pulse-ring);
+  }
+  50% {
+    box-shadow: 0 0 0 var(--chat-met-pulse-spread) transparent;
+  }
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  height: var(--chat-control-height);
+  padding: 0 var(--chat-gutter);
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+
+.field::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.send-btn {
+  flex: 0 0 auto;
+  width: var(--chat-send-size);
+  height: var(--chat-send-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--violet-600);
+  color: var(--color-text-inverse);
+  cursor: pointer;
+}
+
+.send-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-button:focus-visible,
+.send-btn:focus-visible,
+.met-btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-ghost:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ---- Screen 13: confirmation dialog ---- */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-overlay);
+}
+
+.dialog-card {
+  width: min(360px, 100%);
+  padding: var(--space-6);
+  border-radius: var(--radius-dialog);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-primary);
+}
+
+.dialog-icon {
+  width: var(--space-8);
+  height: var(--space-8);
+  color: var(--color-success);
+}
+
+.dialog-title {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dialog-body {
+  margin: 0 0 var(--space-5);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.btn-primary,
+.btn-ghost {
+  flex: 1 1 0;
+  height: var(--chat-control-height);
+  border-radius: var(--radius-button);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  border: none;
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+}
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-primary);
+}
+
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Unavailable-state button sits alone, not in the dialog's two-up row. */
+.state-panel .btn-primary {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 260px;
+}
+
+/* FIGMA_SPEC.md section 6 animations must respect the OS reduce-motion
+   setting: the pulse and blink are decoration, never information. */
+@media (prefers-reduced-motion: reduce) {
+  .met-btn,
+  .offline-dot {
+    animation: none;
+  }
+}

@@ -63,7 +63,15 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy => policy
         .WithOrigins(corsOptions.AllowedOrigins)
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        // SignalR (notification + chat hubs): the JS client's negotiate POST
+        // is sent with withCredentials=true by default, so the browser demands
+        // "Access-Control-Allow-Credentials: true" on the response or it blocks
+        // it as a CORS failure -- even though the Origin itself is allowed.
+        // Why this is safe: the spec forbids AllowCredentials combined with a
+        // wildcard origin, and WithOrigins above is an explicit allow-list, so
+        // credentials are only ever granted to origins we named.
+        .AllowCredentials());
 });
 
 // Typed HttpClient: lets the framework own HttpClient pooling/DNS-refresh

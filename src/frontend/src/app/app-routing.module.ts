@@ -53,6 +53,14 @@ const routes: Routes = [
     path: 'chat',
     canActivate: [AuthGuard],
     loadChildren: () => import('./features/chat/chat.module').then(m => m.ChatModule)
+  },
+  // T069: Rating (FIGMA_SPEC.md Screen 14), /rating/:connectionId. Entered via
+  // ChatFlowService.openRating with navigation state { entry: 'met' | 'timeout' }.
+  // Guarded like every protected feature route.
+  {
+    path: 'rating',
+    canActivate: [AuthGuard],
+    loadChildren: () => import('./features/rating/rating.module').then(m => m.RatingModule)
   }
 ];
 

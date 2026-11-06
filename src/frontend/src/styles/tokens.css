@@ -194,6 +194,34 @@
   --chat-offline-border: color-mix(in srgb, var(--color-warning) 40%, transparent);
 
   /*
+   * Global background texture + Rating-family tokens (FIGMA_SPEC.md "Global
+   * Background Texture" and Screen 14: Rating), added for T069.
+   * Ripple values are the spec's own: stroke-only circle, Violet-300 at 8%
+   * opacity, 1px stroke, r 200px -> 800px (a 4x scale of the 200px start),
+   * 8s loop, staggered offsets 0s / 2.7s / 5.3s. This is the first screen to
+   * build the texture; --ripple-* is global (not rating-specific) so every
+   * later "ripple" screen reuses it.
+   * Rating sizes the spec leaves open follow its own component rules: avatar
+   * 72px (3.2 Avatar), primary button 52px tall (3.1 Buttons). The tag tap
+   * feedback scale is the spec's "1 -> 1.08 -> 1.0"; the spec gives no
+   * duration for it, so it reuses the 200ms-ish short transition feel of the
+   * other micro-interactions (flagged in T069's report, not a spec value).
+   */
+  --ripple-stroke: color-mix(in srgb, var(--violet-300) 8%, transparent);
+  --ripple-scale-end: 4;
+  --ripple-duration: 8s;
+  --ripple-delay-1: 0s;
+  --ripple-delay-2: 2.7s;
+  --ripple-delay-3: 5.3s;
+  --rating-avatar-size: 72px;
+  --rating-button-height: 52px;
+  --rating-tag-height: 48px;
+  --rating-tag-pop-scale: 1.08;
+  --rating-tag-pop-duration: 200ms;
+  --rating-disabled-opacity: 0.4;
+  --rating-max-width: 480px;
+
+  /*
    * Atlas background tokens -- the app's FINALIZED ambient background
    * (AmbientBackgroundComponent, SharedModule), used behind every screen
    * (Login, OTP, Profile Setup, Radar), approved design:

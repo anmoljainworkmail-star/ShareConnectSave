@@ -130,7 +130,7 @@
 - [x] T066 — Discovery Filters Panel _(bottom sheet, radius slider, women-only toggle)_
 - [x] T067 — Connection Request Flow _(SignalR events, inbound request component)_
 - [x] T068 — Chat UI _(SignalR client, Met Successfully button, offline banner)_
-- [ ] T069 — Rating Flow _(tag grid, mandatory on Met path, Skip on timeout)_
+- [x] T069 — Rating Flow _(tag grid, mandatory on Met path, Skip on timeout)_
 - [ ] T070 — Profile + Settings _(gender locked after first scan, women-only toggle)_
 - [ ] T071 — Admin Dashboard UI _(lazy-loaded AdminModule, AdminGuard, data tables)_
 - [ ] T072 — Offline State Handling _(service worker cache, BLE fallback trigger)_

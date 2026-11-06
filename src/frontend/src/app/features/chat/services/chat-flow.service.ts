@@ -10,9 +10,9 @@ import { ChatSignalrService } from './chat-signalr.service';
 const CHAT_ROUTE = '/chat';
 // Rating screen (T069, FIGMA_SPEC.md Screen 14). The param is the CONNECTION
 // id -- rating-service validates a rating against the connection_id it stored
-// from chat.closed. T069 has not shipped yet, so until it registers this
-// route the router rejects the navigation; openRating() degrades to a toast
-// instead of an unhandled promise rejection.
+// from chat.closed. T069 registers this route (RatingModule); openRating()
+// still degrades to a toast if the navigation is ever rejected, instead of an
+// unhandled promise rejection.
 const RATING_ROUTE = '/rating';
 
 // "What does the APP do when a chat opens or closes" -- the same office-manager
@@ -31,6 +31,11 @@ const RATING_ROUTE = '/rating';
 @Injectable({ providedIn: 'root' })
 export class ChatFlowService {
   private started = false;
+
+  // Connection ids this session has finished rating (submitted, skipped, or
+  // found already rated). In-memory on purpose: it only suppresses a duplicate
+  // push within this session; the server's 409 remains the source of truth.
+  private readonly ratingResolved = new Set<string>();
 
   constructor(
     private readonly authService: AuthService,
@@ -56,6 +61,9 @@ export class ChatFlowService {
         return;
       }
       this.chatSignalr.disconnect();
+      // Logout ends the session: the next user on this device must not inherit
+      // the previous user's "already rated" suppressions.
+      this.ratingResolved.clear();
     });
 
     this.chatSignalr.chatOpened$.subscribe(notification => this.handleChatOpened(notification));
@@ -65,6 +73,15 @@ export class ChatFlowService {
   // Shared by "ChatClosed" (server-driven) and the Met Successfully confirm
   // (user-driven), so both paths land on the rating screen the same way.
   openRating(connectionId: string, entry: RatingEntryPath): void {
+    // Guard clause: this user already rated (or skipped) this connection. The
+    // second participant's confirm closes the chat later, and the server's
+    // ChatClosed push lands on a user who has long since left the rating
+    // screen; without this, that push would yank them back to a screen that can
+    // only answer "already rated". Idempotent handling of a duplicate event,
+    // the client-side twin of a consumer's processed_events check.
+    if (this.ratingResolved.has(connectionId)) {
+      return;
+    }
     // Guard clause: already there (e.g. the user confirmed Met, and then the
     // server's ChatClosed arrives) -- navigating again would just re-trigger
     // the screen's own initialisation.
@@ -77,6 +94,11 @@ export class ChatFlowService {
     this.router.navigate([RATING_ROUTE, connectionId], { state: { entry } }).catch(() => {
       this.toastService.show('The chat has ended. The rating screen is not available yet.');
     });
+  }
+
+  // Called by RatingComponent once the user is done with a connection's rating.
+  markRatingResolved(connectionId: string): void {
+    this.ratingResolved.add(connectionId);
   }
 
   private handleChatOpened(notification: ChatOpenedNotification): void {

@@ -1,0 +1,305 @@
+/* Screen 14 (Rating). Every colour / space / radius / shadow / duration is a
+   tokens.css variable (the ripple-* and rating-* blocks); no literals. */
+
+.rating-page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-background);
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+}
+
+/* ---- Global background texture: slow radar ripple ---- */
+.ripple-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ripple {
+  fill: none;
+  stroke: var(--ripple-stroke);
+  stroke-width: 1;
+  /* Keep the line 1px while the circle scales 200 -> 800 radius. */
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ripple-expand var(--ripple-duration) linear infinite;
+}
+
+.ripple-1 {
+  animation-delay: var(--ripple-delay-1);
+}
+
+.ripple-2 {
+  animation-delay: var(--ripple-delay-2);
+}
+
+.ripple-3 {
+  animation-delay: var(--ripple-delay-3);
+}
+
+@keyframes ripple-expand {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(var(--ripple-scale-end));
+    opacity: 0;
+  }
+}
+
+.rating-shell {
+  position: relative;
+  width: min(var(--rating-max-width), 100%);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- App bar: title only, deliberately no back arrow ---- */
+.rating-appbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--chat-appbar-height) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) var(--space-4) 0;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.appbar-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+/* ---- Loading / unavailable ---- */
+.state-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.state-message {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.state-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Body ---- */
+.rating-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+}
+
+.companion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.avatar {
+  width: var(--rating-avatar-size);
+  height: var(--rating-avatar-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  /* FIGMA_SPEC.md 3.2: 2px white border, initials on Violet-600 fallback. */
+  border: 2px solid var(--color-surface);
+  background: var(--violet-600);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-inverse);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.companion-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.heading {
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* ---- Tag grid: two columns ---- */
+.tag-groups {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tag-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.tag {
+  min-height: var(--rating-tag-height);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  /* Spec 6: "fill color transition" half of the tag-select feedback. */
+  transition:
+    background-color var(--rating-tag-pop-duration) ease,
+    color var(--rating-tag-pop-duration) ease;
+}
+
+/* Colour comes from the GROUP the tag belongs to (sentiment-* class set by the
+   template from config), never from the tag's own name. */
+.sentiment-positive .tag {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.sentiment-positive .tag.selected {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.sentiment-negative .tag {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.sentiment-negative .tag.selected {
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+}
+
+/* Spec 6: "Scale 1 -> 1.08 -> 1.0 tap feedback" -- plays once each time the
+   chip becomes selected. */
+.tag.selected {
+  animation: tag-pop var(--rating-tag-pop-duration) ease-out;
+}
+
+@keyframes tag-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(var(--rating-tag-pop-scale));
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tag:disabled {
+  cursor: not-allowed;
+}
+
+.negative-warning,
+.submit-error {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-danger);
+}
+
+/* ---- Actions ---- */
+.actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.btn-primary,
+.btn-ghost {
+  width: 100%;
+  height: var(--rating-button-height);
+  border-radius: var(--radius-button);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  border: none;
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+}
+
+/* Ghost button (FIGMA_SPEC.md 3.1): no border, no background, text only. */
+.btn-ghost {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+}
+
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: var(--rating-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.tag:focus-visible,
+.btn-primary:focus-visible,
+.btn-ghost:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* State-panel button sits alone, capped like the chat screen's. */
+.state-panel .btn-primary {
+  max-width: 260px;
+}
+
+/* The ripple and tag pop are decoration, never information (FIGMA_SPEC.md
+   section 6 animations respect the OS reduce-motion setting). */
+@media (prefers-reduced-motion: reduce) {
+  .ripple,
+  .tag.selected {
+    animation: none;
+  }
+}

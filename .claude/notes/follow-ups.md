@@ -1479,3 +1479,17 @@ whose implementation or ticket should pick it up.
 
 8. **T069 question:** the first user to confirm Met is navigated to rating immediately, before the chat reaches CLOSED, but rating-service validates against `chat.closed`. Confirm the intended flow in the T069 spec before building the rating screen.
    Affects: T069 (Rating Flow).
+
+## From T069 (Rating Flow)
+
+1. **First Met-Successfully confirmer is stranded on the rating screen.** `chat.component.ts:281` calls `openRating('met')` on any 200 from `confirmMet`, even when `BothUsersMet` is false; rating-service rejects with `CHAT_NOT_CLOSED` until the other user confirms, and the met-path screen has no back arrow and no Skip. Navigate only on `bothUsersMet`, or show a waiting state in chat, or add an escape. Needs a tech-lead decision (resolves T068 follow-up 8).
+   Affects: Phase 11 polish pass touching `ChatComponent` / `ChatFlowService`; T085 (E2E) should cover this flow.
+
+2. **Timeout-path Submit deviates from FIGMA_SPEC line ~645** ("enabled always on timeout path"): code disables Submit with zero tags because the backend declares `tags` as `@NotEmpty`. Either update FIGMA_SPEC or relax the backend; also reconcile the ticket text ("green" positive tags) with FIGMA Screen 14 (violet), which the code follows.
+   Affects: Phase 11 polish pass; T085 (E2E).
+
+3. **Literal `px` font sizes and `max-width: 260px` in `rating.component.css`**, plus `--chat-appbar-height` reused cross-feature. Tokenise typography project-wide (same item as T068 follow-up 6) and introduce a shared `--appbar-height`.
+   Affects: Phase 11 polish pass; T070 (Profile + Settings), T071 (Admin Dashboard UI) when they add app bars.
+
+4. **Unavailable-state "Back to radar" does not call `markRatingResolved`**, so a later `ChatClosed` push can re-open the unavailable screen (harmless). Also server error messages (`SELF_RATING_NOT_ALLOWED`, `INVALID_RATING_TAG`) are shown verbatim; consider a code-to-copy map.
+   Affects: T072 (Offline State Handling); T081/T083 (add coverage on error mapping).

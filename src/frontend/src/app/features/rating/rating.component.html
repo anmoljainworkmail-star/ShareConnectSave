@@ -1,0 +1,84 @@
+<!--
+  FIGMA_SPEC.md SCREEN 14 -- Rating. Layout: app bar "Rate your companion" with
+  NO back arrow (the user must complete or skip), companion avatar + name
+  centred, heading "How was your experience with <name>?", a two-column tag
+  grid (positive = violet, negative = danger), the negative-tag warning,
+  "Submit Rating", and a ghost "Skip" that only exists on the timeout path.
+  Background is --color-background plus the global slow radar ripple.
+-->
+<div class="rating-page">
+  <!-- Global background texture (FIGMA_SPEC.md "Global Background Texture"):
+       three stroke-only circles expanding from a fixed top-right origin at
+       staggered offsets. Decorative, so hidden from assistive tech. -->
+  <svg class="ripple-layer" aria-hidden="true" focusable="false">
+    <circle class="ripple ripple-1" cx="100%" cy="0" r="200"></circle>
+    <circle class="ripple ripple-2" cx="100%" cy="0" r="200"></circle>
+    <circle class="ripple ripple-3" cx="100%" cy="0" r="200"></circle>
+  </svg>
+
+  <div class="rating-shell">
+    <header class="rating-appbar">
+      <h1 class="appbar-title">Rate your companion</h1>
+    </header>
+
+    <ng-container [ngSwitch]="viewState">
+      <div class="state-panel" *ngSwitchCase="'loading'" role="status">
+        <p class="state-message">Loading...</p>
+      </div>
+
+      <div class="state-panel" *ngSwitchCase="'unavailable'">
+        <p class="state-message">This rating is not available.</p>
+        <p class="state-hint">It may already be done, or it could not be opened from this screen.</p>
+        <button type="button" class="btn-primary" (click)="goHome()">Back to radar</button>
+      </div>
+
+      <main class="rating-body" *ngSwitchCase="'ready'">
+        <div class="companion">
+          <!-- photoUrl is the blob: URL from the authenticated fetch -- never
+               the raw photo_url, which a plain <img> could not authorise. -->
+          <div class="avatar">
+            <img *ngIf="photoUrl; else initialsAvatar" [src]="photoUrl" alt="" />
+            <ng-template #initialsAvatar>{{ initials(companionName) }}</ng-template>
+          </div>
+          <p class="companion-name">{{ companionName }}</p>
+        </div>
+
+        <h2 class="heading">How was your experience with {{ companionName }}?</h2>
+
+        <!-- Rendered from RATING_TAG_GROUPS: a chip's colour comes from the
+             GROUP it sits in (class sentiment-*), not from per-tag if/else, so a
+             new tag is a config change. aria-pressed makes multi-select state
+             audible to screen readers. -->
+        <div class="tag-groups" role="group" aria-label="Rating tags">
+          <div class="tag-grid" *ngFor="let group of tagGroups" [class]="'tag-grid sentiment-' + group.sentiment">
+            <button
+              type="button"
+              class="tag"
+              *ngFor="let tag of group.tags"
+              [class.selected]="isSelected(tag)"
+              [attr.aria-pressed]="isSelected(tag)"
+              [disabled]="isSubmitting"
+              (click)="toggleTag(tag)"
+            >
+              {{ tag }}
+            </button>
+          </div>
+        </div>
+
+        <p class="negative-warning" *ngIf="showNegativeWarning" role="status">
+          Negative reports may affect this user's account.
+        </p>
+
+        <p class="submit-error" *ngIf="submitError" role="alert">{{ submitError }}</p>
+
+        <div class="actions">
+          <button type="button" class="btn-primary" [disabled]="!canSubmit" (click)="submit()">
+            {{ isSubmitting ? 'Submitting...' : 'Submit Rating' }}
+          </button>
+          <!-- Timeout path only (canSkip); submit()/skip() enforce it too. -->
+          <button type="button" class="btn-ghost" *ngIf="canSkip" [disabled]="isSubmitting" (click)="skip()">Skip</button>
+        </div>
+      </main>
+    </ng-container>
+  </div>
+</div>

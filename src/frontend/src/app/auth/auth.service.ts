@@ -165,6 +165,24 @@ export class AuthService {
     return this.getToken() !== null;
   }
 
+  // UX-ONLY read of the JWT's "role" claim (the exact short claim name
+  // user-service's JwtIssuer writes and api-gateway's JwtValidationMiddleware
+  // reads -- the gateway then forwards it downstream as the X-User-Role
+  // HEADER, which is where the ticket's "X-User-Role claim" wording comes from).
+  // The signature is NOT verified here: the browser holds no signing key, so a
+  // user could hand-edit their stored token and make this return 'admin'. That
+  // is acceptable ONLY because callers use it to decide what to SHOW (AdminGuard
+  // hiding admin routes); real enforcement is the gateway's signature check plus
+  // admin-service's own X-User-Role filter, which a forged client token never passes.
+  getRole(): string | null {
+    const token = this.getToken();
+    if (token === null) {
+      return null;
+    }
+    const role = this.readClaims(token)?.['role'];
+    return typeof role === 'string' ? role : null;
+  }
+
   private storeTokens(accessToken: string, refreshToken: string): void {
     this.writeStorage(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
     // storeToken() flips authenticated$ -- written second so the refresh
@@ -189,6 +207,14 @@ export class AuthService {
   }
 
   private readExpiryMs(token: string): number | null {
+    const exp = this.readClaims(token)?.['exp'];
+    return typeof exp === 'number' ? exp * 1000 : null;
+  }
+
+  // One decoder for every claim read (exp above, role in getRole) instead of
+  // two copies of the base64url/JSON parsing -- DRY at the one place that
+  // knows the JWT segment layout. Returns null for anything unreadable.
+  private readClaims(token: string): Record<string, unknown> | null {
     const payload = token.split('.')[1];
     if (!payload) {
       return null;
@@ -196,8 +222,7 @@ export class AuthService {
     try {
       // base64url -> base64; atob() tolerates the missing padding.
       const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const claims = JSON.parse(atob(base64)) as { exp?: unknown };
-      return typeof claims.exp === 'number' ? claims.exp * 1000 : null;
+      return JSON.parse(atob(base64)) as Record<string, unknown>;
     } catch {
       return null;
     }

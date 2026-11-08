@@ -1,0 +1,139 @@
+/* Screen 20. Every value is a tokens.css variable; no literals. */
+@import '../../admin-shared.css';
+
+.rating {
+  font-weight: var(--font-weight-semibold);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+}
+
+/* ---- Mobile list (single column) ---- */
+.queue-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queue-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'avatar body'
+    'action action';
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.queue-card .avatar {
+  grid-area: avatar;
+}
+
+.queue-card-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.queue-card > .btn {
+  grid-area: action;
+  justify-self: start;
+}
+
+.queue-card-title,
+.queue-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+
+.queue-card-title {
+  font-size: var(--text-body-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.queue-card-meta {
+  margin-top: var(--space-1);
+  font-size: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+
+.queue-name {
+  overflow-wrap: anywhere;
+}
+
+.queue-dot {
+  color: var(--color-text-secondary);
+}
+
+/* ---- Desktop / tablet table: hidden on mobile ---- */
+.queue-table-wrap {
+  display: none;
+  padding: 0;
+  overflow-x: auto;
+}
+
+.queue-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.queue-table th,
+.queue-table td {
+  padding: var(--space-3) var(--space-4);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.queue-table thead th {
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.queue-table tbody tr:last-child th,
+.queue-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.queue-table tbody tr:hover {
+  background: var(--gradient-card-hover);
+}
+
+.queue-table-name {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.queue-table-actions {
+  text-align: right;
+}
+
+/* FIGMA_SPEC.md section 1a: tablet (768-1023) reuses the desktop layout, so
+   table-versus-cards switches at 768, not 1024. */
+@media (min-width: 768px) {
+  .queue-cards {
+    display: none;
+  }
+
+  .queue-table-wrap {
+    display: block;
+  }
+}

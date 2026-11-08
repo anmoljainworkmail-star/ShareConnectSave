@@ -1,0 +1,36 @@
+{
+  "task_id": "T071",
+  "title": "Admin Dashboard UI",
+  "status": "completed",
+  "files_created": [
+    "src/frontend/src/app/admin/admin.module.ts",
+    "src/frontend/src/app/admin/admin-routing.module.ts",
+    "src/frontend/src/app/admin/admin-shared.css",
+    "src/frontend/src/app/admin/guards/admin.guard.ts",
+    "src/frontend/src/app/admin/models/admin.models.ts",
+    "src/frontend/src/app/admin/services/admin.service.ts",
+    "src/frontend/src/app/admin/utils/avatar.ts",
+    "src/frontend/src/app/admin/utils/relative-time.ts",
+    "src/frontend/src/app/admin/utils/admin-error.ts",
+    "src/frontend/src/app/admin/pages/queue-list/queue-list.component.ts",
+    "src/frontend/src/app/admin/pages/queue-list/queue-list.component.html",
+    "src/frontend/src/app/admin/pages/queue-list/queue-list.component.css",
+    "src/frontend/src/app/admin/pages/user-detail/user-detail.component.ts",
+    "src/frontend/src/app/admin/pages/user-detail/user-detail.component.html",
+    "src/frontend/src/app/admin/pages/user-detail/user-detail.component.css",
+    "src/frontend/src/app/admin/pages/stats-dashboard/stats-dashboard.component.ts",
+    "src/frontend/src/app/admin/pages/stats-dashboard/stats-dashboard.component.html",
+    "src/frontend/src/app/admin/pages/stats-dashboard/stats-dashboard.component.css"
+  ],
+  "files_modified": [
+    "src/frontend/src/app/app-routing.module.ts",
+    "src/frontend/src/app/auth/auth.service.ts",
+    "src/frontend/src/styles/tokens.css"
+  ],
+  "criteria_checked": {
+    "AC1": "PASS (by code read: AdminGuard canMatch on 'admin' route, role !== 'admin' redirects to /radar; not exercised in a browser)",
+    "AC2": "PASS (by code read: UserDetailComponent flips status optimistically, rolls back + reconciles on failure; AdminService patches queue snapshot on confirm)",
+    "AC3": "PASS (by code read: timer(0, 60000) + switchMap + catchError inside; async-pipe teardown)"
+  },
+  "last_note": "Compile check done: tsc --noEmit clean and ng build (development, scratch output) succeeded, admin-module lazy chunk emitted. Needs /review-task T071. Not runtime-tested. Known risk: follow-ups.md T103 item 6 (reportService circuit breaker trips from getReportsToday -> stats polling degrades after ~5 loads)."
+}

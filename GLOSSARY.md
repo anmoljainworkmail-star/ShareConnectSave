@@ -108,6 +108,7 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`GoogleCredential.FromFile(path)`** — loads a Google service-account credential from a JSON key file on disk; this is what proves to Firebase's backend "this server is authorized to send on this project's behalf." The path comes from `IConfiguration`, never a hardcoded location. _(T047, `Program.cs`)_
 - **`builder.Services.AddSingleton(instance)`** (passed an already-built object, not a type argument) — registers that exact, already-constructed instance as the DI container's singleton, instead of `AddSingleton<T>()`'s usual "let the container build it the first time it's asked for"; used here because `FirebaseApp` has to be built explicitly, with credentials read from config, before the container itself has anything to build it with. _(T047, `Program.cs`)_
 - **`FirebaseMessaging.DefaultInstance`** (Firebase Admin SDK) — the SDK's own static accessor for "the messaging client tied to whichever `FirebaseApp` was built via `FirebaseApp.Create` with no explicit name." It resolves correctly here because `Program.cs` builds exactly one such app — but unlike `IUserServiceClient` (injected through a constructor), this is a global lookup the SDK manages internally, not something the DI container hands to the class that uses it. _(T047, `FcmNotificationService.cs`)_
+- **`raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)`** — splits a comma-separated config value and drops blanks and surrounding spaces in one call, so `"1, 7,"` from an environment variable yields exactly `1` and `7`. _(T071, `ConfigRoleResolver.cs`)_
 
 ## JWT Validation & JWKS (.NET)
 
@@ -309,6 +310,8 @@ Updated after every `/push` — new syntax introduced by that task gets one line
 - **`merge(fromEvent(document, 'visibilitychange'), fromEvent(window, 'focus'))`** — turns browser events into RxJS streams and merges them into one, so "the tab became visible again" and "the window regained focus" (which do not always both fire) trigger the same re-read of server state. _(T070, `settings.component.ts`)_
 - **`{ ...profile, gender: normalised }`** (object spread) — copies every property of an object into a new one and overrides just the listed ones, so a response can be corrected at the boundary without mutating the original object. _(T070, `user-profile.service.ts`)_
 - **`EMPTY`** (RxJS) — an observable that completes immediately without emitting; returned from a `catchError` or `filter` branch to mean "swallow this and do nothing," instead of emitting a fake value downstream. _(T070, `settings.component.ts`)_
+- **`{ path: 'admin', canMatch: [AdminGuard], loadChildren: ... }`** — `canMatch` runs before the router decides this route even applies, so for a lazy route a refused user never downloads the module's JavaScript at all; `canActivate` would only run after the code had already shipped to the browser. Returning a `UrlTree` redirects instead of just blocking. _(T071, `app-routing.module.ts`, `admin.guard.ts`)_
+- **`[...(stats.topReportedUsers ?? [])]`** — spreads a list into a new array, with `?? []` standing in for a null or missing list so a malformed 200 response cannot throw halfway through building the view and take a polling stream down with it. _(T071, `stats-dashboard.component.ts`)_
 
 ## PowerShell
 

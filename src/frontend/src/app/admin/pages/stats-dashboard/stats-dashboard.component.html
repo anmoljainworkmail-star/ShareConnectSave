@@ -1,0 +1,111 @@
+<!--
+  FIGMA_SPEC.md SCREEN 22 -- Admin: Stats Dashboard.
+  Top app bar: back + "Stats". Five metric cards: Active users today, Scans
+  today, Connections today, Reports today, Top reported user (avatar + count).
+  Mobile: 2-column grid. Desktop (spec "DESKTOP - Admin Screens"): dashboard grid,
+  3 + 2 cards per row, no width restriction. Auto-refreshes every 60 seconds with
+  a visible "Last updated: X seconds ago" caption.
+  Degraded data: a metric the backend flags unavailable shows "Unavailable", never
+  0; a failed refresh keeps the last good numbers and says so.
+  Single `vm$ | async` subscription for the whole page: one timer, one request in
+  flight, torn down with the component.
+-->
+<div class="admin-page">
+  <svg class="ripple-layer" aria-hidden="true" focusable="false">
+    <circle class="ripple ripple-1" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-2" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-3" cx="0" cy="100%" r="200"></circle>
+  </svg>
+
+  <div class="admin-shell">
+    <header class="appbar">
+      <button type="button" class="appbar-button" aria-label="Back to review queue" (click)="goBack()">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <h1 class="appbar-title">Stats</h1>
+      <span aria-hidden="true"></span>
+    </header>
+
+    <ng-container *ngIf="vm$ | async as vm">
+      <ng-container [ngSwitch]="vm.phase">
+        <main class="admin-content" *ngSwitchCase="'loading'" role="status" aria-label="Loading stats">
+          <div class="metric-grid">
+            <div class="skeleton skeleton--card" *ngFor="let placeholder of [1, 2, 3, 4, 5]"></div>
+          </div>
+        </main>
+
+        <div class="state-panel" *ngSwitchCase="'error'">
+          <svg class="error-illustration" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
+            <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+          <p class="state-message" role="alert">Could not load the stats.</p>
+          <p class="state-detail">{{ vm.error }}</p>
+          <p class="state-detail">Trying again automatically every minute.</p>
+          <button type="button" class="btn-primary" (click)="retryNow()">Retry now</button>
+        </div>
+
+        <main class="admin-content" *ngSwitchCase="'ready'">
+          <p class="updated-caption" *ngIf="vm.secondsAgo !== null">
+            Last updated: {{ describeAge(vm.secondsAgo) }}
+          </p>
+
+          <p class="degraded-notice" role="alert" *ngIf="vm.error">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <span class="degraded-notice-body">
+              <span class="degraded-notice-title">Could not refresh; showing the last loaded numbers.</span>
+              <span>{{ vm.error }}</span>
+              <button type="button" class="btn btn--secondary btn--compact" (click)="retryNow()">Retry now</button>
+            </span>
+          </p>
+
+          <ul class="metric-grid" aria-label="Today's metrics">
+            <li class="admin-card metric-card" *ngFor="let card of vm.cards; trackBy: trackByKey">
+              <p class="metric-label">{{ card.label }}</p>
+              <p class="metric-value" *ngIf="!card.unavailable; else unavailableTpl">{{ card.value | number }}</p>
+              <ng-template #unavailableTpl>
+                <p class="metric-unavailable">
+                  <span class="chip chip--unavailable" title="This figure's source service did not respond. It is not zero.">Unavailable</span>
+                </p>
+              </ng-template>
+            </li>
+
+            <li class="admin-card metric-card metric-card--top">
+              <p class="metric-label">Top reported user</p>
+
+              <p class="metric-unavailable" *ngIf="vm.topUserUnavailable; else topUserReady">
+                <span class="chip chip--unavailable" title="Report Service did not respond. This is not an empty list.">Unavailable</span>
+              </p>
+
+              <ng-template #topUserReady>
+                <p class="metric-empty" *ngIf="!vm.topUser; else topUserRow">No reported users.</p>
+                <ng-template #topUserRow>
+                  <!-- admin-service sends only the id and count for this card, so the
+                       name/photo the spec shows are not available; the id links to the
+                       user's detail screen. -->
+                  <a class="top-user" *ngIf="vm.topUser as top" [routerLink]="['/admin/users', top.reportedId]">
+                    <span class="avatar" [ngClass]="'avatar--tone-' + tone(top.reportedId)" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="22" height="22">
+                        <circle cx="12" cy="9" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+                        <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                    <span class="top-user-text">
+                      <span class="top-user-id">User {{ top.reportedId }}</span>
+                      <span class="top-user-count">{{ top.reportCount | number }} {{ top.reportCount === 1 ? 'report' : 'reports' }}</span>
+                    </span>
+                  </a>
+                </ng-template>
+              </ng-template>
+            </li>
+          </ul>
+        </main>
+      </ng-container>
+    </ng-container>
+  </div>
+</div>

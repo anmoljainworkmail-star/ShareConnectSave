@@ -1516,3 +1516,65 @@ whose implementation or ticket should pick it up.
 
 7. **Retry / edge-case nits.** A background GET dropped while a status PATCH is in flight is not retried (stale until next focus if that PATCH fails); if the photo upload succeeds but the following PATCH fails, a retry re-uploads the photo; a server body-size-limit rejection (no envelope) shows only the generic error.
    Affects: T081/T083 (add coverage); T085 (E2E).
+
+## From T103 (Report History by Target Endpoint)
+
+1. **report-service.yaml drift on `GET /reports` and `/reports/top-reported`.** The shared `XUserId` parameter is still `required: true`, but `X-User-Id` is now optional on both routes. The 400 response reuses the generic `BadRequest` ("Validation failed.") and never names `MISSING_REQUIRED_INPUT` or the missing-`X-User-Role` case. The new 400 is also undocumented on `/reports/queue` and `POST /reports`, which now return it.
+   Affects: next contract-backfill / `/validate-contracts` pass; T091 (shared exception handling).
+
+2. **Stale comments.** `ExceptionHandlingConfig.java:29-33` (shared-java-lib) still says a missing `@RequestHeader` falls through as a raw 500, which is now false for report-service. `ReportExceptionHandler.java:18` says "the two exceptions below" but the class has four handlers.
+   Affects: T091 (shared exception handling); reminder-dotnet-exception-handling-parity revisit.
+
+3. **`ReportExceptionHandler.java` is LF while sibling files are CRLF.** Git normalizes on commit (`core.autocrlf=true`), so committed content is unaffected; convert for working-tree consistency.
+   Affects: next edit to report-service.
+
+4. **`Comparator.comparing(Report::getCreatedAt)` in `ReportServiceImpl.getHistoryForTarget` NPEs on a legacy document with null `createdAt`.** Today's writes always set it. Use `Comparator.nullsLast` if older data is ever imported.
+   Affects: T081/T083 (add coverage); any report-service data migration.
+
+5. **Missing-input handler duplicates a gap that belongs in shared-java-lib.** `MissingServletRequestParameterException` / `MissingRequestHeaderException` -> 400 is only in report-service; the other four Java services still return 500 for these. Also still 500 in report-service: `MethodArgumentTypeMismatchException` (`?days=abc`) and `HttpMessageNotReadableException` (malformed JSON on `POST /reports`).
+   Affects: T091 (shared exception handling); T108 follow-ups.
+
+6. **RISK: `getReportsToday` shares the `reportService` circuit breaker with healthy calls.** Its unfiltered `GET /reports` (T060) now always returns 400 and counts as a failure. Each `/admin/stats` load adds one failure plus one success (50% failure rate at the 50% threshold, window 10), so after about 5 dashboard loads the breaker opens for 30 s, making `getTopReported` and `getReportHistory` degrade even though report-service is healthy. Fix: give `getReportsToday` its own breaker instance (e.g. `reportServiceToday`), ignore `WebClientResponseException.BadRequest`, or stop making the call to a nonexistent endpoint (add a real report-service stats-today endpoint like the T107/T108 companions). This directly affects the T071 stats dashboard, which polls `/admin/stats` every 60 s.
+   Affects: T071 (Admin Dashboard UI - stats polling will trip it); T060 follow-up; a new report-service "reports today" endpoint ticket.
+
+## From T071 (Admin Dashboard UI)
+
+1. **Unknown account status offers a destructive Suspend button.** `user-detail.component.ts` `action` getter returns `'suspend'` for any status that is not `suspended`, so a future status such as "Banned" would still show Suspend. Offer actions only for `active`/`suspended`; show the neutral note otherwise.
+   Affects: T071 polish pass; T081/T083 (add coverage).
+
+2. **`card()` / `isScoreUnavailable` use `=== null`.** A missing (`undefined`) field renders a blank number instead of "Unavailable". Use `== null`.
+   Affects: T071 polish pass.
+
+3. **Suspend partial-failure has no retry path in the UI, and the server message contradicts it.** `ConnectionServiceUnavailableException`'s message says "retry this request ... retrying is safe", but after a 503 on suspend step 2 the page reconciles to Suspended and offers only Reinstate. `PARTIAL_WRITE_HINT` also says "the page was refreshed" before the refresh has finished. Either add a "Re-run suspend" action for a suspended user whose last attempt failed, or reword the server message.
+   Affects: T071 polish pass; T057/T102 (admin-service suspend orchestration message wording).
+
+4. **`describeAdminError` renders `.message` from any thrown object**, including a client-side `TypeError`. Only trust `.message` when `.code` is a string; otherwise use the generic fallback.
+   Affects: T071 polish pass.
+
+5. **`SuspendResponse.status` / `ReinstateResponse.status` are ignored** (they arrive capitalised, "Suspended"/"Active"). If anything ever starts comparing them, pass through `normaliseStatus` first.
+   Affects: T071 polish pass.
+
+6. **Inaccurate comments.** The guard/routing comments say a non-admin "never downloads AdminModule's code". With the Angular service worker's `ngsw-config.json` prefetching `/*.js` in production, the admin chunk is cached for everyone; `canMatch` still prevents navigation and execution. Adjust the comments.
+   Affects: T071 polish pass; the PWA / service-worker ticket (ngsw-config review).
+
+7. **`AdminService` subscribes to `AuthService.isAuthenticated$` and never tears it down.** Harmless for a module-lifetime singleton; make intent explicit with `ngOnDestroy` or `takeUntilDestroyed`. Related residual: logging in as a different user without logging out does not clear the cached queue snapshot (`storeToken` emits `true`).
+   Affects: T071 polish pass; any ticket adding account switching.
+
+8. **Admin-service logs the suspend/override `reason` free text at INFO** (`ReviewQueueController.java:95`, `AdminTrustScoreController.java:35`). Free text can contain personal data; log the reason length or drop it.
+   Affects: T057/T058 follow-up; T091 (shared exception handling / logging conventions).
+
+9. **Figma conformance gaps.** (a) Raw sizes instead of tokens: `max-width: 420px` (`admin-shared.css`), `280px` (`queue-list.component.css`), `240px` (`user-detail.component.css`), a `1.5px` border, `letter-spacing: 0.04em`. (b) Screen 21 lists phone, join date, badge level and request limit, and the queue's "Last Report" column; the UI omits or relabels them (the queue column shows "Suspended X ago") because admin-service does not return the data. Promote the widths to tokens; add the fields to admin-service's DTOs if the spec stays.
+   Affects: T071 polish pass; T057/T059 (admin-service DTO fields).
+
+10. **Trust-score override verification edge cases** (`user-detail.component.ts`). (a) `pendingOverride` clears in `next` before the verification GET returns, so a second override can be submitted in that window with an unverified `rollbackTo`. (b) The Reinstate button is not disabled while an override is pending (html ~159). (c) `LoadRequest` carries no userId, so a route-param change mid-override would compare another user's score. (d) A null re-fetched score shows the "Rating Service does not persist..." toast even when the real cause is Rating Service being unreachable. (e) The 0.01 tolerance false-warns if the backend rounds an unrounded input. Fix: clear `pendingOverride` after verification settles, carry userId in `LoadRequest`, disable Reinstate during override, distinguish "unreachable" from "not stored".
+    Affects: T071 polish pass; re-check when T058's Rating Service write ships.
+
+11. **Override endpoint is a stub, yet T058 is `[x]`.** `RatingServiceClientImpl.overrideTrustScore` only logs and echoes; Rating Service has no `PATCH /trust/:userId`. The UI now verifies by read-after-write, so it always shows the "not stored" warning until that endpoint exists. The green success path cannot be exercised yet.
+    Affects: T058 (reopen or add a Rating Service trust-write task); T071 QA step 12.
+
+12. **No code path issues an admin JWT.** `user-service/Services/JwtIssuer.cs:108` hardcodes `role = "user"` and the refresh path re-issues "user". The admin UI is unreachable except with a hand-minted RS256 token (which loses admin on refresh). End-to-end QA of T071 depends on this.
+    **RESOLVED:** `IRoleResolver`/`ConfigRoleResolver` + `Admin__UserIds` env var (`ADMIN__USERIDS` in `.env`); `JwtIssuer` takes the role from the resolver, so refresh keeps it. Remaining upgrade: persisted Role column + EF migration for runtime revocation.
+    Affects: T016/T017 (user-service auth); T102 (admin role provisioning); T071 manual QA.
+
+13. **admin-service lacks `spring-boot-starter-validation`**, so `@NotBlank`/`@Valid` on suspend reason and override score are not enforced server-side; the UI's reason-required and 1-5 checks are the only guard.
+    Affects: T057/T058 follow-up; T091 (shared exception handling).

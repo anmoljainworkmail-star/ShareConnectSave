@@ -28,6 +28,9 @@ services:
       # required for local dev to boot; only set this for anything that must
       # survive a container restart.
       - Jwt__RsaPrivateKeyPem=${JWT__RSAPRIVATEKEYPEM:-}
+      # Comma-separated user-service user ids that receive role=admin in their
+      # JWT (see AdminRoleOptions.cs). Empty = nobody is an admin.
+      - Admin__UserIds=${ADMIN__USERIDS:-}
       # Fix (found during full-stack integration testing, not caught by any
       # per-ticket QA pass — those all ran user-service via `dotnet run` with
       # these exported by hand, never through this compose file):

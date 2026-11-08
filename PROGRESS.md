@@ -132,7 +132,7 @@
 - [x] T068 — Chat UI _(SignalR client, Met Successfully button, offline banner)_
 - [x] T069 — Rating Flow _(tag grid, mandatory on Met path, Skip on timeout)_
 - [x] T070 — Profile + Settings _(gender locked after first scan, women-only toggle)_
-- [ ] T071 — Admin Dashboard UI _(lazy-loaded AdminModule, AdminGuard, data tables)_
+- [x] T071 — Admin Dashboard UI _(lazy-loaded AdminModule, AdminGuard, data tables)_
 - [ ] T072 — Offline State Handling _(service worker cache, BLE fallback trigger)_
 
 _Note: T073–T080 reserved — not currently assigned._

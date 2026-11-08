@@ -195,6 +195,9 @@ builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationSer
 // exactly one RSA keypair for this process's lifetime - see JwtIssuer's own
 // comment for why Scoped/Transient here would silently break gateway-side
 // JWKS caching.
+// Registered before IJwtIssuer: JwtIssuer takes IRoleResolver in its constructor.
+builder.Services.Configure<AdminRoleOptions>(builder.Configuration.GetSection(AdminRoleOptions.SectionName));
+builder.Services.AddSingleton<IRoleResolver, ConfigRoleResolver>();
 builder.Services.AddSingleton<IJwtIssuer, JwtIssuer>();
 
 // T020: No Hardcoded Config - a single external-system bootstrap address is

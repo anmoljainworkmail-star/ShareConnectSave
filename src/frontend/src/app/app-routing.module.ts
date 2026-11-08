@@ -1,6 +1,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
+import { AdminGuard } from './admin/guards/admin.guard';
 import { AuthGuard } from './auth/auth.guard';
 
 // Pattern: lazy loading via loadChildren -- AuthModule's JS is only fetched
@@ -68,6 +69,21 @@ const routes: Routes = [
     path: 'profile',
     canActivate: [AuthGuard],
     loadChildren: () => import('./profile/profile.module').then(m => m.ProfileModule)
+  },
+  // T071: Admin (FIGMA_SPEC.md Screens 20-22), /admin, /admin/users/:userId,
+  // /admin/stats. canMatch (AdminGuard), not canActivate: canMatch runs while
+  // the router is still choosing a route, BEFORE the lazy chunk is fetched, so
+  // a non-admin never downloads AdminModule's code at all -- and when canMatch
+  // rejects it returns a UrlTree redirect instead of falling through to a
+  // "no route matched" error. AuthGuard stays on canActivate like every other
+  // protected feature route (AdminGuard also checks authentication itself, so
+  // an expired session is sent to login rather than to the radar). Both guards
+  // are UX only; admin-service enforces the role server-side.
+  {
+    path: 'admin',
+    canMatch: [AdminGuard],
+    canActivate: [AuthGuard],
+    loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule)
   }
 ];
 

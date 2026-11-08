@@ -36,10 +36,12 @@ public class JwtIssuer : IJwtIssuer
     private readonly RsaSecurityKey _signingKey;
     private readonly string _keyId;
     private readonly JwtIssuerOptions _options;
+    private readonly IRoleResolver _roleResolver;
 
-    public JwtIssuer(IOptions<JwtIssuerOptions> options, ILogger<JwtIssuer> logger)
+    public JwtIssuer(IOptions<JwtIssuerOptions> options, IRoleResolver roleResolver, ILogger<JwtIssuer> logger)
     {
         _options = options.Value;
+        _roleResolver = roleResolver;
         _rsa = LoadOrGenerateKey(_options.RsaPrivateKeyPem, logger);
 
         // kid (Key ID): lets api-gateway's JWKS document carry more than one
@@ -105,7 +107,13 @@ public class JwtIssuer : IJwtIssuer
 
         if (isAccessToken)
         {
-            claims.Add(new Claim("role", "user"));
+            // Role comes from IRoleResolver (Strategy), not a literal: this was
+            // hardcoded "user", so no admin token could ever be issued and the
+            // admin UI was unreachable. Every issuance path (Google sign-in,
+            // refresh, profile PATCH reissue, OTP activation) funnels through
+            // this one method, so an admin keeps the role across refresh -
+            // there is no second place that could quietly downgrade it.
+            claims.Add(new Claim("role", _roleResolver.ResolveRole(user)));
 
             // Gender defaults to "Unspecified" until profile setup (T018)
             // sets a real value. It must never be blank/missing here even

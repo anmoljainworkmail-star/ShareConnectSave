@@ -11,7 +11,8 @@ using user_service.Models;
 // half of an asymmetric-signing contract.
 public interface IJwtIssuer
 {
-    // sub = user.Id (this service's own bigint id), role = "user",
+    // sub = user.Id (this service's own bigint id), role = "admin" for ids
+    // in Admin__UserIds, otherwise "user" (see IRoleResolver),
     // gender = user.Gender - the exact three claims api-gateway's
     // JwtValidationMiddleware requires (see T012). T018 adds a fourth,
     // "status" = user.Status, informationally (not yet required or

@@ -1,0 +1,308 @@
+/*
+ * Shared chrome for the Admin-family screens (FIGMA_SPEC.md Screens 20/21/22):
+ * "--color-background (Violet-50) + ripple texture. Admin screens use the same
+ * palette -- no special dark or 'serious' colour shift." That is exactly the
+ * Profile family's page treatment, so this partial pulls profile-shared.css in
+ * (ripple layer, top app bar, loading/error state panel, primary button) rather
+ * than copy-pasting it, and adds only what admin screens alone need: a full-width
+ * shell (Desktop: "full-width table/list ... no restriction on width"), summary /
+ * degraded banners, status chips, initials avatars, skeletons, buttons.
+ * A plain CSS partial via @import (same convention as auth-shared.css /
+ * radar-shared.css / profile-shared.css). Every value is a tokens.css variable.
+ */
+@import '../profile/profile-shared.css';
+
+/* overflow: clip (not hidden): the ripple circles grow past the viewport and
+   must be cut off, but `hidden` would turn this element into a scroll container
+   and break the position: sticky action bar on the detail page. */
+.admin-page {
+  position: relative;
+  min-height: 100dvh;
+  overflow: clip;
+  background: var(--color-background);
+  font-family: var(--font-family-base);
+  font-size: var(--text-body-md);
+  color: var(--color-text-primary);
+}
+
+.admin-shell {
+  position: relative;
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-content {
+  flex: 1 0 auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .admin-content {
+    padding: var(--space-6) var(--space-8);
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- Summary bar (Screen 20: "amber background") ---- */
+.summary-bar {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-button);
+  background: var(--admin-summary-bg);
+  font-size: var(--text-body-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* ---- Degraded-data notice ----
+   The visible form of the backend's "...Unavailable" flags. Same amber family as
+   the summary bar, but with a leading icon and a border so it can never be read
+   as ordinary content: it says "we could not load this", not "this is empty". */
+.degraded-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
+  border-radius: var(--radius-button);
+  background: var(--color-warning-light);
+  font-size: var(--text-body-sm);
+  color: var(--color-text-primary);
+}
+
+.degraded-notice svg {
+  flex: 0 0 auto;
+  color: var(--color-warning);
+}
+
+.degraded-notice-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.degraded-notice-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ---- Chips / pills (spec 3.4 badge pills) ---- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.chip--active {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.chip--suspended {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.chip--unavailable {
+  background: var(--color-warning-light);
+  color: var(--color-text-primary);
+}
+
+.chip--neutral {
+  background: var(--color-status-unavailable-bg);
+  color: var(--color-status-unavailable-text);
+}
+
+/* ---- Initials avatar (spec 3.2 + section 7: coloured by hash of name) ---- */
+.avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--admin-avatar-card);
+  height: var(--admin-avatar-card);
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--violet-600);
+  color: var(--color-text-inverse);
+  font-size: var(--text-body-md);
+  font-weight: var(--font-weight-semibold);
+  user-select: none;
+}
+
+.avatar--table {
+  width: var(--admin-avatar-table);
+  height: var(--admin-avatar-table);
+  font-size: var(--text-body-sm);
+}
+
+.avatar--profile {
+  width: var(--admin-avatar-profile);
+  height: var(--admin-avatar-profile);
+  font-size: var(--text-heading-lg);
+}
+
+/* Five tones, all from the violet scale, all dark enough for white initials.
+   AVATAR_TONE_COUNT in utils/avatar.ts must match this list. */
+.avatar--tone-0 { background: var(--violet-500); }
+.avatar--tone-1 { background: var(--violet-600); }
+.avatar--tone-2 { background: var(--violet-700); }
+.avatar--tone-3 { background: var(--violet-800); }
+.avatar--tone-4 { background: var(--violet-900); }
+
+/* ---- Cards ---- */
+.admin-card {
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-card-heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Buttons (spec 3.1) ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--profile-control-height);
+  padding: 0 var(--space-6);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-button);
+  font-family: inherit;
+  font-size: var(--text-body-lg);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.btn--primary {
+  background: var(--gradient-primary-btn);
+  color: var(--color-text-inverse);
+}
+
+.btn--secondary {
+  border-color: var(--color-primary);
+  background: transparent;
+  color: var(--color-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.btn--danger {
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+}
+
+.btn--success {
+  background: var(--color-success);
+  color: var(--color-text-inverse);
+}
+
+.btn--danger:hover:not(:disabled),
+.btn--success:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+/* Compact variant for in-row / in-notice actions (spacing-scale height). */
+.btn--compact {
+  height: var(--space-10);
+  padding: 0 var(--space-4);
+  font-size: var(--text-body-md);
+}
+
+/* ---- Skeleton loading (spec section 7: "Skeleton screens for lists and
+   profile cards (not spinners)"). The spec gives no skeleton animation, so a
+   gentle opacity pulse is used (flagged in T071's report). ---- */
+.skeleton {
+  border-radius: var(--radius-button);
+  background: var(--color-primary-light);
+  animation: skeleton-pulse var(--admin-skeleton-duration) ease-in-out infinite;
+}
+
+.skeleton--line {
+  height: var(--space-4);
+}
+
+.skeleton--block {
+  height: var(--space-12);
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* ---- Full-page error state (spec section 7: "icon, message, and Retry") ---- */
+.error-illustration {
+  color: var(--color-warning);
+}
+
+.state-detail {
+  margin: 0;
+  max-width: 420px;
+  font-size: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}

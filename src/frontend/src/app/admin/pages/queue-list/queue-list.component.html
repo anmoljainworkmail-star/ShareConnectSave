@@ -1,0 +1,169 @@
+<!--
+  FIGMA_SPEC.md SCREEN 20 -- Admin: Review Queue.
+  Top app bar: "Admin - Review Queue" + stats icon (right). Amber summary bar
+  ("12 users pending review"). List sorted by report count descending (sorted in
+  AdminService). Mobile: each row is "[Avatar] Name - star 1.2 / N reports - ... /
+  [Review ->]". Desktop (spec "DESKTOP - Admin Screens"): a data table with the
+  columns Avatar, Name, Rating, Report Count, Last Report, Actions. Both
+  renderings come from the same rows and the same ng-templates below; CSS shows
+  one or the other.
+  States: loading skeleton, full-page error with Retry, empty, ready, plus a
+  degraded-data notice and per-cell "unavailable" markers for the backend's
+  trustScoreUnavailable / reportCountUnavailable flags.
+-->
+<div class="admin-page">
+  <svg class="ripple-layer" aria-hidden="true" focusable="false">
+    <circle class="ripple ripple-1" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-2" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-3" cx="0" cy="100%" r="200"></circle>
+  </svg>
+
+  <div class="admin-shell">
+    <header class="appbar">
+      <button type="button" class="appbar-button" aria-label="Back to radar" (click)="goBack()">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <h1 class="appbar-title">Admin &middot; Review Queue</h1>
+      <a class="appbar-button" routerLink="stats" aria-label="Stats">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M5 20V10M12 20V4M19 20v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </a>
+    </header>
+
+    <!-- Shared cell content, used by both the mobile list and the desktop table. -->
+    <ng-template #avatarTpl let-item let-size="size">
+      <span class="avatar" [ngClass]="'avatar--tone-' + tone(item)" [class.avatar--table]="size === 'table'" aria-hidden="true">
+        {{ initials(item) }}
+      </span>
+    </ng-template>
+
+    <ng-template #ratingTpl let-item>
+      <span *ngIf="isScoreUnavailable(item); else scoreOk" class="chip chip--unavailable" title="Rating Service did not respond, so this score could not be loaded.">
+        Rating unavailable
+      </span>
+      <ng-template #scoreOk><span class="rating">&#9733; {{ item.trustScore | number: '1.1-1' }}</span></ng-template>
+    </ng-template>
+
+    <ng-template #reportsTpl let-item>
+      <span *ngIf="isCountUnavailable(item); else countOk" class="chip chip--unavailable" title="Report Service did not respond, so this count could not be loaded.">
+        Reports unavailable
+      </span>
+      <ng-template #countOk>{{ item.reportCount }} {{ item.reportCount === 1 ? 'report' : 'reports' }}</ng-template>
+    </ng-template>
+
+    <ng-container [ngSwitch]="viewState">
+      <main class="admin-content" *ngSwitchCase="'loading'" role="status" aria-label="Loading the review queue">
+        <div class="skeleton skeleton--block"></div>
+        <div class="skeleton skeleton--block" *ngFor="let row of [1, 2, 3, 4, 5]"></div>
+      </main>
+
+      <div class="state-panel" *ngSwitchCase="'error'">
+        <svg class="error-illustration" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
+          <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <p class="state-message" role="alert">Could not load the review queue.</p>
+        <p class="state-detail">{{ loadError }}</p>
+        <button type="button" class="btn-primary" (click)="load()">Retry</button>
+      </div>
+
+      <main class="admin-content" *ngSwitchCase="'ready'">
+        <ng-container *ngIf="queue$ | async as items">
+          <p class="summary-bar" role="status">
+            {{ items.length === 0 ? 'No users pending review' : pendingLabel(items.length) }}
+          </p>
+
+          <p class="degraded-notice" role="alert" *ngIf="staleWarning">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <span class="degraded-notice-body">
+              <span class="degraded-notice-title">Could not refresh the queue; showing the last loaded list.</span>
+              <span>{{ staleWarning }}</span>
+              <button type="button" class="btn btn--secondary btn--compact" (click)="load()">Retry</button>
+            </span>
+          </p>
+
+          <p class="degraded-notice" role="alert" *ngIf="hasDegradedRows(items)">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <span class="degraded-notice-body">
+              <span class="degraded-notice-title">Some rows have incomplete data.</span>
+              <span>
+                A rating or report count marked &ldquo;unavailable&rdquo; could not be loaded from its service. It is
+                not zero. Open the user for details.
+              </span>
+            </span>
+          </p>
+
+          <div class="empty-state" *ngIf="items.length === 0">
+            <p class="state-message">Nothing to review right now.</p>
+            <p class="state-detail">Suspended accounts will appear here.</p>
+          </div>
+
+          <!-- Mobile: one card per user (spec Screen 20 row layout). -->
+          <ul class="queue-cards" *ngIf="items.length > 0" aria-label="Users pending review">
+            <li class="queue-card admin-card" *ngFor="let item of items; trackBy: trackByUserId">
+              <ng-container *ngTemplateOutlet="avatarTpl; context: { $implicit: item, size: 'card' }"></ng-container>
+              <div class="queue-card-body">
+                <p class="queue-card-title">
+                  <span class="queue-name" [title]="item.displayName">{{ compactName(item) }}</span>
+                  <span class="queue-dot" aria-hidden="true">&middot;</span>
+                  <ng-container *ngTemplateOutlet="ratingTpl; context: { $implicit: item }"></ng-container>
+                </p>
+                <p class="queue-card-meta">
+                  <ng-container *ngTemplateOutlet="reportsTpl; context: { $implicit: item }"></ng-container>
+                  <ng-container *ngIf="suspendedAgo(item) as ago">
+                    <span class="queue-dot" aria-hidden="true">&middot;</span>Suspended {{ ago }}
+                  </ng-container>
+                </p>
+              </div>
+              <a class="btn btn--secondary btn--compact" [routerLink]="['users', item.userId]" [attr.aria-label]="'Review ' + item.displayName">
+                Review &rarr;
+              </a>
+            </li>
+          </ul>
+
+          <!-- Desktop / tablet: data table (spec "DESKTOP - Admin Screens"). -->
+          <div class="queue-table-wrap admin-card" *ngIf="items.length > 0">
+            <table class="queue-table">
+              <caption class="visually-hidden">Users pending review, most reported first</caption>
+              <thead>
+                <tr>
+                  <th scope="col"><span class="visually-hidden">Avatar</span></th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Rating</th>
+                  <th scope="col">Report Count</th>
+                  <!-- The queue endpoint exposes suspendedAt, not the time of the last
+                       report (FIGMA_SPEC.md says "Last Report"); labelled for what it is. -->
+                  <th scope="col">Suspended</th>
+                  <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of items; trackBy: trackByUserId">
+                  <td><ng-container *ngTemplateOutlet="avatarTpl; context: { $implicit: item, size: 'table' }"></ng-container></td>
+                  <th scope="row" class="queue-table-name" [title]="item.displayName">{{ item.displayName }}</th>
+                  <td><ng-container *ngTemplateOutlet="ratingTpl; context: { $implicit: item }"></ng-container></td>
+                  <td><ng-container *ngTemplateOutlet="reportsTpl; context: { $implicit: item }"></ng-container></td>
+                  <td>{{ suspendedAgo(item) ?? '-' }}</td>
+                  <td class="queue-table-actions">
+                    <a class="btn btn--secondary btn--compact" [routerLink]="['users', item.userId]" [attr.aria-label]="'Review ' + item.displayName">
+                      Review &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </ng-container>
+      </main>
+    </ng-container>
+  </div>
+</div>

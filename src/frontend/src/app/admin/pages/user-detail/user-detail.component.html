@@ -1,0 +1,213 @@
+<!--
+  FIGMA_SPEC.md SCREEN 21 -- Admin: User Detail.
+  Top app bar: back + user name. Profile summary card, trust score card (numeric
+  score + override button), reports section (timeline of all reports with
+  reasons), bottom action bar: "Reinstate" (green) / "Suspend" (red) depending on
+  current status. Mobile: stacked cards. Desktop (spec "DESKTOP - Admin
+  Screens"): three columns -- profile (left), trust score (center), report
+  history (right).
+  Degraded data: every "...Unavailable" flag admin-service sends is shown as a
+  visible notice instead of being rendered as an empty/zero value
+  (profileUnavailable, trustScoreUnavailable, reportHistoryUnavailable).
+  Suspend/Override open a bottom sheet (spec 3.5) because both need a mandatory
+  reason that the server writes to its audit trail.
+-->
+<div class="admin-page">
+  <svg class="ripple-layer" aria-hidden="true" focusable="false">
+    <circle class="ripple ripple-1" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-2" cx="0" cy="100%" r="200"></circle>
+    <circle class="ripple ripple-3" cx="0" cy="100%" r="200"></circle>
+  </svg>
+
+  <div class="admin-shell">
+    <header class="appbar">
+      <button type="button" class="appbar-button" aria-label="Back to review queue" (click)="goBack()">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <h1 class="appbar-title">{{ title }}</h1>
+      <span aria-hidden="true"></span>
+    </header>
+
+    <ng-container [ngSwitch]="viewState">
+      <main class="admin-content" *ngSwitchCase="'loading'" role="status" aria-label="Loading user details">
+        <div class="detail-grid">
+          <div class="admin-card"><div class="skeleton skeleton--block"></div></div>
+          <div class="admin-card"><div class="skeleton skeleton--block"></div></div>
+          <div class="admin-card">
+            <div class="skeleton skeleton--line"></div>
+            <div class="skeleton skeleton--line detail-skeleton-line"></div>
+            <div class="skeleton skeleton--line detail-skeleton-line"></div>
+          </div>
+        </div>
+      </main>
+
+      <div class="state-panel" *ngSwitchCase="'error'">
+        <svg class="error-illustration" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
+          <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <p class="state-message" role="alert">Could not load this user.</p>
+        <p class="state-detail">{{ loadError }}</p>
+        <button type="button" class="btn-primary" (click)="retry()">Retry</button>
+      </div>
+
+      <ng-container *ngSwitchCase="'ready'">
+        <main class="admin-content" *ngIf="detail as user">
+          <div class="detail-grid">
+            <!-- Profile summary -->
+            <section class="admin-card" aria-labelledby="profile-heading">
+              <h2 class="admin-card-heading" id="profile-heading">Profile</h2>
+
+              <div class="profile-summary">
+                <span class="avatar avatar--profile" [ngClass]="'avatar--tone-' + tone" aria-hidden="true">{{ initials }}</span>
+                <div class="profile-summary-text">
+                  <p class="profile-name">{{ user.displayName ?? 'Name unavailable' }}</p>
+                  <span class="chip" [ngClass]="statusClass">{{ statusLabel }}</span>
+                  <p class="profile-meta">User ID {{ user.userId }}</p>
+                </div>
+              </div>
+
+              <p class="degraded-notice detail-notice" role="alert" *ngIf="user.profileUnavailable">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                  <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+                <span class="degraded-notice-body">
+                  <span class="degraded-notice-title">Profile unavailable.</span>
+                  <span>
+                    User Service did not respond, so the name and account status cannot be shown and Suspend / Reinstate
+                    are disabled until it loads.
+                  </span>
+                  <button type="button" class="btn btn--secondary btn--compact" (click)="retry()">Retry</button>
+                </span>
+              </p>
+            </section>
+
+            <!-- Trust score -->
+            <section class="admin-card" aria-labelledby="trust-heading">
+              <h2 class="admin-card-heading" id="trust-heading">Trust score</h2>
+
+              <ng-container *ngIf="!user.trustScoreUnavailable && user.trustScore !== null; else trustUnavailable">
+                <p class="trust-value" [class.trust-value--pending]="pendingOverride">
+                  <span aria-hidden="true">&#9733;</span> {{ user.trustScore | number: '1.1-1' }}
+                </p>
+              </ng-container>
+              <ng-template #trustUnavailable>
+                <p class="degraded-notice detail-notice" role="alert">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                    <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
+                  <span class="degraded-notice-body">
+                    <span class="degraded-notice-title">Trust score unavailable.</span>
+                    <span>Rating Service did not respond. This is not a score of 0.</span>
+                  </span>
+                </p>
+              </ng-template>
+
+              <button type="button" class="btn btn--secondary trust-override" [disabled]="pendingOverride || pendingAction !== null" (click)="openSheet('override')">
+                {{ pendingOverride ? 'Saving…' : 'Override score' }}
+              </button>
+            </section>
+
+            <!-- Reports -->
+            <section class="admin-card" aria-labelledby="reports-heading">
+              <h2 class="admin-card-heading" id="reports-heading">
+                Reports
+                <span class="chip chip--neutral reports-count" *ngIf="!user.reportHistoryUnavailable">{{ user.reportCount }}</span>
+              </h2>
+
+              <p class="degraded-notice detail-notice" role="alert" *ngIf="user.reportHistoryUnavailable">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                  <path d="M12 10v5M12 18v.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+                <span class="degraded-notice-body">
+                  <span class="degraded-notice-title">Report history unavailable.</span>
+                  <span>Report Service did not respond. An empty list here would not mean there are no reports.</span>
+                  <button type="button" class="btn btn--secondary btn--compact" (click)="retry()">Retry</button>
+                </span>
+              </p>
+
+              <ng-container *ngIf="!user.reportHistoryUnavailable">
+                <p class="reports-empty" *ngIf="reports.length === 0">No reports on file.</p>
+
+                <ol class="timeline" *ngIf="reports.length > 0">
+                  <li class="timeline-item" *ngFor="let entry of reports; trackBy: trackByReportId">
+                    <span class="timeline-dot" aria-hidden="true"></span>
+                    <p class="timeline-reason">{{ entry.reason }}</p>
+                    <p class="timeline-meta">
+                      <span class="chip chip--neutral">{{ entry.status }}</span>
+                      <span>Reporter {{ entry.reporterId }}</span>
+                      <time [attr.datetime]="entry.createdAt" [title]="entry.createdAt | date: 'medium'">
+                        {{ reportedAgo(entry) ?? (entry.createdAt | date: 'medium') }}
+                      </time>
+                    </p>
+                  </li>
+                </ol>
+              </ng-container>
+            </section>
+          </div>
+        </main>
+
+        <!-- Action bar (spec Screen 21 "Action bar (bottom)"): sticky so it stays
+             reachable on a long report list. -->
+        <div class="action-bar" *ngIf="detail">
+          <ng-container *ngIf="action as act; else noAction">
+            <button *ngIf="act.kind === 'reinstate'" type="button" class="btn btn--success action-button" [disabled]="act.busy" (click)="reinstate()">
+              {{ act.busy ? 'Reinstating…' : 'Reinstate' }}
+            </button>
+            <button *ngIf="act.kind === 'suspend'" type="button" class="btn btn--danger action-button" [disabled]="act.busy || pendingOverride" (click)="openSheet('suspend')">
+              {{ act.busy ? 'Suspending…' : 'Suspend' }}
+            </button>
+          </ng-container>
+          <ng-template #noAction>
+            <p class="action-bar-note" role="status">Suspend / Reinstate are unavailable until the account status loads.</p>
+          </ng-template>
+        </div>
+      </ng-container>
+    </ng-container>
+  </div>
+
+  <!-- Bottom sheet (spec 3.5): overlay + handle bar + 24px top corners; one
+       sheet, two bodies. -->
+  <div class="sheet-layer" *ngIf="sheetPhase !== 'closed'">
+    <div class="sheet-overlay" [class.sheet-overlay--closing]="sheetPhase === 'closing'" (click)="closeSheet()"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" [class.sheet--closing]="sheetPhase === 'closing'">
+      <span class="sheet-handle" aria-hidden="true"></span>
+
+      <ng-container [ngSwitch]="sheetKind">
+        <form *ngSwitchCase="'suspend'" class="sheet-form" (ngSubmit)="confirmSuspend()" novalidate>
+          <h2 class="sheet-title" id="sheet-title">Suspend {{ title }}?</h2>
+          <p class="sheet-hint">
+            The account is removed from discovery and its active connections are closed. The reason is logged.
+          </p>
+          <label class="sheet-label" for="suspend-reason">Reason</label>
+          <textarea #sheetField id="suspend-reason" name="suspendReason" class="sheet-input" rows="3" [(ngModel)]="suspendReason" required></textarea>
+          <div class="sheet-actions">
+            <button type="button" class="btn btn--ghost" (click)="closeSheet()">Cancel</button>
+            <button type="submit" class="btn btn--danger" [disabled]="!suspendValid">Suspend</button>
+          </div>
+        </form>
+
+        <form *ngSwitchCase="'override'" class="sheet-form" (ngSubmit)="confirmOverride()" novalidate>
+          <h2 class="sheet-title" id="sheet-title">Override trust score</h2>
+          <p class="sheet-hint">
+            Replaces the automatically calculated score for {{ title }}. The change and your reason are written to the audit log.
+          </p>
+          <label class="sheet-label" for="override-score">New score ({{ scoreMin }} to {{ scoreMax }})</label>
+          <input #sheetField id="override-score" name="overrideScore" type="number" inputmode="decimal" class="sheet-input"
+                 [min]="scoreMin" [max]="scoreMax" step="0.1" [(ngModel)]="overrideScore" required />
+          <label class="sheet-label" for="override-reason">Reason</label>
+          <textarea id="override-reason" name="overrideReason" class="sheet-input" rows="3" [(ngModel)]="overrideReason" required></textarea>
+          <div class="sheet-actions">
+            <button type="button" class="btn btn--ghost" (click)="closeSheet()">Cancel</button>
+            <button type="submit" class="btn btn--primary" [disabled]="!overrideValid">Save override</button>
+          </div>
+        </form>
+      </ng-container>
+    </div>
+  </div>
+</div>

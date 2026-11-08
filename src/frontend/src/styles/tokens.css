@@ -289,4 +289,48 @@
   --atlas-train-window: #ffd36e;
   --atlas-train-wheel: #050505;
   --atlas-train-steam: rgba(255, 255, 255, 0.65);
+
+  /*
+   * Typography scale (FIGMA_SPEC.md section 2 "Typography" table), added for
+   * T071: the spec names seven text tokens but tokens.css only carried the font
+   * family until now (earlier screens used literal px sizes). Sizes and weights
+   * are the spec's own, copied exactly: heading-xl 28/700, heading-lg 22/700,
+   * heading-md 18/600, body-lg 16/400, body-md 14/400, body-sm 12/400,
+   * label 11/500.
+   */
+  --text-heading-xl: 28px;
+  --text-heading-lg: 22px;
+  --text-heading-md: 18px;
+  --text-body-lg: 16px;
+  --text-body-md: 14px;
+  --text-body-sm: 12px;
+  --text-label: 11px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /*
+   * Admin-family tokens (FIGMA_SPEC.md Screens 20-22: Review Queue / User
+   * Detail / Stats Dashboard), added for T071.
+   * Spec values: avatar sizes 32 / 48 / 72px (3.2 "list / card / profile
+   * header"), summary bar is "amber background" (Screen 20 -> the existing
+   * --color-warning-light), bottom-sheet open 300ms ease-out and close 250ms
+   * ease-in (section 6 animations table), Suspend red / Reinstate green
+   * (Screen 21 -> --color-danger / --color-success).
+   * Choices the spec leaves open (flagged in T071's report, not spec values):
+   * action-bar height, skeleton pulse duration, the two z-index layers, and the
+   * sheet's desktop max width (the spec only describes a mobile bottom sheet).
+   */
+  --admin-avatar-table: 32px;
+  --admin-avatar-card: 48px;
+  --admin-avatar-profile: 72px;
+  --admin-summary-bg: var(--color-warning-light);
+  --admin-action-bar-height: 72px;
+  --admin-sheet-open-duration: 300ms;
+  --admin-sheet-close-duration: 250ms;
+  --admin-sheet-max-width: 480px;
+  --admin-skeleton-duration: 1.4s;
+  --z-action-bar: 100;
+  --z-sheet: 900;
 }

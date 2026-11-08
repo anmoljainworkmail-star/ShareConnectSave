@@ -66,6 +66,35 @@ public class ReportController {
         return ResponseEntity.ok(reportService.getEscalatedQueue());
     }
 
+    // T103 — per-target report history, backing admin-service's
+    // GET /admin/users/:id report-history section (ReportServiceClient.
+    // getReportHistory). Additive and deliberately separate from /queue:
+    // that one is "everything currently escalated", this one is "everything
+    // filed against ONE user, any status".
+    //
+    // Admin-only guard, same shape as its siblings: the only real caller
+    // today is admin-service over the Docker network, but "the only caller
+    // happens to be trusted" is not an authorization rule — a report
+    // history exposes who reported whom, so the check stays consistent
+    // with /queue and /top-reported instead of leaving this one route open.
+    //
+    // reportedId is required (no defaultValue): this endpoint is the
+    // per-target view, not an unfiltered listing. A missing param is a
+    // caller bug, not "return everything".
+    @GetMapping
+    public ResponseEntity<List<ReportResponse>> getReportHistory(
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader("X-User-Role") String role,
+            @RequestParam String reportedId) {
+        // Fail on the check that matters: the guard reads only the role, and
+        // the id appears only in NotAdminException's message, so a missing
+        // X-User-Id must not turn a 403 decision into a 500.
+        if (!"admin".equals(role)) {
+            throw new NotAdminException(userId);
+        }
+        return ResponseEntity.ok(reportService.getHistoryForTarget(reportedId));
+    }
+
     // T108 — Admin Dashboard "top reported users" tile. Same admin-only
     // guard-clause shape as getEscalatedQueue right above it, copied on
     // purpose: this controller already has two endpoints using the plain
@@ -87,10 +116,12 @@ public class ReportController {
     // branch.
     @GetMapping("/top-reported")
     public ResponseEntity<List<TopReportedUserDto>> getTopReportedUsers(
-            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader("X-User-Role") String role,
             @RequestParam(defaultValue = "7") int days,
             @RequestParam(defaultValue = "5") int limit) {
+        // Same optional-id reasoning as getReportHistory: the guard decides on
+        // the role alone, so a missing X-User-Id must not become a 500.
         if (!"admin".equals(role)) {
             throw new NotAdminException(userId);
         }

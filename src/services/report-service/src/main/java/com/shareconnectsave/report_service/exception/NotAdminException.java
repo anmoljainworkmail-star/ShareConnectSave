@@ -19,7 +19,11 @@ package com.shareconnectsave.report_service.exception;
 // controller's existing admin-guard exception type rather than inventing a
 // new one" instruction.
 public class NotAdminException extends RuntimeException {
+    // Null-safe message: X-User-Id is optional on the admin-only endpoints (the
+    // guard decides on X-User-Role alone), so userId may be absent here. A
+    // placeholder keeps the 403 body readable instead of "User null ...".
     public NotAdminException(String userId) {
-        super("User " + userId + " is not authorized to perform this admin-only report action");
+        super("User " + (userId != null ? userId : "(no X-User-Id header)")
+                + " is not authorized to perform this admin-only report action");
     }
 }

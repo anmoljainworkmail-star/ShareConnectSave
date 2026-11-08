@@ -23,6 +23,11 @@ public interface ReportService {
     // between escalation decision logic and authorization.
     List<ReportResponse> getEscalatedQueue();
 
+    // T103 — backs GET /reports?reportedId={id}. Every report filed against
+    // one user, any status, newest first. Admin guard lives in the
+    // controller (Single Responsibility, SOLID-S), same split as above.
+    List<ReportResponse> getHistoryForTarget(String reportedId);
+
     // T108 — backs GET /reports/top-reported. Distinct Query Intent: this
     // answers "who has accumulated the most reports right now, over a
     // rolling window, across every status", NOT "who is currently

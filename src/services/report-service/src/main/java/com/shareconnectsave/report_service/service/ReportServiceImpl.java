@@ -2,6 +2,7 @@ package com.shareconnectsave.report_service.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -191,6 +192,31 @@ public class ReportServiceImpl implements ReportService {
     public List<ReportResponse> getEscalatedQueue() {
         return reportRepository.findByStatusOrderByReportCountAtEscalationDesc(ReportStatus.ESCALATED)
                 .stream()
+                .map(reportMapper::toResponse)
+                .toList();
+    }
+
+    // T103 — GET /reports?reportedId={id}'s read path.
+    //
+    // Open/Closed (SOLID-O), via an existing repository method:
+    // findByReportedId was written for fileReport's escalation count and
+    // needed zero changes to serve this new external-facing read — only a
+    // new caller was added above it. An unknown/never-reported user simply
+    // yields an empty list (not a 404): "no reports" is a valid answer to
+    // "what is this user's history".
+    //
+    // Sort choice (newest first, createdAt descending): /queue sorts by a
+    // reportCountAtEscalation snapshot, which is meaningless for a
+    // single-user history where every row shares the same target — an admin
+    // reading one user's timeline wants the latest allegation on top. Done
+    // in memory rather than adding a new OrderBy repository method, because
+    // this ticket reuses the existing query as-is, and one user's report
+    // count is small and bounded by moderation anyway.
+    @Override
+    public List<ReportResponse> getHistoryForTarget(String reportedId) {
+        return reportRepository.findByReportedId(reportedId)
+                .stream()
+                .sorted(Comparator.comparing(Report::getCreatedAt).reversed())
                 .map(reportMapper::toResponse)
                 .toList();
     }

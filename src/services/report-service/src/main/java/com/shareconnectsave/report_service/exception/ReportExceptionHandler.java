@@ -2,8 +2,13 @@ package com.shareconnectsave.report_service.exception;
 
 import com.shareconnectsave.shared.ErrorResponse;
 import org.slf4j.MDC;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -16,7 +21,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 // next to the feature code that raises them — same split as
 // connection-service's ConnectionExceptionHandler and rating-service's
 // RatingExceptionHandler.
+// Pattern: explicit precedence over an unordered shared advice. Both this
+// class and the shared GlobalExceptionHandler match Exception-typed
+// handlers, and with two unordered @RestControllerAdvice beans Spring picks
+// by registration order. HIGHEST_PRECEDENCE makes this domain advice always
+// win, so its specific handlers are never shadowed by the shared catch-all.
 @RestControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class ReportExceptionHandler {
 
     // 409, not 400 — same choice connection-service made for
@@ -32,6 +43,20 @@ public class ReportExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidReportReason(InvalidReportReasonException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("INVALID_REPORT_REASON", ex.getMessage(), traceId()));
+    }
+
+    // Specific handlers beat the catch-all: a missing required parameter or
+    // header is a caller mistake, so it must be 4xx, not the shared 500
+    // INTERNAL_ERROR. Monitoring can then tell caller bugs from server faults.
+    // Only the parameter/header NAME is echoed, never its value.
+    @ExceptionHandler({MissingServletRequestParameterException.class, MissingRequestHeaderException.class})
+    public ResponseEntity<ErrorResponse> handleMissingInput(ServletRequestBindingException ex) {
+        String name = ex instanceof MissingServletRequestParameterException missingParam
+                ? missingParam.getParameterName()
+                : ((MissingRequestHeaderException) ex).getHeaderName();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("MISSING_REQUIRED_INPUT",
+                        "Required parameter or header '" + name + "' is missing.", traceId()));
     }
 
     // T053 — 403, not 401: X-User-Id/X-User-Role being present and

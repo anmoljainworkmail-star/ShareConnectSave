@@ -1,0 +1,23 @@
+{
+  "task_id": "T103",
+  "title": "Report History by Target Endpoint",
+  "status": "completed",
+  "files_created": [
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/controller/ReportController.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/service/ReportService.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/service/ReportServiceImpl.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ReportServiceClient.java",
+    "src/services/admin-service/src/main/java/com/shareconnectsave/admin_service/client/ReportServiceClientImpl.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/NotAdminException.java",
+    "src/services/report-service/src/main/java/com/shareconnectsave/report_service/exception/ReportExceptionHandler.java",
+    "contracts/openapi/report-service.yaml"
+  ],
+  "criteria_checked": {
+    "AC1": "PASS",
+    "AC2": "PASS",
+    "AC3": "PASS",
+    "AC4": "PASS",
+    "AC5": "PASS"
+  },
+  "last_note": "Review fix pass: admin client sends X-User-Role on getReportHistory/getTopReported; report-service makes X-User-Id optional on the two admin-only GETs (NotAdminException null-safe); ReportExceptionHandler maps missing param/header to 400 MISSING_REQUIRED_INPUT and is @Order(HIGHEST_PRECEDENCE). mvn not run; reviewed by hand."
+}

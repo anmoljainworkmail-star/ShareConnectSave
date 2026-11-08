@@ -10,18 +10,11 @@ import java.util.List;
 // separate, narrower concept from this ticket's per-user report history.
 public interface ReportServiceClient {
 
-    // KNOWN GAP (same shape as UserServiceClient.getSuspendedUsers' own
-    // comment): Report Service's actual ReportController implements only
-    // POST /reports and GET /reports/queue today — no endpoint exists yet to
-    // fetch one user's report history, despite admin-service.yaml's own
-    // GET /admin/users/{id}/reports describing exactly that proxy. This
-    // method is written against the natural extension of Report Service's
-    // existing (but unfiltered) GET /reports admin-listing endpoint —
-    // GET /reports?reportedId={userId} — which also does not exist in
-    // contracts/openapi/report-service.yaml yet. Until a future Report
-    // Service ticket adds it, every call here throws
-    // UpstreamUnavailableException, and ReviewQueueServiceImpl's degrade path
-    // (reportHistoryUnavailable=true) is what actually runs in practice.
+    // T103 — calls Report Service's GET /reports?reportedId={userId}
+    // (admin-only, newest first, empty list for a never-reported user). The
+    // earlier KNOWN GAP is closed; ReviewQueueServiceImpl's degrade path
+    // (reportHistoryUnavailable=true) now only runs when Report Service is
+    // genuinely unreachable, not on every call.
     List<ReportHistoryItem> getReportHistory(String reportedUserId);
 
     record ReportHistoryItem(String id, String reporterId, String reason, String status, Instant createdAt) {
@@ -42,23 +35,20 @@ public interface ReportServiceClient {
     record TopReportedUser(String reportedId, long reportCount) {
     }
 
-    // T060 — Admin Dashboard "total reports today" tile. KNOWN GAP, same
-    // shape as getReportHistory's own class comment above: Report Service's
-    // actual ReportController implements only POST /reports,
-    // GET /reports/queue (escalated-only) and GET /reports/top-reported
-    // today — no plain, unfiltered admin-listing endpoint exists yet. This
-    // method is written against the same not-yet-shipped GET /reports
-    // (no query params, admin-only) that getReportHistory's own comment
-    // already assumes for its reportedId-filtered variant; SPECS.md's own
+    // T060 — Admin Dashboard "total reports today" tile. KNOWN GAP: Report
+    // Service's GET /reports now exists (T103) but REQUIRES reportedId, so
+    // no unfiltered admin-listing endpoint exists yet. This method is
+    // written against that not-yet-shipped unfiltered GET /reports (no query
+    // params, admin-only); SPECS.md's own
     // Phase 17 audit judged that gap "good enough" to leave unfilled rather
     // than fund a fifth T105-T108-style companion ticket for one metric (see
     // this ticket's own text). Per that same explicit scope decision,
     // admin-service does NOT grow a matching endpoint on Report Service
     // itself — until a future Report Service ticket adds GET /reports, this
     // call fails every time, and DashboardStatsServiceImpl's degrade path
-    // (totalReportsTodayUnavailable=true) is what actually runs in practice,
-    // the same way getUserDetail's reportHistoryUnavailable path already
-    // covers getReportHistory's identical gap.
+    // (totalReportsTodayUnavailable=true) is what actually runs in practice.
+    // Report Service answers the unfiltered call with 400 (reportedId is
+    // required), so it fails here exactly as the old 404 did.
     //
     // Returns the already-computed COUNT, not the raw list — Interface
     // Segregation (SOLID-I), same reasoning ConnectionServiceClient.getStats()

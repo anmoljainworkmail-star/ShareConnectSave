@@ -47,20 +47,35 @@ paths:
 
     get:
       tags: [reports]
-      summary: List reports (admin only)
+      summary: Report history for one user, any status, newest first (admin only)
+      description: >
+        T103: every report filed against `reportedId`, regardless of status
+        (unlike GET /reports/queue, which is escalated-only), sorted by
+        created_at descending. A user with no reports yields an empty array,
+        not a 404. Consumed by Admin Service's GET /admin/users/{id}. An
+        unfiltered listing (no reportedId) is not implemented.
       operationId: listReports
       parameters:
         - $ref: '#/components/parameters/XUserId'
         - $ref: '#/components/parameters/XUserRole'
+        - name: reportedId
+          in: query
+          required: true
+          description: The user whose report history to return.
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
-          description: Reports returned.
+          description: Reports returned, newest first; empty array when none.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Report'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

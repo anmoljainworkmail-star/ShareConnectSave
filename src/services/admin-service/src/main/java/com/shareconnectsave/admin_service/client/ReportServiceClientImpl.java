@@ -15,15 +15,17 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-// Circuit Breaker (Decorator), same shape as the other two clients — see
-// ReportServiceClient's own KNOWN GAP comment for why getReportHistory below
-// currently fails until Report Service ships a reportedId-filtered endpoint.
-// getTopReported (T108) has no such gap — GET /reports/top-reported is a
-// real, shipped endpoint.
+// Circuit Breaker (Decorator), same shape as the other two clients.
+// getReportHistory calls the reportedId-filtered GET /reports route that
+// Report Service ships as T103, and getTopReported calls GET /reports/top-reported
+// (T108). Both routes are admin-guarded on Report Service's side, so both
+// calls send the X-User-Role header that guard checks (see each method).
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class ReportServiceClientImpl implements ReportServiceClient {
+
+    private static final String ADMIN_ROLE = "admin";
 
     // Explicit @Qualifier — see UserServiceClientImpl's field comment for why
     // this is preferred over relying on field-name-to-bean-name matching
@@ -35,8 +37,14 @@ public class ReportServiceClientImpl implements ReportServiceClient {
     @Override
     @CircuitBreaker(name = "reportService", fallbackMethod = "getReportHistoryFallback")
     public List<ReportHistoryItem> getReportHistory(String reportedUserId) {
+        // Pattern: explicit identity propagation (least privilege per hop).
+        // Reason: the Docker network is only transport, not an authorization
+        // rule. Report Service's guard checks X-User-Role on every call, so
+        // this internal call has to present the identity it checks, or it is
+        // rejected like any other anonymous caller.
         ReportDto[] reports = reportServiceWebClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/reports").queryParam("reportedId", reportedUserId).build())
+                .header("X-User-Role", ADMIN_ROLE)
                 .retrieve()
                 .bodyToMono(ReportDto[].class)
                 .block();
@@ -66,11 +74,14 @@ public class ReportServiceClientImpl implements ReportServiceClient {
     @Override
     @CircuitBreaker(name = "reportService")
     public List<TopReportedUser> getTopReported(int days, int limit) {
+        // X-User-Role for the same admin guard as getReportHistory above; see
+        // the identity-propagation comment there.
         TopReportedDto[] results = reportServiceWebClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/reports/top-reported")
                         .queryParam("days", days)
                         .queryParam("limit", limit)
                         .build())
+                .header("X-User-Role", ADMIN_ROLE)
                 .retrieve()
                 .bodyToMono(TopReportedDto[].class)
                 .block();
@@ -88,12 +99,12 @@ public class ReportServiceClientImpl implements ReportServiceClient {
                 .toList();
     }
 
-    // T060 — same KNOWN GAP as getReportHistory above (see
-    // ReportServiceClient's own comment on this method): GET /reports with
-    // no query params does not exist on Report Service's ReportController
-    // today, so in practice this call fails every time (404 -> the circuit
-    // breaker's fallbackMethod below) until a future ticket ships it.
-    // Written against the shape it WILL have once it exists — reusing
+    // T060 — still a KNOWN GAP, but narrower than before T103: GET /reports
+    // now exists, yet it REQUIRES reportedId, so this unfiltered call has no
+    // matching endpoint. Report Service answers 400 (MISSING_REQUIRED_INPUT),
+    // the circuit breaker's fallbackMethod below runs, and the degrade path
+    // is unchanged. Written against the shape an unfiltered admin listing
+    // would have once a future ticket ships it — reusing
     // ReportDto (never inventing a second "all reports" DTO, per this
     // ticket's own "What NOT to do") and counting client-side, deliberately
     // NOT asking Report Service to pre-filter by date: that filtering logic

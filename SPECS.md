@@ -1,4 +1,4 @@
-# SPECS.md — ShareConnectSave Task Decomposition
+# SPECS.md — Karwan Task Decomposition
 
 ## How This Works
 
@@ -2006,7 +2006,7 @@ All Java services that produce Kafka events import this module and call `OutboxS
 **Skills/Commands:** none
 
 **Spec:**
-Create a shared class library project `ShareConnectSave.Outbox` (NuGet-style, referenced by all .NET services).
+Create a shared class library project `Karwan.Outbox` (NuGet-style, referenced by all .NET services).
 
 1. `OutboxMessage` EF Core entity (same shape as T091 Java entity).
 2. `OutboxRelay : BackgroundService` — polls every 500 ms, publishes via `IProducer<string, string>`, marks processed.

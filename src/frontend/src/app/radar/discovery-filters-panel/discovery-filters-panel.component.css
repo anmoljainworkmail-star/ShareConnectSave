@@ -22,6 +22,28 @@
   padding: var(--space-4) var(--space-5) var(--space-6);
   color: var(--color-text-primary);
   animation: filters-slide-up 220ms ease-out;
+  /* Eases to its resting spot / off-screen on release; none while the finger
+     is actually dragging so the sheet tracks it 1:1. */
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.filters-sheet.dragging {
+  transition: none;
+}
+
+/* touch-action: none tells the browser "vertical finger movement here is MY
+   drag, not a page scroll" -- without it the browser claims the gesture and
+   fires pointercancel. */
+.sheet-drag-zone {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.filters-sheet.dragging .sheet-drag-zone {
+  cursor: grabbing;
 }
 
 @keyframes filters-slide-up {

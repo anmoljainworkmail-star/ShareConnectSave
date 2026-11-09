@@ -59,10 +59,11 @@ const FALLBACK_OTHER_NAME = 'Your travel companion';
 // to; it has no idea who sent the push or how it travelled, and nothing here
 // polls.
 //
-// No-history-by-design: the only messages this component ever holds are the
-// ones that arrived live while it was open. No history fetch, no local cache,
-// no export -- chat-service's MongoDB TTL is the sole authority on message
-// lifetime, and the UI must not build a shadow copy of it.
+// Ephemeral-by-design still holds: messages are held in memory only, never
+// cached or exported client-side, and chat-service's MongoDB TTL is the sole
+// authority on message lifetime. The one exception is loadHistory(), which
+// re-reads the LIVE room's recent messages so leaving and re-entering the
+// screen during the chat's lifetime does not look like a new empty chat.
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
@@ -106,7 +107,8 @@ export class ChatComponent implements OnInit, OnDestroy {
     private readonly chatFlow: ChatFlowService,
     private readonly connectionService: ConnectionService,
     private readonly userProfileService: UserProfileService,
-    private readonly toastService: ToastService
+    private readonly toastService: ToastService,
+    private readonly host: ElementRef<HTMLElement>
   ) {}
 
   // Offline = anything other than a live socket. The banner and the disabled
@@ -129,6 +131,8 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.trackVisualViewport();
+
     const connectionId = this.route.snapshot.paramMap.get('id');
     // Guard clause: a route without an id cannot name a chat.
     if (!connectionId) {
@@ -202,7 +206,60 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (this.ownedBlobUrl) {
       URL.revokeObjectURL(this.ownedBlobUrl);
     }
+    this.stopTrackingVisualViewport();
   }
+
+  // The Problem: on a phone, the on-screen keyboard covers part of the page but
+  // does NOT shrink the "layout viewport" the browser lays CSS out against. So a
+  // shell sized `100dvh` stays as tall as the whole screen, and the keyboard
+  // slides over its bottom edge, hiding the message box and the Send button.
+  //
+  // Why it matters: a chat screen whose input is hidden by the keyboard is
+  // unusable, and the bug only shows on real phones (desktop has no keyboard
+  // overlay), so it is easy to ship without noticing.
+  //
+  // How this solves it: the Visual Viewport API reports the part of the page the
+  // user can actually SEE, keyboard excluded. Mirroring its height into a CSS
+  // variable makes the flex column (header, scrolling list, footer) fit exactly
+  // the visible area, so the footer sits just above the keyboard. Feature-
+  // detected (progressive enhancement): browsers without the API keep the plain
+  // 100dvh fallback in the stylesheet and behave as before.
+  //
+  // Example: a 800px-tall phone opens the keyboard (~300px). visualViewport.height
+  // becomes ~500px, the shell shrinks to 500px, and the input row stays visible.
+  private trackVisualViewport(): void {
+    const viewport = window.visualViewport;
+    // Guard clause: no Visual Viewport support, keep the CSS fallback.
+    if (!viewport) {
+      return;
+    }
+
+    const apply = (): void => {
+      this.host.nativeElement.style.setProperty('--chat-viewport-height', `${viewport.height}px`);
+      // iOS Safari pans the whole page upward to keep a focused field in view
+      // instead of resizing it; pinning the page back to the top stops the
+      // header from being pushed off-screen.
+      if (viewport.offsetTop > 0) {
+        window.scrollTo(0, 0);
+      }
+      // Fewer pixels for the list means the latest message can slip below the
+      // fold, so keep it in view if the reader was already at the bottom.
+      if (this.stickToBottom) {
+        this.scrollToBottomSoon();
+      }
+    };
+
+    apply();
+    viewport.addEventListener('resize', apply);
+    viewport.addEventListener('scroll', apply);
+    this.stopTrackingVisualViewport = () => {
+      viewport.removeEventListener('resize', apply);
+      viewport.removeEventListener('scroll', apply);
+      this.host.nativeElement.style.removeProperty('--chat-viewport-height');
+    };
+  }
+
+  private stopTrackingVisualViewport: () => void = () => undefined;
 
   // Esc closes the confirmation dialog -- standard modal behaviour, and the
   // keyboard route to "Not yet".
@@ -364,6 +421,60 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.watchClosingCountdown(chatId);
     this.viewState = 'ready';
+    this.loadHistory(chatId);
+  }
+
+  // The Problem: this component is destroyed whenever the user leaves the
+  // screen (to rating, to the radar) and rebuilt when they return, and the live
+  // feed only carries messages sent AFTER subscribing. Coming back therefore
+  // showed an empty "Chat opened." as if the conversation never happened.
+  //
+  // How this solves it: ask chat-service for the room's recent messages once,
+  // after the live subscription and join are already in place. Ordering matters:
+  // anything that arrives live during the fetch is already in seenMessageIds, so
+  // the merge simply skips it -- the same de-duplication a reconnect rejoin uses.
+  // History is older than anything seen live, so it is inserted right after the
+  // "Chat opened" line rather than appended.
+  private loadHistory(chatId: string): void {
+    this.chatApi
+      .getMessages(chatId)
+      .pipe(
+        // Best-effort: the live chat works without history, so a failed fetch
+        // must not break the screen.
+        catchError(() => of<ChatMessage[]>([])),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(history => this.prependHistory(history));
+  }
+
+  private prependHistory(history: ChatMessage[]): void {
+    const fresh = history.filter(message => !this.seenMessageIds.has(message.id));
+    // Guard clause: nothing older than what is already on screen.
+    if (fresh.length === 0) {
+      return;
+    }
+
+    const items: ChatTimelineItem[] = [];
+    let previousAtMs: number | null = null;
+    for (const message of fresh) {
+      this.seenMessageIds.add(message.id);
+      const sentAtMs = Date.parse(message.sent_at);
+      if (previousAtMs !== null && sentAtMs - previousAtMs > TIMESTAMP_GAP_MS) {
+        items.push({ kind: 'timestamp', key: `ts-${message.id}`, at: message.sent_at });
+      }
+      items.push({ kind: 'message', key: message.id, message });
+      previousAtMs = sentAtMs;
+    }
+
+    // Only seed the gap tracker if no live message got there first.
+    if (this.lastMessageAtMs === null) {
+      this.lastMessageAtMs = previousAtMs;
+    }
+
+    // index 0 is the "Chat opened" system line; history follows it.
+    this.timeline = [this.timeline[0], ...items, ...this.timeline.slice(1)];
+    this.stickToBottom = true;
+    this.scrollToBottomSoon();
   }
 
   // Entry path mirrors ChatFlowService.handleChatClosed: a met-closed room

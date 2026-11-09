@@ -61,6 +61,16 @@ export class ConnectionService {
       .pipe(catchError(error => this.toApplicationError(error)));
   }
 
+  // One connection by id, in ANY status, for a participant (403 otherwise).
+  // getActiveConnection only knows ACCEPTED connections, so it goes empty the
+  // moment the chat closes and the connection COMPLETES -- but the rating screen
+  // is shown exactly then (and on the timeout path, only after the close).
+  getConnection(connectionId: string): Observable<ConnectionResponse> {
+    return this.http
+      .get<ConnectionResponse>(`${environment.apiBase}/connection/connections/${connectionId}`)
+      .pipe(catchError(error => this.toApplicationError(error)));
+  }
+
   // Same normalization AuthService/UserProfileService/RadarDiscoveryService
   // each keep as their own private copy -- see UserProfileService's comment
   // for the duplication-vs-coupling reasoning this repeats.

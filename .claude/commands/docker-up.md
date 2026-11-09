@@ -1,4 +1,4 @@
-Start the ShareConnectSave infrastructure stack.
+Start the Karwan infrastructure stack.
 
 ## Steps
 

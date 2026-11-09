@@ -19,7 +19,7 @@ interface GoogleIdentityServices {
       }): void;
       renderButton(
         parent: HTMLElement,
-        options: { theme: string; size: string; width?: number }
+        options: { theme: string; size: string; shape?: string; width?: number }
       ): void;
     };
   };
@@ -32,6 +32,9 @@ declare global {
 }
 
 const GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+// GSI's documented bounds for renderButton's `width` option, in px.
+const GSI_MIN_BUTTON_WIDTH = 200;
+const GSI_MAX_BUTTON_WIDTH = 400;
 
 // This component owns all DOM/script interaction with GSI (loading the
 // script, initializing it, rendering its button). AuthService stays free of
@@ -106,10 +109,21 @@ export class LoginComponent implements AfterViewInit, OnDestroy {
       callback: response => this.ngZone.run(() => this.handleCredentialResponse(response.credential))
     });
 
+    // Responsive sizing: GSI renders the button inside a cross-origin iframe
+    // and only accepts a fixed pixel width (200-400) -- CSS cannot stretch
+    // it. A hardcoded 300 overflowed the card on phones (a 360px screen
+    // leaves ~272px of inner card width), so measure the slot the button
+    // lives in and hand GSI that number instead. Principle: when a third-
+    // party widget can't be styled, size its container and feed the
+    // container's real dimensions to the widget.
+    const slotWidth = this.googleButtonRef.nativeElement.clientWidth;
+    const buttonWidth = Math.min(Math.max(slotWidth, GSI_MIN_BUTTON_WIDTH), GSI_MAX_BUTTON_WIDTH);
+
     window.google.accounts.id.renderButton(this.googleButtonRef.nativeElement, {
       theme: 'outline',
       size: 'large',
-      width: 300
+      shape: 'pill',
+      width: buttonWidth
     });
   }
 

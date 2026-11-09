@@ -197,6 +197,27 @@
   margin-top: var(--space-2);
 }
 
+/* Spec Screen 15: "Sign Out (danger, ghost)" -- outlined, no fill, danger text. */
+.btn-signout {
+  display: block;
+  width: min(var(--profile-card-width), 100%);
+  height: var(--profile-control-height);
+  margin: var(--space-4) auto 0;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--color-danger);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-signout:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
 @media (min-width: 1024px) {
   .profile-header {
     border-radius: 0 0 var(--radius-card) var(--radius-card);

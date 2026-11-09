@@ -59,6 +59,8 @@ export class RatingComponent implements OnInit, OnDestroy {
   // Inline, retryable failure (e.g. CHAT_NOT_CLOSED) -- a toast would vanish
   // in 3s, but this message stays until the user acts.
   submitError: string | null = null;
+  // Whether the chat room is still open, i.e. "Back to chat" leads somewhere.
+  canReturnToChat = false;
 
   private connectionId = '';
   // Navigation state is only readable DURING the navigation that created this
@@ -123,11 +125,13 @@ export class RatingComponent implements OnInit, OnDestroy {
       companion: this.ratingContext.resolveCompanion(connectionId),
       entry: this.navigationEntry
         ? of(this.navigationEntry)
-        : this.ratingContext.resolveEntryFromServer(connectionId)
+        : this.ratingContext.resolveEntryFromServer(connectionId),
+      chatOpen: this.ratingContext.isChatStillOpen(connectionId)
     })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: ({ companion, entry }) => {
+        next: ({ companion, entry, chatOpen }) => {
+          this.canReturnToChat = chatOpen;
           // Guard clause: no resolvable person means no rated_id to send.
           if (!companion) {
             this.viewState = 'unavailable';
@@ -211,6 +215,17 @@ export class RatingComponent implements OnInit, OnDestroy {
       .slice(0, 2)
       .map(part => part.charAt(0).toUpperCase());
     return letters.join('') || '?';
+  }
+
+  // After Met Successfully the chat stays open for a grace window (and until the
+  // other person confirms too). Leaving it for the rating screen must not be a
+  // one-way door: the user can step back to finish the conversation. The chat
+  // screen re-loads the room's recent messages, so nothing looks lost.
+  returnToChat(): void {
+    if (this.isSubmitting) {
+      return;
+    }
+    this.router.navigate(['/chat', this.connectionId]);
   }
 
   goHome(): void {

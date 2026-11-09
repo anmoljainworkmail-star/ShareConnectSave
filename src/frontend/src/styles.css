@@ -7,6 +7,12 @@
 html,
 body {
   height: 100%;
+  /* No rubber-band / pull-to-refresh bounce past the page edge -- that
+     bounce is what exposed the blank strip when dragging on a phone. Gives
+     the PWA a native-app feel. */
+  overscroll-behavior: none;
+  /* Belt and braces: nothing may widen the page sideways. */
+  overflow-x: hidden;
 }
 
 body {

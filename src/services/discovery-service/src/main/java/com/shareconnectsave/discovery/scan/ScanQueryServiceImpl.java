@@ -187,6 +187,18 @@ public class ScanQueryServiceImpl implements ScanQueryService {
                 continue;
             }
 
+            // Defense in depth: the first pass above excludes the caller by
+            // SESSION id, which only works while a user has exactly one open
+            // session. The user id is the real identity, so this second check
+            // guarantees "never show someone to themselves" even if a stale
+            // session of the same user slips into the active set (e.g. one that
+            // pre-dates ScanSessionServiceImpl.endStaleSessions). It can only run
+            // here, not in the first pass, because session id -> user id needs
+            // the SQL row fetched above.
+            if (candidateSession.getUserId().equals(callerUserId)) {
+                continue;
+            }
+
             double distanceKm = distanceKmBySessionId.get(candidateSessionId);
 
             // Route overlap/departure-window are pure in-memory math on data

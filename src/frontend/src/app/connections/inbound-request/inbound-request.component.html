@@ -21,7 +21,18 @@
         (dismissed)="closeSheet()"
       >
         <div cardHeader class="request-heading">New Request</div>
-        <div class="waiting-behind" *ngIf="waitingBehind > 0">{{ waitingBehind }} more waiting</div>
+        <!-- Every other pending request, tappable: the bell's promise is "see
+             all of them", not just the oldest. Tapping one swaps it to the card. -->
+        <div class="waiting-behind" *ngIf="waitingBehind > 0">
+          {{ waitingBehind }} more waiting
+          <ul class="waiting-list">
+            <li *ngFor="let queued of queuedRequests; trackBy: trackByConnection">
+              <button type="button" class="waiting-item" [disabled]="isActing" (click)="bringToFront(queued)">
+                {{ queued.sender.name }}
+              </button>
+            </li>
+          </ul>
+        </div>
 
         <div class="expiry-note" *ngIf="isExpired; else countdown">This request has expired.</div>
         <ng-template #countdown>

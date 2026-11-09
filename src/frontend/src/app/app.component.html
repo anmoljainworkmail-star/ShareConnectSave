@@ -2,3 +2,6 @@
 <!-- Single mount point for toasts and the incoming-request banner (T067);
      fed by ToastService from any feature. -->
 <app-toast-host></app-toast-host>
+<!-- Installed-PWA pull-to-refresh: there is no browser reload button in
+     standalone mode. Mounted once here so every screen gets it. -->
+<app-pull-to-refresh></app-pull-to-refresh>

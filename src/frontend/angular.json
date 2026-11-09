@@ -78,6 +78,32 @@
                 "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
                 "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               }
+            },
+            "tunnel": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "define": {
+                "process.env.API_BASE_URL": "\"/gw\"",
+                "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
+                "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
+              }
+            },
+            "tunnel-prod": {
+              "optimization": true,
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.prod.ts"
+                }
+              ],
+              "define": {
+                "process.env.API_BASE_URL": "\"/gw\"",
+                "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
+                "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
+              },
+              "serviceWorker": "ngsw-config.json"
             }
           },
           "defaultConfiguration": "production"
@@ -90,6 +116,13 @@
             },
             "development": {
               "buildTarget": "frontend:build:development"
+            },
+            "tunnel": {
+              "buildTarget": "frontend:build:tunnel",
+              "proxyConfig": "proxy.conf.tunnel.json",
+              "allowedHosts": [".trycloudflare.com"],
+              "liveReload": false,
+              "hmr": false
             }
           },
           "defaultConfiguration": "development"

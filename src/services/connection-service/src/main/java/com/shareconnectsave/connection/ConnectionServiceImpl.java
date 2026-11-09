@@ -20,6 +20,7 @@ import com.shareconnectsave.connection.outbox.IOutboxService;
 import com.shareconnectsave.connection.saga.SagaStateRepository;
 import com.shareconnectsave.connection.saga.SagaState;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,12 +47,15 @@ import java.util.UUID;
 // touching a single line of production wiring.
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ConnectionServiceImpl implements ConnectionService {
 
     private static final int PENDING_REQUEST_EXPIRY_MINUTES = 10;
     private static final String SAGA_TYPE_CONNECTION_LIFECYCLE = "ConnectionLifecycle";
     private static final String SAGA_STATUS_IN_PROGRESS = "in_progress";
     private static final String SAGA_STEP_ACCEPTED = "ACCEPTED";
+    private static final String SAGA_STEP_COMPLETED = "COMPLETED";
+    private static final String SAGA_STATUS_COMPLETED = "completed";
 
     // Open/Closed (SOLID-O): the state machine is DATA, not a chain of
     // if/else branches inside accept()/decline(). Loosening or tightening
@@ -59,7 +63,11 @@ public class ConnectionServiceImpl implements ConnectionService {
     // CANCELLED path — is a change to this map's contents, never a new
     // conditional branch in the guard-clause code below.
     private static final Map<ConnectionStatus, Set<ConnectionStatus>> VALID_TRANSITIONS = Map.of(
-            ConnectionStatus.PENDING, Set.of(ConnectionStatus.ACCEPTED, ConnectionStatus.DECLINED)
+            ConnectionStatus.PENDING, Set.of(ConnectionStatus.ACCEPTED, ConnectionStatus.DECLINED),
+            // One new row of DATA, no new branch in any guard clause - this is
+            // the Open/Closed payoff the comment above describes. ACCEPTED used
+            // to be a dead end in this map; now it has exactly one way out.
+            ConnectionStatus.ACCEPTED, Set.of(ConnectionStatus.COMPLETED)
     );
 
     private final ConnectionRequestRepository connectionRequestRepository;
@@ -393,7 +401,7 @@ public class ConnectionServiceImpl implements ConnectionService {
     // UTC-day boundary, not a local one. Converting that LocalDate to its
     // start-of-day and start-of-next-day Instants here, then handing BOTH to
     // the repository as plain parameters, is what keeps
-    // countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan
+    // countByStatusInAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan
     // testable with any fixed instant instead of secretly depending on the
     // system clock itself.
     @Override
@@ -402,8 +410,91 @@ public class ConnectionServiceImpl implements ConnectionService {
         Instant startOfDayUtc = todayUtc.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant startOfNextDayUtc = todayUtc.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        return (int) connectionRequestRepository.countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan(
-                ConnectionStatus.ACCEPTED, startOfDayUtc, startOfNextDayUtc);
+        // ACCEPTED *and* COMPLETED: a connection that was accepted today and has
+        // since finished is still one "accepted today". Counting ACCEPTED alone
+        // would make this admin number shrink the moment a pair meets and the chat
+        // closes. Known limit, not fixed here: this uses updated_at as a stand-in
+        // for "accepted at", and completing a connection bumps updated_at, so a
+        // connection accepted yesterday but completed today lands in today's
+        // count. A dedicated accepted_at column is the real fix.
+        return (int) connectionRequestRepository.countByStatusInAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan(
+                List.of(ConnectionStatus.ACCEPTED, ConnectionStatus.COMPLETED), startOfDayUtc, startOfNextDayUtc);
+    }
+
+    // Read-only, no @Transactional: a single repository read, same reasoning as
+    // getActiveConnection above.
+    //
+    // Authorization lives here, not in the controller (thin-controller rule):
+    // only the two people in a connection may read it. Without this check any
+    // authenticated user could enumerate connection ids and learn who is paired
+    // with whom - an IDOR (insecure direct object reference), where knowing an id
+    // is mistaken for being allowed to see it.
+    @Override
+    public ConnectionResponse getConnection(Long connectionId, Long callerId) {
+        ConnectionRequest connectionRequest = requireConnection(connectionId);
+
+        boolean isParticipant = connectionRequest.getRequesterId().equals(callerId)
+                || connectionRequest.getRecipientId().equals(callerId);
+        if (!isParticipant) {
+            throw ForbiddenConnectionActionException.notParticipant(connectionId, callerId);
+        }
+
+        return connectionMapper.toResponse(connectionRequest);
+    }
+
+    // Saga (Choreography), the closing step: Chat Service decided the
+    // conversation is over and said so with chat.closed. Connection Service
+    // reacts by closing ITS OWN records - the connection row and its saga row -
+    // in one local transaction. It never calls Chat Service to ask; the event is
+    // the whole story (Database per Service, Event-Driven Architecture).
+    //
+    // Both writes share this @Transactional boundary (and the consumer's, which
+    // this joins) so the two tables cannot disagree: either the connection is
+    // COMPLETED and its saga is completed, or neither changed and Kafka
+    // redelivers.
+    //
+    // Guard clauses return quietly instead of throwing. This is called from a
+    // Kafka consumer, where a thrown exception means "do not commit the offset,
+    // redeliver" - fine for a transient failure, fatal for a permanent one. A
+    // connection that no longer exists, or was already moved out of ACCEPTED
+    // (e.g. EXPIRED by an admin suspension), will never become completable on
+    // retry, so retrying it forever would block this partition behind one
+    // unfixable message. The OPTIMISTIC LOCK (@Version on ConnectionRequest) is
+    // the exception on purpose: if a concurrent writer wins the race, the
+    // resulting exception propagates, the event is redelivered, and the retry
+    // then sees the new status and takes the quiet path below.
+    @Override
+    @Transactional
+    public void completeConnection(Long connectionId) {
+        Optional<ConnectionRequest> found = connectionRequestRepository.findById(connectionId);
+        if (found.isEmpty()) {
+            log.warn("chat.closed referenced unknown connection {}, nothing to complete", connectionId);
+            return;
+        }
+
+        ConnectionRequest connectionRequest = found.get();
+        if (connectionRequest.getStatus() != ConnectionStatus.ACCEPTED) {
+            log.info("Connection {} is {} not ACCEPTED, skipping completion",
+                    connectionId, connectionRequest.getStatus());
+            return;
+        }
+
+        // Defense in depth: the guard above already ensures ACCEPTED, but routing
+        // the change through the same state-machine map as accept/decline keeps
+        // "which transitions are legal" defined in exactly one place.
+        assertValidTransition(connectionRequest.getStatus(), ConnectionStatus.COMPLETED);
+        connectionRequest.transitionTo(ConnectionStatus.COMPLETED);
+        connectionRequestRepository.save(connectionRequest);
+
+        // ifPresent, not orElseThrow: a connection accepted before saga tracking
+        // shipped has no saga row. Losing the saga bookkeeping for such a legacy
+        // row is acceptable; failing to complete the connection itself is not.
+        sagaStateRepository.findById(connectionId).ifPresentOrElse(
+                saga -> {
+                    saga.advanceTo(SAGA_STEP_COMPLETED, SAGA_STATUS_COMPLETED);
+                    sagaStateRepository.save(saga);
+                },
+                () -> log.warn("No saga_state row for connection {}, completed the connection only", connectionId));
     }
 
     private ConnectionRequest requireConnection(Long connectionId) {

@@ -1,0 +1,68 @@
+/* Sits above the page, follows the finger via --pull-distance, never intercepts
+   touches (pointer-events: none) so it cannot block anything underneath. */
+.ptr {
+  --pull-distance: 0px;
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + var(--space-2));
+  left: 50%;
+  z-index: var(--z-toast);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(var(--pull-distance) - 56px));
+  transition: opacity 150ms ease-out;
+}
+
+.ptr-arrow {
+  width: 20px;
+  height: 20px;
+  transition: transform 150ms ease-out;
+}
+
+/* Past the threshold the arrow flips to say "release to refresh". */
+.ptr.armed .ptr-arrow {
+  transform: rotate(180deg);
+}
+
+.ptr-spinner {
+  display: none;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--color-primary-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: ptr-spin 700ms linear infinite;
+}
+
+.ptr.refreshing .ptr-arrow {
+  display: none;
+}
+
+.ptr.refreshing .ptr-spinner {
+  display: block;
+}
+
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptr,
+  .ptr-arrow {
+    transition: none;
+  }
+
+  .ptr-spinner {
+    animation-duration: 1.6s;
+  }
+}

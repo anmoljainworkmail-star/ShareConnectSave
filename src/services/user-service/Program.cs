@@ -103,30 +103,76 @@ builder.Services.Configure<AzureFaceOptions>(builder.Configuration.GetSection(Az
 builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
 
 // Strategy (classic pattern) + Dependency Inversion (SOLID D) + Open/Closed
-// (SOLID O) — fix, same shape as IDENTITY_VERIFY_STUB below: the ONE place
-// that decides which ITwilioClient implementation is wired in, selected once
-// at startup by the TWILIO_STUB env flag, never an "if (isDev)" branch inside
-// OtpService or the controller. Found necessary during integration testing —
-// Twilio trial accounts reject free-form SMS bodies to +91 numbers outright
-// (error 572006, an India TRAI/DLT compliance restriction, not a code bug) —
-// see StubTwilioClient's class comment for the full story. Reading a flat env
-// var directly here (not via an IOptions<T> section) is a composition-root
-// concern only, same category as IDENTITY_VERIFY_STUB just below.
-var twilioStub = string.Equals(
-    builder.Configuration["TWILIO_STUB"],
-    "true",
-    StringComparison.OrdinalIgnoreCase);
+// (SOLID O): the ONE place that decides which OTP delivery channels are
+// enabled, selected once at startup by OTP_CHANNELS - a comma list of "email"
+// and/or "sms" (default "email"). Never an "if (isDev)" branch inside
+// OtpService or the controller. Email is the primary channel because Twilio
+// trial accounts reject free-form SMS to +91 numbers outright (error 572006,
+// an India TRAI/DLT compliance restriction, not a code bug); the SMS channel
+// stays fully wired so enabling it later is OTP_CHANNELS=email,sms (or sms)
+// with no code change. Reading a flat env var directly here (not via an
+// IOptions<T> section) is a composition-root concern only, same category as
+// IDENTITY_VERIFY_STUB below.
+var otpChannels = (builder.Configuration["OTP_CHANNELS"] ?? "email")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(c => c.ToLowerInvariant())
+    .Distinct()
+    .ToList();
 
-if (twilioStub)
+// Fail Fast: a typo like "emial" must stop startup, not silently leave every
+// OTP request with no channel to deliver through.
+var unknownChannels = otpChannels.Where(c => c is not ("email" or "sms")).ToList();
+if (otpChannels.Count == 0 || unknownChannels.Count > 0)
 {
-    builder.Services.AddScoped<ITwilioClient, StubTwilioClient>();
+    throw new InvalidOperationException(
+        $"OTP_CHANNELS must be a comma list of 'email' and/or 'sms'; got '{builder.Configuration["OTP_CHANNELS"]}'.");
 }
-else
+
+// Each channel's dependencies are registered ONLY when that channel is
+// enabled: TwilioClient and SmtpEmailSender both throw on a missing
+// credential, so registering them unconditionally would force you to
+// configure a provider you have deliberately switched off.
+if (otpChannels.Contains("email"))
 {
-    // Typed HttpClient (T017): same pooling/DNS-refresh reasoning as
-    // IGoogleTokenValidator above - a single call to Twilio's REST API, no SDK
-    // package added (see TwilioClient's class comment for why).
-    builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
+    // Same stub idea TWILIO_STUB gives SMS: EMAIL_STUB=true logs the message
+    // instead of sending, for CI and offline dev.
+    var emailStub = string.Equals(
+        builder.Configuration["EMAIL_STUB"],
+        "true",
+        StringComparison.OrdinalIgnoreCase);
+
+    if (emailStub)
+    {
+        builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+    }
+    else
+    {
+        builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+    }
+
+    builder.Services.AddScoped<IOtpDeliveryChannel, EmailOtpChannel>();
+}
+
+if (otpChannels.Contains("sms"))
+{
+    var twilioStub = string.Equals(
+        builder.Configuration["TWILIO_STUB"],
+        "true",
+        StringComparison.OrdinalIgnoreCase);
+
+    if (twilioStub)
+    {
+        builder.Services.AddScoped<ITwilioClient, StubTwilioClient>();
+    }
+    else
+    {
+        // Typed HttpClient (T017): same pooling/DNS-refresh reasoning as
+        // IGoogleTokenValidator above - a single call to Twilio's REST API, no
+        // SDK package added (see TwilioClient's class comment for why).
+        builder.Services.AddHttpClient<ITwilioClient, TwilioClient>();
+    }
+
+    builder.Services.AddScoped<IOtpDeliveryChannel, SmsOtpChannel>();
 }
 
 // Typed HttpClient (T019): same pooling/DNS-refresh reasoning as

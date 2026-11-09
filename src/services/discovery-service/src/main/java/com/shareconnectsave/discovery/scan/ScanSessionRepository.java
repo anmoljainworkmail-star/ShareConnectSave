@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 // Pattern: Repository (GoF/DDD) — same shape as IUserRepository in User
@@ -35,6 +36,15 @@ public interface ScanSessionRepository extends JpaRepository<ScanSession, Long> 
     // including the Redis call — before the other can even read the row.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ScanSession> findFirstByUserIdAndEndedAtIsNullOrderByIdDesc(Long userId);
+
+    // Every open session for one user, not just the newest. The finder above
+    // deliberately resolves to ONE row so callers get an unambiguous "current"
+    // session, which means it also hides the older orphans a crashed or
+    // refreshed client leaves behind. ScanSessionServiceImpl.startScan uses this
+    // to find and end those orphans before opening a new session. No lock: each
+    // cleanup is idempotent (closing an already-closed session changes nothing),
+    // so nothing here needs the TOCTOU protection the finder above provides.
+    List<ScanSession> findByUserIdAndEndedAtIsNull(Long userId);
 
     // T106 — Distinct Query Intent (Analytics vs. Real-Time): "how many scan
     // sessions started today" is an ANALYTICS question answered from this

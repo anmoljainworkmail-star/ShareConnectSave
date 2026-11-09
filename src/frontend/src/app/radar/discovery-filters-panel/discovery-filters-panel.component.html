@@ -9,10 +9,22 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="filters-title"
+    [class.dragging]="isDragging"
+    [style.transform]="sheetOffsetPx > 0 ? 'translateY(' + sheetOffsetPx + 'px)' : null"
     (click)="$event.stopPropagation()"
   >
-    <div class="handle" aria-hidden="true"></div>
-    <h2 id="filters-title" class="filters-title">Discovery Filters</h2>
+    <!-- Grab strip: drag down to dismiss. Escape / backdrop tap still work
+         for keyboard and mouse users. -->
+    <div
+      class="sheet-drag-zone"
+      (pointerdown)="onDragStart($event)"
+      (pointermove)="onDragMove($event)"
+      (pointerup)="onDragEnd($event)"
+      (pointercancel)="onDragEnd($event)"
+    >
+      <div class="handle" aria-hidden="true"></div>
+      <h2 id="filters-title" class="filters-title">Discovery Filters</h2>
+    </div>
 
     <div class="filter-group">
       <label class="filter-label" for="radius">

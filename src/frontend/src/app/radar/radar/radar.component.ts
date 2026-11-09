@@ -151,6 +151,62 @@ export class RadarComponent implements OnInit, OnDestroy {
     this.mode = 'BLE';
   };
 
+  // Draggable "Where are you heading?" sheet. Two resting positions (open /
+  // tucked away) with a free drag in between -- state is just a pixel offset
+  // applied as translateY, so the browser animates it on the compositor with
+  // no layout work. Pointer Events (not separate touch + mouse handlers) so
+  // one code path covers finger, mouse and pen.
+  sheetOffsetPx = 0;
+  isSheetDragging = false;
+  private sheetMaxOffsetPx = 0;
+  private sheetDragStartY = 0;
+  private sheetDragStartOffsetPx = 0;
+  private sheetDragMoved = false;
+
+  get isSheetCollapsed(): boolean {
+    return this.sheetOffsetPx > 0;
+  }
+
+  // On-screen keyboard handling. This page is a fixed-height, overflow-clipped
+  // "app" screen with the destination sheet pinned to the bottom, which is the
+  // exact layout a mobile keyboard covers: browsers (Chrome Android by default,
+  // iOS Safari always) leave the LAYOUT viewport the same size and slide the
+  // keyboard OVER it, and because the page cannot scroll the browser has
+  // nothing to "scroll the focused field into view" with. The Visual Viewport
+  // API reports the part of the page actually visible; the gap between it and
+  // the layout viewport is the keyboard's height, and lifting the sheet by that
+  // much keeps the field above it. On a browser that DOES resize the layout
+  // viewport for the keyboard, the two heights match, the gap is 0 and this
+  // does nothing -- so it can never lift the sheet twice.
+  //
+  // How the page is aligned while the keyboard is up: rather than nudging the
+  // sheet by an estimated amount (which goes wrong when iOS ALSO pans the page
+  // to reveal the focused field, so the two corrections stack and the sheet
+  // lands too high or half off-screen), the whole page is made to BE the
+  // visible area -- height = visual viewport height, shifted down by however
+  // far the browser has panned (offsetTop). Top of the page = top of what you
+  // can see, bottom of the page (where the sheet is pinned) = just above the
+  // keyboard, whatever the browser did.
+  keyboardInsetPx = 0;
+  viewportHeightPx = 0;
+  viewportOffsetTopPx = 0;
+  private static readonly KEYBOARD_MIN_INSET_PX = 120;
+  private readonly handleViewportChange = (): void => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+    const inset = Math.max(window.innerHeight - viewport.height - viewport.offsetTop, 0);
+    // Ignore small gaps (collapsing URL bar, rounding) -- only a real keyboard.
+    this.keyboardInsetPx = inset > RadarComponent.KEYBOARD_MIN_INSET_PX ? Math.round(inset) : 0;
+    this.viewportHeightPx = Math.round(viewport.height);
+    this.viewportOffsetTopPx = Math.round(viewport.offsetTop);
+  };
+
+  get isKeyboardOpen(): boolean {
+    return this.keyboardInsetPx > 0;
+  }
+
   // T066 Discovery Filters Panel (Screen 17). Container/presentational split:
   // this component only decides WHEN the panel is open and carries its
   // result into ScanSessionService -- the panel renders, the service stores.
@@ -191,6 +247,8 @@ export class RadarComponent implements OnInit, OnDestroy {
     // NgZone wrapping is needed here for change detection to pick this up.
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.handleOffline);
+    window.visualViewport?.addEventListener('resize', this.handleViewportChange);
+    window.visualViewport?.addEventListener('scroll', this.handleViewportChange);
 
     this.destinationQuery$
       .pipe(
@@ -222,6 +280,8 @@ export class RadarComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     window.removeEventListener('online', this.handleOnline);
     window.removeEventListener('offline', this.handleOffline);
+    window.visualViewport?.removeEventListener('resize', this.handleViewportChange);
+    window.visualViewport?.removeEventListener('scroll', this.handleViewportChange);
 
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId);
@@ -348,6 +408,82 @@ export class RadarComponent implements OnInit, OnDestroy {
           this.startError = 'Location permission is required to use your current location.';
         }
       });
+  }
+
+  // --- Draggable sheet -----------------------------------------------------
+
+  onSheetPointerDown(event: PointerEvent): void {
+    const zone = event.currentTarget as HTMLElement;
+    const card = zone.parentElement;
+    // Guard clause: nothing to measure against.
+    if (!card) {
+      return;
+    }
+
+    // How far the card can slide down: everything except the grabber +
+    // heading strip (plus a little breathing room), so that strip always
+    // stays on screen as the thing you grab to bring the sheet back.
+    const peekPx = zone.offsetTop + zone.offsetHeight + 8;
+    this.sheetMaxOffsetPx = Math.max(card.offsetHeight - peekPx, 0);
+    this.sheetDragStartY = event.clientY;
+    this.sheetDragStartOffsetPx = this.sheetOffsetPx;
+    this.sheetDragMoved = false;
+    this.isSheetDragging = true;
+
+    // Capture keeps pointermove/up flowing to this element even when the
+    // finger slides off it -- without it a fast drag "drops" the sheet.
+    zone.setPointerCapture(event.pointerId);
+  }
+
+  onSheetPointerMove(event: PointerEvent): void {
+    // Guard clause: a hover (mouse move with no button held) is not a drag.
+    if (!this.isSheetDragging) {
+      return;
+    }
+
+    const delta = event.clientY - this.sheetDragStartY;
+    // A few px of slop so a sloppy tap is not mistaken for a drag.
+    if (Math.abs(delta) > 4) {
+      this.sheetDragMoved = true;
+    }
+    this.sheetOffsetPx = Math.min(Math.max(this.sheetDragStartOffsetPx + delta, 0), this.sheetMaxOffsetPx);
+  }
+
+  onSheetPointerUp(event: PointerEvent): void {
+    // Guard clause: pointerup after pointercancel (or a stray one) is a no-op.
+    if (!this.isSheetDragging) {
+      return;
+    }
+
+    const zone = event.currentTarget as HTMLElement;
+    if (zone.hasPointerCapture(event.pointerId)) {
+      zone.releasePointerCapture(event.pointerId);
+    }
+    this.isSheetDragging = false;
+
+    // A tap (no real movement) toggles; a drag snaps to whichever end it is
+    // closer to, so the sheet never rests half-covering the radar.
+    if (!this.sheetDragMoved) {
+      this.toggleSheet();
+      return;
+    }
+    this.sheetOffsetPx = this.sheetOffsetPx > this.sheetMaxOffsetPx / 2 ? this.sheetMaxOffsetPx : 0;
+  }
+
+  // Keyboard / tap path. Uses the offset measured by the last pointer-down
+  // when there is one; falls back to measuring here for keyboard-only use.
+  toggleSheet(): void {
+    if (this.isSheetCollapsed) {
+      this.sheetOffsetPx = 0;
+      return;
+    }
+    const card = document.querySelector<HTMLElement>('.idle-bottom-card');
+    const zone = card?.querySelector<HTMLElement>('.sheet-drag-zone');
+    if (!card || !zone) {
+      return;
+    }
+    this.sheetMaxOffsetPx = Math.max(card.offsetHeight - (zone.offsetTop + zone.offsetHeight + 8), 0);
+    this.sheetOffsetPx = this.sheetMaxOffsetPx;
   }
 
   openFilters(): void {
@@ -638,6 +774,8 @@ export class RadarComponent implements OnInit, OnDestroy {
     const hadActiveSession = this.sessionId !== null;
     this.sessionId = null;
     this.view = 'idle';
+    // The sheet is re-created on return to idle -- start it open again.
+    this.sheetOffsetPx = 0;
     this.discoveredUsers = [];
     this.selectedUser = null;
     this.hasReceivedFirstNearbyResponse = false;

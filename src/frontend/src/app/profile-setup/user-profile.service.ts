@@ -102,16 +102,42 @@ export class UserProfileService {
       return of(null);
     }
 
-    if (!photoUrl.startsWith(environment.apiBase)) {
+    const gatewayUrl = this.toGatewayPhotoUrl(photoUrl);
+    if (!gatewayUrl) {
       return of(photoUrl);
     }
 
     return this.http
-      .get(photoUrl, { responseType: 'blob' })
+      .get(gatewayUrl, { responseType: 'blob' })
       .pipe(
         map(blob => URL.createObjectURL(blob)),
         catchError(error => this.toApplicationError(error))
       );
+  }
+
+  // Re-roots a self-hosted photo_url onto the gateway address THIS client is
+  // actually using, or returns null for a foreign URL (Google CDN).
+  //
+  // The problem: user-service builds photo_url from its own view of the
+  // request (`Request.Scheme://Request.Host`), which behind a proxy/tunnel is
+  // an INTERNAL address -- e.g. "http://localhost:8080/user/uploads/photos/x.jpg"
+  // -- and that string is stored in the database. A plain `startsWith(apiBase)`
+  // check then fails whenever the client reaches the gateway by a different
+  // address (the tunnel build uses the relative "/gw"; a phone has no
+  // "localhost:8080" at all), so the URL was handed straight to <img>:
+  // unauthenticated, and pointing at the wrong machine -- a broken image.
+  //
+  // The fix: trust only the PATH. The path ("/user/uploads/photos/...") is the
+  // stable part of the contract (ProfilePhotoOptions.BaseUrl); the host is an
+  // accident of how the upload request arrived. Rebuilding the URL from the
+  // client's own apiBase also repairs photos already stored with a stale host.
+  private toGatewayPhotoUrl(photoUrl: string): string | null {
+    if (photoUrl.startsWith(environment.apiBase)) {
+      return photoUrl;
+    }
+    const marker = '/user/uploads/photos/';
+    const index = photoUrl.indexOf(marker);
+    return index === -1 ? null : `${environment.apiBase}${photoUrl.substring(index)}`;
   }
 
   // Anti-Corruption Layer (DDD): the backend's wire vocabulary ("Female",

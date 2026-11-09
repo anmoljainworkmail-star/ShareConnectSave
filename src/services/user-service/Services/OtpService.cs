@@ -13,15 +13,15 @@ using user_service.Services.Interfaces;
 // Single Responsibility (SOLID S): this class owns the OTP business rules —
 // code generation, idempotent resend, brute-force lockout accounting, and
 // the "when does status become active" decision. It never touches
-// AppDbContext, HttpClient, or Twilio's URL shape directly — those live
-// behind IOtpRepository/IUserRepository/ITwilioClient (Dependency Inversion,
-// SOLID D), which is what a unit test mocks instead of standing up SQL
-// Server plus a real Twilio account per test.
+// AppDbContext, HttpClient, or any provider's wire protocol directly — those
+// live behind IOtpRepository/IUserRepository/IOtpDeliveryChannel (Dependency
+// Inversion, SOLID D), which is what a unit test mocks instead of standing up
+// SQL Server plus a real mail/SMS account per test.
 public class OtpService : IOtpService
 {
     private readonly IOtpRepository _otpRepository;
     private readonly IUserRepository _userRepository;
-    private readonly ITwilioClient _twilioClient;
+    private readonly IReadOnlyList<IOtpDeliveryChannel> _channels;
     private readonly IJwtIssuer _jwtIssuer;
     private readonly IUserVerifiedEventPublisher _userVerifiedEventPublisher;
     private readonly OtpOptions _options;
@@ -30,7 +30,7 @@ public class OtpService : IOtpService
     public OtpService(
         IOtpRepository otpRepository,
         IUserRepository userRepository,
-        ITwilioClient twilioClient,
+        IEnumerable<IOtpDeliveryChannel> channels,
         IJwtIssuer jwtIssuer,
         IUserVerifiedEventPublisher userVerifiedEventPublisher,
         IOptions<OtpOptions> options,
@@ -38,14 +38,14 @@ public class OtpService : IOtpService
     {
         _otpRepository = otpRepository;
         _userRepository = userRepository;
-        _twilioClient = twilioClient;
+        _channels = channels.ToList();
         _jwtIssuer = jwtIssuer;
         _userVerifiedEventPublisher = userVerifiedEventPublisher;
         _options = options.Value;
         _logger = logger;
     }
 
-    public async Task<OtpSendOutcome> SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    public async Task<OtpSendOutcome> SendOtpAsync(long userId, string phoneNumber, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var attempt = await _otpRepository.GetByPhoneAsync(phoneNumber);
@@ -88,6 +88,22 @@ public class OtpService : IOtpService
         {
             _logger.LogInformation("OTP send is an idempotent no-op — a code was already sent within the resend cooldown window.");
             return new OtpSendOutcome(OtpSendResult.Sent, null);
+        }
+
+        // Guard Clause: resolve WHERE the code can go before persisting
+        // anything. A code written to otp_attempts that can't be delivered
+        // anywhere would just start the resend-cooldown clock for a message
+        // that never left, so the user's honest retry would be swallowed as an
+        // "idempotent no-op". The email comes from the authenticated user's
+        // own Google-verified record (userId is the gateway-injected
+        // identity), never from the request body - a caller can't make us
+        // mail an arbitrary stranger.
+        var user = await _userRepository.GetByIdAsync(userId);
+        var recipient = new OtpRecipient(phoneNumber, user?.Email);
+        var reachableChannels = _channels.Where(c => c.CanDeliver(recipient)).ToList();
+        if (user is null || reachableChannels.Count == 0)
+        {
+            return new OtpSendOutcome(OtpSendResult.NoDeliveryChannelAvailable, null);
         }
 
         var code = GenerateCode();
@@ -155,12 +171,42 @@ public class OtpService : IOtpService
             }
         }
 
-        await _twilioClient.SendSmsAsync(
-            phoneNumber,
-            $"Your ShareConnectSave verification code is {code}. It expires in {_options.CodeExpiryMinutes} minutes.",
-            cancellationToken);
+        await DeliverAsync(reachableChannels, recipient, code, cancellationToken);
 
         return new OtpSendOutcome(OtpSendResult.Sent, null);
+    }
+
+    // Partial-failure tolerance: with several channels enabled (email + sms),
+    // one provider being down must not stop the user receiving the code
+    // through the other. Every reachable channel is attempted; the send only
+    // counts as failed (exception -> 500, never a fake "sent") when NONE of
+    // them got through. Same fail-closed stance as before, just no longer
+    // hostage to the weakest provider.
+    private async Task DeliverAsync(
+        IReadOnlyList<IOtpDeliveryChannel> channels,
+        OtpRecipient recipient,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        var failures = new List<Exception>();
+
+        foreach (var channel in channels)
+        {
+            try
+            {
+                await channel.SendAsync(recipient, code, _options.CodeExpiryMinutes, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "OTP delivery failed on channel {Channel}", channel.Name);
+                failures.Add(ex);
+            }
+        }
+
+        if (failures.Count == channels.Count)
+        {
+            throw new AggregateException("OTP delivery failed on every enabled channel.", failures);
+        }
     }
 
     public async Task<OtpVerificationOutcome> VerifyOtpAsync(

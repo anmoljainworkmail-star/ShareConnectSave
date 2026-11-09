@@ -277,7 +277,6 @@
   --atlas-geo-label: rgba(255, 255, 255, 0.4);
   --atlas-aurora-gradient: conic-gradient(from 90deg, #ff8fd6, #ffd36e, #7ff0c2, #7eb8ff, #ff8fd6);
   --atlas-vignette: radial-gradient(circle, rgba(8, 10, 20, 0.45) 0%, transparent 70%);
-  --atlas-route-line: rgba(255, 255, 255, 0.8);
   --atlas-plane-fill: #ffffff;
   --atlas-plane-stroke: rgba(10, 10, 30, 0.35);
   /* A real black steam train -- a true near-black, not a violet-tinted

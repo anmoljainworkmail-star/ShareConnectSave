@@ -6,7 +6,7 @@ namespace user_service.Services.Interfaces;
 // in-memory fake for tests) never touches the controller.
 public interface IOtpService
 {
-    Task<OtpSendOutcome> SendOtpAsync(string phoneNumber, CancellationToken cancellationToken = default);
+    Task<OtpSendOutcome> SendOtpAsync(long userId, string phoneNumber, CancellationToken cancellationToken = default);
 
     Task<OtpVerificationOutcome> VerifyOtpAsync(
         long userId,
@@ -28,6 +28,11 @@ public enum OtpSendResult
 {
     Sent,
     Locked,
+
+    // None of the ENABLED channels can reach this user (e.g. only email is
+    // enabled and the account has no email on file) - an expected outcome the
+    // controller maps to 400, not an exception.
+    NoDeliveryChannelAvailable,
 }
 
 public record OtpSendOutcome(OtpSendResult Result, DateTime? LockedUntil);

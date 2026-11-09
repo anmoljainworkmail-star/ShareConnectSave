@@ -1,4 +1,4 @@
-# ShareConnectSave
+# Karwan
 
 ## TL;DR
 
@@ -6,7 +6,7 @@ A travel companion discovery platform — verified travelers nearby heading the 
 
 ## What this is
 
-ShareConnectSave is a travel companion discovery platform — think of it as helping verified travelers who happen to be heading the same way find each other nearby. It only handles discovery, matching, and a temporary chat window; it deliberately stays out of ride booking, payments, and tracking. Once both people mark **Met Successfully**, the chat closes and the platform's job is done.
+Karwan (formerly ShareConnectSave) is a travel companion discovery platform — think of it as helping verified travelers who happen to be heading the same way find each other nearby. It only handles discovery, matching, and a temporary chat window; it deliberately stays out of ride booking, payments, and tracking. Once both people mark **Met Successfully**, the chat closes and the platform's job is done.
 
 I'm building this primarily to *learn*, not just to ship — it's a real excuse to get hands-on with distributed microservices across two languages (Java and .NET), Kafka as an event bus, the Saga/Outbox pattern, SignalR, BLE, and an Angular PWA. Everything below is written the way I'd explain it out loud, so I can walk through it cold in an interview.
 

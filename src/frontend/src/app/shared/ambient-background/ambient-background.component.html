@@ -75,13 +75,9 @@
   <div class="map-vignette"></div>
   <div class="aurora"></div>
 
-  <!-- One dashed line, land to land, with a plane flying it -- see
-       .route-path/.plane-sticker's own CSS comments for the shared curve
-       both are built from (the plane's keyframes are sampled from this
-       exact path, not a separately hand-tuned approximation). -->
-  <svg class="route-path" viewBox="0 0 100 100" preserveAspectRatio="none">
-    <path class="air" d="M18,21 Q50,15 83,61"></path>
-  </svg>
+  <!-- A plane flying a fixed curve land to land (its keyframes in
+       .plane-sticker's CSS are sampled from that curve). The dashed line
+       that used to be drawn under it is removed on purpose. -->
   <div class="plane-sticker">
     <svg viewBox="-6 -4 12 8">
       <path
@@ -100,7 +96,7 @@
        stays on the top-left landmass, below its mountains and clear of the
        air route's own start point; train-two stays on the right landmass,
        clear of the air route's end point and the compass rose. -->
-  <div class="train-sticker one">
+  <div class="train-sticker one wanderer">
     <svg viewBox="-6 -16 106 28">
       <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
       <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
@@ -184,7 +180,7 @@
     </svg>
   </div>
 
-  <div class="train-sticker two">
+  <div class="train-sticker two wanderer">
     <svg viewBox="-6 -16 106 28">
       <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
       <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
@@ -268,14 +264,13 @@
     </svg>
   </div>
 
-  <!-- Two more trains, three/four, circling the scene's own rectangular
-       border (orbit-perimeter-cw/-ccw) rather than riding a landmass --
-       "a train on the edges, like the corners of the phone." Same drawn
-       locomotive, reused rather than redrawn, just smaller (see
-       .train-sticker.three/.four's own CSS size rule) since these are a
-       background/ambient detail circling the frame, not a second pair of
-       hero trains competing with one/two. -->
-  <div class="train-sticker three">
+  <!-- Two more trains, three/four ("rail" trains), looping the scene's own
+       rectangular edge with their wheels on the edge line -- "a train on the
+       edges, like the corners of the phone." Same drawn locomotive, reused
+       rather than redrawn. The loop is built in
+       AmbientBackgroundComponent.buildRailLoop() because "on the edge"
+       depends on real pixel sizes a CSS percentage can't express. -->
+  <div class="train-sticker three rail">
     <svg viewBox="-6 -16 106 28">
       <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
       <circle class="steam puff-2" cx="4.5" cy="-10"></circle>
@@ -353,7 +348,7 @@
     </svg>
   </div>
 
-  <div class="train-sticker four">
+  <div class="train-sticker four rail">
     <svg viewBox="-6 -16 106 28">
       <circle class="steam puff-1" cx="4.5" cy="-10"></circle>
       <circle class="steam puff-2" cx="4.5" cy="-10"></circle>

@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { EMPTY, Observable, Subject } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 
+import { AuthService } from '../auth/auth.service';
 import { ErrorEnvelope } from '../auth/models/auth.models';
 import { Gender, UpdateProfileRequest, UserProfileDto } from '../profile-setup/models/profile-setup.models';
 import { UserProfileService } from '../profile-setup/user-profile.service';
@@ -62,8 +63,25 @@ export class ProfileComponent implements OnInit, OnDestroy {
   constructor(
     private readonly userProfileService: UserProfileService,
     private readonly toastService: ToastService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly authService: AuthService
   ) {}
+
+  // Sign Out (FIGMA_SPEC Screen 15 "More" section). Two steps, in order:
+  //   1. clearToken() drops BOTH tokens and flips authenticated$ to false --
+  //      the notification/chat SignalR flows already listen to that stream and
+  //      tear their sockets down, so no hub call is needed here.
+  //   2. A full page load (not router.navigate) on purpose: several root-level
+  //      singletons (ScanSessionService filters incl. women-only, cached
+  //      profile state, admin snapshots) live in memory for the life of the
+  //      tab. Navigating inside the SPA would let the NEXT person who signs in
+  //      on this device inherit the previous user's state -- a reload is the one
+  //      reset that cannot miss a service someone adds later. Same "next user
+  //      on this device must not inherit" concern the hub services already note.
+  signOut(): void {
+    this.authService.clearToken();
+    window.location.assign('/auth/login');
+  }
 
   ngOnInit(): void {
     this.photoResolve$

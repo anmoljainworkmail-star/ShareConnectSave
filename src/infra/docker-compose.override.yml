@@ -47,6 +47,19 @@ services:
       # Defaults to true here, same as IDENTITY_VERIFY_STUB below, so local
       # dev never depends on a live, regulation-constrained SMS carrier.
       - TWILIO_STUB=${TWILIO_STUB:-true}
+      # OTP delivery channels, read by Program.cs at STARTUP: comma list of
+      # "email" and/or "sms" (default email, the primary channel). The TWILIO_*
+      # vars above only matter when "sms" is enabled. EMAIL_STUB defaults to
+      # true so local dev/CI never needs a mail account - the code is logged
+      # instead. Set EMAIL_STUB=false plus the SMTP_* values in .env to send
+      # real mail; SmtpEmailSender throws naming any missing one.
+      - OTP_CHANNELS=${OTP_CHANNELS:-email}
+      - EMAIL_STUB=${EMAIL_STUB:-true}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
       # T019: Program.cs reads IDENTITY_VERIFY_STUB at STARTUP (not lazily) to
       # decide which IFaceMatchService gets registered — without this
       # passthrough it always reads as unset/false inside the container,

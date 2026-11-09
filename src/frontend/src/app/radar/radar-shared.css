@@ -23,8 +23,15 @@
    clip to and center within THIS box. */
 .radar-page {
   position: relative;
-  min-height: 100dvh;
+  /* height, not min-height: the radar is a fixed, app-like screen. With
+     min-height the page could grow past the viewport and become scrollable
+     (white gap + rubber-banding on a phone). dvh tracks the mobile URL bar. */
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  /* clip, where supported, can't be scrolled even programmatically (focus
+     scrolling a hidden-overflow box is a classic source of a stray offset). */
+  overflow: clip;
   color: var(--color-text-inverse);
   display: flex;
   flex-direction: column;
@@ -52,6 +59,8 @@
   height: var(--radar-stage-size);
   aspect-ratio: 1 / 1;
   margin: auto;
+  /* Never let the fixed-height page squash the stage into an ellipse. */
+  flex: none;
 }
 
 .radar-ring {

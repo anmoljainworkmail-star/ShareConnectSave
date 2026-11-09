@@ -40,7 +40,13 @@ export class RatingContextService {
   resolveCompanion(connectionId: string): Observable<RatingCompanion | null> {
     return forkJoin({
       me: this.userProfileService.getMyProfile(),
-      connection: this.connectionService.getActiveConnection()
+      // By id, not "the active connection": once the chat closes the connection
+      // is COMPLETED and no longer "active", yet this screen must still know who
+      // the other person was. A 403/404 (not your connection / no such one) is the
+      // same outcome as a stale link, so it collapses to null rather than erroring.
+      connection: this.connectionService.getConnection(connectionId).pipe(
+        catchError((): Observable<ConnectionResponse | null> => of(null))
+      )
     }).pipe(
       switchMap(({ me, connection }) => {
         const otherUserId = this.otherParticipantId(me.id, connection, connectionId);
@@ -74,6 +80,18 @@ export class RatingContextService {
     return this.chatApi.getChatByConnection(connectionId).pipe(
       map(room => this.toEntryPath(room.status, room.closed_reason)),
       catchError(() => of<RatingEntryPath>('met'))
+    );
+  }
+
+  // True while the room can still take messages (OPEN, or CLOSING -- the grace
+  // window after Met Successfully). Drives the "Back to chat" option: offering it
+  // for a CLOSED room would only walk the user into a screen that bounces them
+  // straight back here. Fail-closed like resolveEntryFromServer: any lookup
+  // failure means "do not offer", never a button that might lead nowhere.
+  isChatStillOpen(connectionId: string): Observable<boolean> {
+    return this.chatApi.getChatByConnection(connectionId).pipe(
+      map(room => room.status !== 'CLOSED'),
+      catchError(() => of(false))
     );
   }
 

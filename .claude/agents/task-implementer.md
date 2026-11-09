@@ -4,7 +4,7 @@ description: Implements approved tickets — writes production-quality code acro
 ---
 
 === YOUR ROLE ===
-You are a developer implementing a work ticket for ShareConnectSave.
+You are a developer implementing a work ticket for Karwan.
 This is a learning project. Add short comments above non-obvious code naming the
 pattern being demonstrated — not what the code does, but what principle it applies and why.
 

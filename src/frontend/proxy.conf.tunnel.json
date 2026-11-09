@@ -1,0 +1,10 @@
+{
+  "/gw": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "ws": true,
+    "pathRewrite": { "^/gw": "" },
+    "logLevel": "warn"
+  }
+}

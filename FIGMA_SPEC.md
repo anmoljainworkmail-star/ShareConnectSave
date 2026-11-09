@@ -1,4 +1,4 @@
-# ShareConnectSave — Figma Prototype Specification
+# Karwan — Figma Prototype Specification
 
 ## How to use this document
 Hand this entire document to a Figma designer or paste it into Figma AI / a design tool. It contains every screen, every state, every flow, and every component needed to build a complete clickable prototype.
@@ -7,7 +7,7 @@ Hand this entire document to a Figma designer or paste it into Figma AI / a desi
 
 ## 1. Design Brief
 
-**App name:** ShareConnectSave  
+**App name:** Karwan  
 **Platform:** Responsive web (PWA) — fully usable on laptop browser AND mobile. Design both breakpoints.  
 **Future:** Capacitor wraps the mobile layout for native Android/iOS — avoid browser-specific UI patterns.  
 **Audience:** Urban travelers, aged 20–40, comfort with apps like Tinder, Ola, WhatsApp.  
@@ -48,7 +48,7 @@ All desktop screens live inside this persistent shell:
 
 **Sidebar specs:**
 - Width: 240px, fixed, deep indigo (`--color-radar-bg`) background
-- Logo area: 64px tall, logo icon + "ShareConnectSave" wordmark in white
+- Logo area: 64px tall, logo icon + "Karwan" wordmark in white
 - Nav items: icon + label, 48px tall each, `--color-text-inverse` inactive, white active with left violet accent bar (4px, `--color-primary`)
 - Bottom: user avatar + name + settings icon
 - Mobile: sidebar collapses entirely, replaced by bottom navigation bar
@@ -283,7 +283,7 @@ Reusable card used both as bottom sheet and as list item.
 **Duration:** 1.5 seconds, then auto-navigate.  
 **Layout:**
 - Full screen deep indigo (`--color-radar-bg`)
-- Center: app logo (compass/radar icon in Violet-400 `#A78BFA`, softly glowing) + "ShareConnectSave" wordmark in white
+- Center: app logo (compass/radar icon in Violet-400 `#A78BFA`, softly glowing) + "Karwan" wordmark in white
 - Tagline below: "Find your travel companion" in Violet-300 `#C4B5FD`
 - Bottom: animated loading dots in Violet-500
 
@@ -305,8 +305,8 @@ Reusable card used both as bottom sheet and as list item.
   - Subtle slow drift animation on the circles (translate X/Y by 8px over 6 seconds, ease-in-out loop) — makes the background feel alive
 - Centered white card (border-radius 24px, `--shadow-bottom-sheet`):
   - App logo + wordmark at the top of the card
-  - Heading: "Find someone going your way"
-  - Subtext: "Discover verified travel companions heading in your direction."
+  - Heading: "Never travel alone."
+  - Subtext: "Verified travelers, heading your way."
   - Google Sign-In button (standard Google branding)
   - Fine print: "By continuing you agree to our Terms and Privacy Policy."
 - Card sits vertically centered (not bottom-anchored) — gives breathing room

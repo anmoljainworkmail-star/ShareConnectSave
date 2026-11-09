@@ -39,21 +39,29 @@ public class OtpController(IOtpService otpService) : ControllerBase
     public async Task<IActionResult> SendOtp(OtpSendRequest request)
     {
         // Guard Clause (project convention): reject an obviously-malformed
-        // number before ever touching the DB or spending a Twilio SMS
-        // credit on it.
+        // number before ever touching the DB or sending an email for it.
         if (string.IsNullOrWhiteSpace(request.PhoneNumber) || !PhoneNumberPattern.IsMatch(request.PhoneNumber))
         {
             return InvalidRequest("Phone number must be a valid Indian mobile number, e.g. +919876543210.");
         }
 
-        var outcome = await otpService.SendOtpAsync(request.PhoneNumber, HttpContext.RequestAborted);
+        // Email delivery targets the authenticated user's own address, so we
+        // need the gateway-injected identity here (this route is already
+        // JWT-protected - see the class comment).
+        if (!HttpContext.TryGetUserId(out var userId))
+        {
+            return MissingIdentity();
+        }
+
+        var outcome = await otpService.SendOtpAsync(userId, request.PhoneNumber, HttpContext.RequestAborted);
 
         // What NOT to do (ticket-explicit): the response never carries the
-        // OTP code itself — only Twilio, and OtpService transiently at
-        // generation time, ever see the plaintext.
+        // OTP code itself — only the email provider, and OtpService
+        // transiently at generation time, ever see the plaintext.
         return outcome.Result switch
         {
             OtpSendResult.Sent => Ok(new OtpSendResponse(Sent: true)),
+            OtpSendResult.NoDeliveryChannelAvailable => InvalidRequest("No verification channel is available for this account, so a code cannot be sent."),
             // Fix (found during integration testing): same 429 OTP_LOCKED
             // shape VerifyOtp already returns — a locked phone gets a clean
             // rejection here too now, instead of silently accepting a send

@@ -5,7 +5,7 @@ import { catchError } from 'rxjs/operators';
 
 import { environment } from '../../../../environments/environment';
 import { ErrorEnvelope } from '../../../auth/models/auth.models';
-import { ChatRoomLookup, MarkMetResponse } from '../models/chat.models';
+import { ChatMessage, ChatRoomLookup, MarkMetResponse } from '../models/chat.models';
 
 // Single Responsibility (S): the request/response half of chat only -- today
 // exactly one endpoint. Real-time sending lives on the hub
@@ -13,14 +13,22 @@ import { ChatRoomLookup, MarkMetResponse } from '../models/chat.models';
 // ChatController), and mirroring it here is why a component never injects
 // HttpClient (angular-pwa skill).
 //
-// Deliberately NO "get message history" method, even though chat-service has a
-// GET /chats/:id/messages: T068's no-history-by-design rule says the UI shows
-// only what arrives live in this session. Chat messages are ephemeral
-// (MongoDB TTL) -- a client that re-fetched and cached them would quietly
-// build the very history the platform promises not to keep.
+// History, narrowly: getMessages() re-reads the messages of a room that is still
+// live (capped server-side at the last 50). It exists because leaving the chat
+// screen (to rating, or back to the radar) and returning within the chat's
+// lifetime must not look like a brand-new empty chat. It is NOT a permanent
+// archive: nothing is cached client-side, and chat-service's MongoDB TTL stays
+// the sole authority on when messages disappear.
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
   constructor(private readonly http: HttpClient) {}
+
+  // GET /chats/:id/messages -- oldest first. Participant-only on the server.
+  getMessages(chatId: string): Observable<ChatMessage[]> {
+    return this.http
+      .get<ChatMessage[]>(`${environment.apiBase}/chat/chats/${encodeURIComponent(chatId)}/messages`)
+      .pipe(catchError(error => this.toApplicationError(error)));
+  }
 
   // GET /chats/by-connection/:connectionId -- the "pull" twin of the one-time
   // ChatOpened push. A page reload (or a late hub connect) misses that push, so

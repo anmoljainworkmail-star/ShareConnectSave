@@ -1,4 +1,4 @@
-# Figma Compliance Skill — ShareConnectSave Frontend
+# Figma Compliance Skill — Karwan Frontend
 
 ## Why this exists
 

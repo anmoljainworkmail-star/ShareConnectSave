@@ -65,6 +65,17 @@ public class ScanSessionServiceImpl implements ScanSessionService {
             throw new UserNotEligibleForDiscoveryException(userId);
         }
 
+        // Idempotent start: "one user, at most one open session". A client that
+        // refreshed, crashed or lost signal never called /scan/stop, so its old
+        // session is still open here and still a member of scan:active_sessions.
+        // Opening a second one on top leaves two live sessions for the same
+        // person, and the nearby query (which excludes only the caller's
+        // CURRENT session id) then returns the older one as a stranger: the user
+        // sees themselves on their own radar. Ending the old session first makes
+        // "start" safe to repeat, the same property that makes an HTTP PUT safe
+        // to retry (idempotency).
+        endStaleSessions(userId);
+
         ScanSession session = ScanSession.builder()
                 .userId(userId)
                 .destinationLat(request.destinationLat())
@@ -124,6 +135,15 @@ public class ScanSessionServiceImpl implements ScanSessionService {
     @Transactional
     public void stopScan(Long userId) {
         ScanSession session = requireActiveSession(userId);
+        closeAndRelease(session);
+    }
+
+    // Single Responsibility + DRY: "end one session completely" (SQL row plus
+    // every Redis trace) is one job with two callers, stopScan (the user asked to
+    // stop) and endStaleSessions (the user started over). Keeping it in one place
+    // means a future Redis key added to a session is cleaned up in both paths by
+    // changing one method, not remembered in two.
+    private void closeAndRelease(ScanSession session) {
         session.close();
         scanSessionRepository.save(session);
 
@@ -143,6 +163,12 @@ public class ScanSessionServiceImpl implements ScanSessionService {
         discoveryCacheService.removeActiveSession(session.getId());
         redisTemplate.delete(genderKey(session.getId()));
         redisTemplate.delete(womenOnlyKey(session.getId()));
+    }
+
+    private void endStaleSessions(Long userId) {
+        for (ScanSession stale : scanSessionRepository.findByUserIdAndEndedAtIsNull(userId)) {
+            closeAndRelease(stale);
+        }
     }
 
     // See stopScan's note: @Transactional makes this method hold the same

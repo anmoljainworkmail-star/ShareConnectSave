@@ -1,6 +1,6 @@
-# Java Spring Boot Skill — ShareConnectSave Backend Services
+# Java Spring Boot Skill — Karwan Backend Services
 
-You are implementing a Java 21 / Spring Boot 3 microservice for ShareConnectSave. This is a learning project — add short comments naming the pattern (not what the code does) when it is non-obvious.
+You are implementing a Java 21 / Spring Boot 3 microservice for Karwan. This is a learning project — add short comments naming the pattern (not what the code does) when it is non-obvious.
 
 ## Project structure (package-by-feature, not layer)
 

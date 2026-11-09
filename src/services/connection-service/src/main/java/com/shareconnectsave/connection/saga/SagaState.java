@@ -82,4 +82,17 @@ public class SagaState {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    // Tell, Don't Ask (same idea as ConnectionRequest.transitionTo): callers say
+    // "this saga reached step X" and the entity keeps its own step, status and
+    // updated_at consistent, instead of every caller having to remember to bump
+    // updated_at alongside the other two fields. updated_at matters beyond
+    // bookkeeping: the saga timeout job described in T096 finds stuck sagas by
+    // "how long since updated_at", so a transition that forgot to touch it would
+    // look permanently stalled.
+    public void advanceTo(String step, String newStatus) {
+        this.currentStep = step;
+        this.status = newStatus;
+        this.updatedAt = Instant.now();
+    }
 }

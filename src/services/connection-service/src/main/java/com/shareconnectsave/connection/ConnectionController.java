@@ -58,6 +58,16 @@ public class ConnectionController {
         return ResponseEntity.ok(connectionService.declineConnection(id, userId));
     }
 
+    // One connection by id, any status, participants only (the 403 is raised in
+    // the service, not here). Spring resolves the literal /pending and /active
+    // mappings before this {id} pattern, so adding it does not shadow them.
+    @GetMapping("/{id}")
+    public ResponseEntity<ConnectionResponse> getConnection(
+            @RequestHeader("X-User-Id") Long userId,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(connectionService.getConnection(id, userId));
+    }
+
     @GetMapping("/pending")
     public ResponseEntity<List<ConnectionResponse>> getPendingConnections(
             @RequestHeader("X-User-Id") Long userId) {

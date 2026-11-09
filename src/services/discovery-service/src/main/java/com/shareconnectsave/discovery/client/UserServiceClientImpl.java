@@ -5,7 +5,6 @@ import com.shareconnectsave.discovery.scan.domain.UserCardResponse;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -72,9 +71,23 @@ public class UserServiceClientImpl implements UserServiceClient {
     public UserCardResponse getUserCard(Long userId, double distanceKm) {
         PublicUserProfileResponse profile = userServiceWebClient.get()
                 .uri("/users/{id}", userId)
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, response -> Mono.empty())
-                .bodyToMono(PublicUserProfileResponse.class)
+                // exchangeToMono, not retrieve().onStatus(4xx -> Mono.empty()):
+                // the latter still decodes the 404's error-envelope body into
+                // PublicUserProfileResponse, yielding a card with null id/name
+                // for a deleted user instead of the null this method promises
+                // ("omit this candidate"). Decode only on 2xx; a 4xx is
+                // released unread and becomes the genuine null.
+                .exchangeToMono(response -> {
+                    if (response.statusCode().is2xxSuccessful()) {
+                        return response.bodyToMono(PublicUserProfileResponse.class);
+                    }
+                    if (response.statusCode().is4xxClientError()) {
+                        return response.releaseBody().then(Mono.<PublicUserProfileResponse>empty());
+                    }
+                    // 5xx stays a real failure so the breaker and T027's
+                    // cached-or-placeholder path still see it.
+                    return response.createException().flatMap(Mono::error);
+                })
                 // Virtual Threads (spring.threads.virtual.enabled: true, see
                 // application.yml) are what make .block() safe here: this
                 // call runs on a cheap JVM-managed virtual thread that
@@ -102,9 +115,30 @@ public class UserServiceClientImpl implements UserServiceClient {
                 // it is this service asserting an identity on an internal,
                 // Docker-network-only call, not a client-facing endpoint.
                 .header("X-User-Id", String.valueOf(userId))
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, response -> Mono.empty())
-                .bodyToMono(BlockedUserDto[].class)
+                // Why exchangeToMono and not retrieve().onStatus(4xx -> Mono.empty()):
+                // returning Mono.empty() from onStatus does NOT skip decoding --
+                // WebClient treats it as "carry on as normal" and still tries to
+                // decode the 404's error-envelope OBJECT into BlockedUserDto[],
+                // which throws DecodingException. Resilience4j counts that as a
+                // failure, and because getUserCard shares the SAME "userService"
+                // breaker, enough of them OPEN the circuit and every real profile
+                // lookup is then refused -- radar cards degrade to the "Unknown,
+                // unavailable" placeholder (the UI's "not looking" banner) even
+                // though User Service is healthy. Principle: a missing optional
+                // endpoint is a business outcome (empty block list), not an
+                // infrastructure failure, so it must return normally and never
+                // feed the failure window that guards real calls.
+                .exchangeToMono(response -> {
+                    if (response.statusCode().is2xxSuccessful()) {
+                        return response.bodyToMono(BlockedUserDto[].class);
+                    }
+                    if (response.statusCode().is4xxClientError()) {
+                        return response.releaseBody().then(Mono.<BlockedUserDto[]>empty());
+                    }
+                    // 5xx stays a real failure so a genuinely broken User Service
+                    // still trips the breaker as designed.
+                    return response.createException().flatMap(Mono::error);
+                })
                 .block();
 
         return blocked != null

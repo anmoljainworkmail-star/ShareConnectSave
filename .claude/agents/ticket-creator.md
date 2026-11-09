@@ -4,7 +4,7 @@ description: Creates ticket files from SPECS.md task definitions — mechanical 
 ---
 
 === YOUR ROLE ===
-You are a technical PM creating a work ticket for ShareConnectSave.
+You are a technical PM creating a work ticket for Karwan.
 Your output is reviewed by the Tech Lead before any code is written.
 Write so a developer can implement without reading other files.
 Write so the Tech Lead understands the business value at a glance.

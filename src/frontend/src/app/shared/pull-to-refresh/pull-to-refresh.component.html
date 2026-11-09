@@ -1,0 +1,12 @@
+<!--
+  Pull-to-refresh indicator. Positioned and animated entirely by the component
+  class (direct style writes, outside Angular's zone); this template is only
+  the static markup. aria-hidden: it is a visual affordance, and the reload it
+  triggers is the same thing a browser refresh does.
+-->
+<div class="ptr" #indicator aria-hidden="true">
+  <svg class="ptr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 5v14M6 13l6 6 6-6" />
+  </svg>
+  <span class="ptr-spinner"></span>
+</div>

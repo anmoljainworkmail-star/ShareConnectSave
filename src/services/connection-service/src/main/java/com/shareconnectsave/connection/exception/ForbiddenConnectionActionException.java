@@ -11,4 +11,18 @@ public class ForbiddenConnectionActionException extends RuntimeException {
     public ForbiddenConnectionActionException(Long connectionId, Long callerId) {
         super("User " + callerId + " is not the recipient of connection " + connectionId);
     }
+
+    private ForbiddenConnectionActionException(String message) {
+        super(message);
+    }
+
+    // Static factory (named constructor): the public constructor above already
+    // owns the (Long, Long) signature and its "not the recipient" wording, so a
+    // second (Long, Long) overload for the read-side "not a participant" case
+    // would be indistinguishable at the call site. A named factory says which
+    // rule was broken without changing the existing constructor's behavior.
+    public static ForbiddenConnectionActionException notParticipant(Long connectionId, Long callerId) {
+        return new ForbiddenConnectionActionException(
+                "User " + callerId + " is not a participant of connection " + connectionId);
+    }
 }

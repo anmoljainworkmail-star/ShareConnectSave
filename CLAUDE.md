@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**ShareConnectSave** is a Travel Companion Discovery Platform. It helps verified travelers nearby find each other when heading in the same direction. Facilitates discovery, matching, and temporary communication only — no ride booking, payments, or tracking.
+**Karwan** (formerly ShareConnectSave) is a Travel Companion Discovery Platform. It helps verified travelers nearby find each other when heading in the same direction. Facilitates discovery, matching, and temporary communication only — no ride booking, payments, or tracking.
 
 Responsibility boundary: once both users mark **Met Successfully**, the temporary chat auto-closes and the platform's involvement ends.
 

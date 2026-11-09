@@ -1,6 +1,6 @@
-# Saga + Distributed Transactions Skill — ShareConnectSave
+# Saga + Distributed Transactions Skill — Karwan
 
-You are implementing distributed transaction patterns in ShareConnectSave. This is a learning project — explain the concept when the code applies a non-obvious principle.
+You are implementing distributed transaction patterns in Karwan. This is a learning project — explain the concept when the code applies a non-obvious principle.
 
 ## Why distributed transactions are hard
 

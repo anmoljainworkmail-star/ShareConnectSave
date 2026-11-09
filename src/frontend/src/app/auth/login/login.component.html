@@ -1,22 +1,29 @@
 <div class="auth-page">
-  <!-- Shared background decoration (SharedModule) -- drifting orbs/arcs/star
-       field + mouse-reactive 3D orb, the same one Radar/OTP/Profile Setup
-       use. See AmbientBackgroundComponent's header comment. -->
+  <!-- Shared background decoration (SharedModule) -- the atlas map every
+       screen sits on. See AmbientBackgroundComponent's header comment. -->
   <app-ambient-background></app-ambient-background>
 
-  <main class="auth-card">
+  <!-- Hero lives OUTSIDE the card, directly on the map: the background is the
+       first impression, so the brand + headline are drawn over it and the
+       card shrinks to just the one action (sign in). -->
+  <header class="auth-hero">
     <div class="auth-brand">
-      <svg class="auth-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-        <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.35" />
-        <circle cx="24" cy="24" r="13" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.6" />
-        <path d="M24 10 L29 24 L24 38 L19 24 Z" fill="currentColor" />
+      <!-- क is the first consonant of Devanagari and the first sound of
+           कारवां (caravan) -- a single-glyph monogram instead of the old
+           radar-target icon, see login.component.css's :host block for why
+           this tile breaks from the app's violet system. -->
+      <svg class="auth-logo" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+        <text x="44" y="76" text-anchor="middle" class="auth-logo-glyph">क</text>
+        <rect x="12" y="54" width="54" height="12" rx="6" transform="rotate(-27 39 60)" class="auth-logo-slash"></rect>
       </svg>
-      <span class="auth-wordmark">ShareConnectSave</span>
+      <span class="auth-wordmark"><span class="auth-wordmark-deva">कार</span><span class="auth-wordmark-lat">wan</span></span>
     </div>
 
-    <h1 class="auth-heading">Find someone going your way</h1>
-    <p class="auth-subtext">Discover verified travel companions heading in your direction.</p>
+    <h1 class="auth-heading">Never travel alone.</h1>
+    <p class="auth-subtext">Verified travelers, heading your way.</p>
+  </header>
 
+  <main class="auth-card">
     <div #googleButton class="google-button-slot"></div>
 
     <p *ngIf="isSubmitting" class="auth-status" role="status">Signing you in&hellip;</p>

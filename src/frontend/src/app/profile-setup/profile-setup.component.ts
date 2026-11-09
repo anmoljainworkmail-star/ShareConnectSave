@@ -89,6 +89,18 @@ export class ProfileSetupComponent implements OnInit, OnDestroy {
 
     this.userProfileService.getMyProfile().subscribe({
       next: profile => {
+        // Guard clause -- server-owned state decides, not the navigation path.
+        // Login always routes Google -> OTP -> here, because the client cannot
+        // know at that moment whether this is a first-time or returning user.
+        // The server can: onboarding_complete only flips once phone, name,
+        // gender and photo all exist, so true means this wizard has nothing
+        // left to ask. isLoadingProfile stays true on purpose so the wizard UI
+        // never flashes before the redirect. replaceUrl keeps /profile-setup
+        // out of history, so Back can't land a finished user on it again.
+        if (profile.onboarding_complete) {
+          this.router.navigate(['/radar'], { replaceUrl: true });
+          return;
+        }
         this.isLoadingProfile = false;
         this.applyProfileToForm(profile);
       },

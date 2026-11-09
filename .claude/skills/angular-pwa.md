@@ -1,6 +1,6 @@
-# Angular PWA Skill — ShareConnectSave Frontend
+# Angular PWA Skill — Karwan Frontend
 
-You are implementing the Angular 17 frontend for ShareConnectSave. This is a learning project — add short comments naming the pattern being used (not what the code does).
+You are implementing the Angular 17 frontend for Karwan. This is a learning project — add short comments naming the pattern being used (not what the code does).
 
 ## Visual reference — match this exactly
 

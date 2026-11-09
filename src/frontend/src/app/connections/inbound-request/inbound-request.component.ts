@@ -119,6 +119,23 @@ export class InboundRequestComponent implements OnInit, OnDestroy {
     return Math.max(0, this.requests.length - 1);
   }
 
+  get queuedRequests(): InboundRequestView[] {
+    return this.requests.slice(1);
+  }
+
+  trackByConnection(_index: number, view: InboundRequestView): number {
+    return view.connection.id;
+  }
+
+  // Swap a queued request to the front. The list stays a plain array whose
+  // head is "the one on screen", so accept/decline/countdown need no changes.
+  bringToFront(view: InboundRequestView): void {
+    if (this.isActing) {
+      return;
+    }
+    this.requests = [view, ...this.requests.filter(item => item !== view)];
+  }
+
   get secondsLeft(): number {
     const current = this.current;
     if (!current) {

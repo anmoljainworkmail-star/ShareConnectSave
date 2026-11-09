@@ -28,7 +28,7 @@ What this code does and why it needed to be written, in plain sentences a non-pr
 ### 3.2 — Concepts, one at a time
 For every pattern, protocol, library feature, or architectural idea the code actually uses (not every concept that could theoretically apply):
 1. Name it.
-2. Give a real-world analogy or a concrete scenario from ShareConnectSave *before* any code or jargon.
+2. Give a real-world analogy or a concrete scenario from Karwan *before* any code or jargon.
 3. Then walk: **The Problem** (what goes wrong without this) → **Why it matters** (concretely, not abstractly) → **How this code solves it** → **Where you can see it** (exact file:line from the real files you read in Step 2).
 4. If this same concept appears elsewhere in the codebase, name that file too — but the explanation must stand on its own without requiring the reader to go look at it.
 

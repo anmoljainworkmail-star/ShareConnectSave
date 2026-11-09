@@ -92,6 +92,19 @@ export class UserCardComponent implements OnChanges, OnDestroy {
     return 'This user is not looking for a companion right now.';
   }
 
+  // The API sends distance_km as a raw double (e.g. 0.48372915), which read as
+  // "0.48372915 km away". Under 1 km a person thinks in metres ("350 m"), at
+  // or above 1 km in one-decimal km ("1.2 km"). Rounded to the nearest 10 m:
+  // GPS accuracy is tens of metres, so finer precision would be false
+  // precision. Principle: format at the presentation edge, keep the DTO raw.
+  distanceLabel(distanceKm: number): string {
+    if (distanceKm < 1) {
+      const metres = Math.max(10, Math.round((distanceKm * 1000) / 10) * 10);
+      return `${metres} m away`;
+    }
+    return `${distanceKm.toFixed(1)} km away`;
+  }
+
   onSendRequest(): void {
     if (!this.user) {
       return;

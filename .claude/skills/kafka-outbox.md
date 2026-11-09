@@ -1,6 +1,6 @@
-# Kafka + Outbox Pattern Skill — ShareConnectSave
+# Kafka + Outbox Pattern Skill — Karwan
 
-You are working with Kafka and the Outbox Pattern in ShareConnectSave. This is a learning project — explain the concept in comments when the code applies a non-obvious principle.
+You are working with Kafka and the Outbox Pattern in Karwan. This is a learning project — explain the concept in comments when the code applies a non-obvious principle.
 
 ## Why Kafka exists here
 

@@ -59,7 +59,7 @@
     </div>
     <div class="detail-row" *ngIf="u.distance_km !== undefined">
       <span class="detail-icon" aria-hidden="true">📏</span>
-      <span>{{ u.distance_km }} km away</span>
+      <span>{{ distanceLabel(u.distance_km) }}</span>
     </div>
     <div class="detail-row" *ngIf="u.route_match_percent !== undefined">
       <span class="detail-icon" aria-hidden="true">🛤</span>

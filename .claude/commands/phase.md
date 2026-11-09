@@ -34,7 +34,7 @@ For each task without a ticket, run this sequence:
 **b) Spawn a ticket creator agent** with:
 ```
 === YOUR ROLE ===
-You are a technical PM creating a work ticket for ShareConnectSave.
+You are a technical PM creating a work ticket for Karwan.
 This ticket will be reviewed by the Tech Lead before any code is written.
 Write it so a developer agent can implement without reading any other files.
 Write it so the Tech Lead understands the business value at a glance.

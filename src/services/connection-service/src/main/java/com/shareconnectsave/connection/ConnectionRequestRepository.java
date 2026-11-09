@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -84,6 +85,10 @@ public interface ConnectionRequestRepository extends JpaRepository<ConnectionReq
     // than computing "today" itself, per this ticket's own rule: the
     // repository must stay testable with any fixed instant, never reach for
     // the system clock on its own.
-    long countByStatusAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan(
-            ConnectionStatus status, Instant startInclusiveUtc, Instant endExclusiveUtc);
+    //
+    // "StatusIn" (a collection) rather than a single status: the admin metric
+    // "connections accepted today" must keep counting a connection after it
+    // moves ACCEPTED -> COMPLETED, so the caller passes both.
+    long countByStatusInAndUpdatedAtGreaterThanEqualAndUpdatedAtLessThan(
+            Collection<ConnectionStatus> statuses, Instant startInclusiveUtc, Instant endExclusiveUtc);
 }

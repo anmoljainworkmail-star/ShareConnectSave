@@ -1,40 +1,226 @@
 @import '../auth-shared.css';
 
+/*
+ * Login-only layout + skin (declared after the @import so same-specificity
+ * rules here win; OTP keeps the shared look -- Open/Closed).
+ *
+ * Design idea: "map first, sheet second". The atlas background is the first
+ * impression, so the brand/headline float directly on it in white and the
+ * card is only a compact bottom sheet holding the single action. A light card
+ * on the dark teal map gives strong contrast and lets the violet logo pop,
+ * which the earlier violet-on-teal glass card did not.
+ *
+ * Mobile: hero fills the upper area, sheet is pinned to the bottom edge.
+ * Desktop: hero + a small rounded card are centered together as one group.
+ */
+.auth-page {
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  padding: 0;
+}
+
+/* Karwan brand-mark colours, scoped to this component's host element only
+   (:host, not :root -- Angular's emulated encapsulation does not scope a
+   bare :root block, it would leak into tokens.css's global violet system).
+   These exist for the literal logo tile + wordmark only -- everything else
+   on this screen and every other screen keeps the violet system below. */
+:host {
+  --brand-ink: #F4E9D8;
+  --brand-ink-dark: #0E1527;
+  --brand-accent: #D97A3F;
+  --brand-accent-2: #E8B45C;
+}
+
+.auth-hero {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  padding-top: calc(var(--space-8) + env(safe-area-inset-top, 0px));
+  text-align: center;
+}
+
+/* The atlas background's plane/car/train stickers fly a fixed route that
+   happens to cross straight through this text -- they're z-index-behind it
+   already (never occlude it) but a bright white plane shape still competes
+   for attention next to a bright wordmark. z-index:-1 keeps this below
+   every real child here while still painting above the shared ambient
+   background outside .auth-hero (that component's host is its own stacking
+   context at z-index:0, lower than .auth-hero's z-index:1). Scoped to login
+   only -- the shared AmbientBackgroundComponent itself is untouched. */
+.auth-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(130%, 480px);
+  height: 74%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(8, 10, 20, 0.55) 0%,
+    rgba(8, 10, 20, 0.28) 48%,
+    transparent 74%
+  );
+  pointer-events: none;
+}
+
 .auth-brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-6);
-  color: var(--color-primary);
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
+/* Logo on a gradient tile so it reads as an app icon, not a loose glyph.
+   Sized to lead the page -- this is the first thing anyone should see,
+   bigger than the headline below it, not a small caption under it. */
 .auth-logo {
-  width: 48px;
-  height: 48px;
+  width: 76px;
+  height: 76px;
+  padding: 14px;
+  box-sizing: border-box;
+  border-radius: var(--radius-bottom-sheet);
+  background: linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent-2) 100%);
+  box-shadow: 0 6px 20px rgba(217, 122, 63, 0.5);
 }
 
+.auth-logo-glyph {
+  font-family: 'Baloo 2', 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 84px;
+  fill: var(--brand-ink);
+}
+
+.auth-logo-slash {
+  fill: var(--brand-ink-dark);
+}
+
+/* White text sits straight on the map, so a soft shadow keeps it legible
+   over both the light-green land and the dark ocean. */
+/* Typography is deliberately quiet: pure white at bold weight shouts over a
+   busy map. Soft violet-tinted whites + medium/regular weights let the map
+   stay the star while the text still reads (shadow does the contrast work). */
+.auth-wordmark,
+.auth-heading,
+.auth-subtext {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* The name, not the headline, is the first thing the page says -- sized to
+   lead, with tighter tracking so it reads as one confident logotype instead
+   of body copy that happens to be bold. */
 .auth-wordmark {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--color-text-primary);
+  font-family: 'Baloo 2', 'Rajdhani', 'Noto Sans Devanagari', sans-serif;
+  font-size: clamp(2.1rem, 9vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
 }
 
+.auth-wordmark-deva {
+  color: var(--brand-ink);
+}
+
+.auth-wordmark-lat {
+  color: var(--brand-accent-2);
+}
+
+/* Demoted on purpose: this explains the name above it, it doesn't compete
+   with it. Smaller and lighter than the wordmark so the eye lands on
+   "Karwan" first and reads the pitch second. */
+.auth-heading {
+  max-width: 20ch;
+  margin: 0 0 var(--space-2);
+  font-size: 16px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.35;
+  color: var(--violet-100);
+}
+
+.auth-subtext {
+  max-width: 30ch;
+  margin: 0;
+  font-size: 13px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+  color: var(--violet-300);
+}
+
+/* Compact bottom sheet: just the button + fine print. */
+.auth-card {
+  width: 100%;
+  padding: var(--space-5) var(--space-5) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  border-radius: var(--radius-bottom-sheet) var(--radius-bottom-sheet) 0 0;
+  /* Soft lavender instead of pure white: easier on the eyes against the dark
+     map, and the white Google button now stands out from the sheet instead
+     of melting into it. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--violet-100) 94%, transparent) 0%,
+    color-mix(in srgb, var(--violet-200) 94%, transparent) 100%
+  );
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-bottom-sheet);
+  /* Safety net: anything wider than the inner width clips instead of
+     spilling past the rounded edge. */
+  overflow: hidden;
+}
+
+/* min-width:0 + max-width:100% let the flex slot shrink to the card's inner
+   width; the component measures this slot to size the Google button. */
 .google-button-slot {
   display: flex;
   justify-content: center;
-  margin-bottom: var(--space-4);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 44px;
 }
 
 .auth-status {
   font-size: 13px;
-  color: var(--color-text-secondary);
-  margin: 0 0 var(--space-2);
+  color: var(--color-text-primary);
+  margin: var(--space-3) 0 0;
+}
+
+.auth-error {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-button);
+  background: var(--color-danger-light);
+  color: var(--color-danger);
 }
 
 .auth-fine-print {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin: var(--space-4) 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--violet-700);
+  margin: var(--space-3) 0 0;
+}
+
+@media (min-width: 601px) {
+  .auth-page {
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-6);
+  }
+
+  .auth-hero {
+    flex: none;
+    padding: 0 0 var(--space-6);
+  }
+
+  .auth-card {
+    width: min(380px, 100%);
+    padding: var(--space-6);
+    border-radius: var(--radius-bottom-sheet);
+  }
 }

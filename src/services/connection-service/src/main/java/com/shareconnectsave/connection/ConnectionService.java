@@ -81,4 +81,16 @@ public interface ConnectionService {
     // translates HTTP in/out (see AdminConnectionController's own class
     // comment), it was never the right place to decide what "today" means.
     int countConnectionsAcceptedToday();
+
+    // Read one connection by id for a participant, in ANY status. Exists because
+    // getActiveConnection only answers "what is my ACCEPTED connection", which
+    // becomes empty the moment the connection COMPLETES - exactly when the rating
+    // screen needs to know who the other person was.
+    ConnectionResponse getConnection(Long connectionId, Long callerId);
+
+    // Moves an ACCEPTED connection to COMPLETED and closes its saga row. Driven
+    // by the chat.closed event, never by a user-facing endpoint. Deliberately a
+    // no-op (not an exception) for a connection that is missing or no longer
+    // ACCEPTED, so a redelivered or late event cannot wedge the Kafka consumer.
+    void completeConnection(Long connectionId);
 }

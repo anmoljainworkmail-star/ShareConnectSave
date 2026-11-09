@@ -6,7 +6,6 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -90,15 +89,29 @@ public class UserServiceClientImpl implements UserServiceClient {
     public UserProfileSummary getUser(String userId) {
         UserProfileDto profile = userServiceWebClient.get()
                 .uri("/users/internal/{id}", userId)
-                .retrieve()
                 // A genuine 404 is a normal, non-exceptional outcome (the
                 // user id truly doesn't exist) — turned into an empty Mono so
                 // .block() returns null as a plain return value, never an
                 // exception Resilience4j would count against this breaker.
                 // Same "business outcome vs infrastructure failure" split as
                 // discovery-service's getUserCard.
-                .onStatus(HttpStatusCode::is4xxClientError, response -> Mono.empty())
-                .bodyToMono(UserProfileDto.class)
+                //
+                // Why exchangeToMono and not retrieve().onStatus(4xx ->
+                // Mono.empty()): that form means "carry on as normal", so the
+                // 404's error-envelope body was still decoded into
+                // UserProfileDto -- a record of nulls that looked like a real
+                // (blank) profile instead of "not found". Here the body is only
+                // decoded for a 2xx; a 4xx is released unread and becomes null.
+                .exchangeToMono(response -> {
+                    if (response.statusCode().is2xxSuccessful()) {
+                        return response.bodyToMono(UserProfileDto.class);
+                    }
+                    if (response.statusCode().is4xxClientError()) {
+                        return response.releaseBody().then(Mono.<UserProfileDto>empty());
+                    }
+                    // 5xx stays a real failure for the breaker/fallback.
+                    return response.createException().flatMap(Mono::error);
+                })
                 .block();
 
         if (profile == null) {

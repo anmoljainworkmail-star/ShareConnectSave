@@ -7,7 +7,7 @@
   full-width primary Save. Background is --color-background plus the global
   slow radar ripple.
   Not built (no data source yet): Trusted badge, rating stars, About, Help &
-  Support, Privacy Policy, Sign Out -- see T070 report.
+  Support, Privacy Policy -- see T070 report. Sign Out (danger, ghost) added later.
 -->
 <div class="profile-page">
   <svg class="ripple-layer" aria-hidden="true" focusable="false">
@@ -115,6 +115,8 @@
               {{ isSaving ? 'Saving…' : 'Save' }}
             </button>
           </form>
+
+          <button type="button" class="btn-signout" (click)="signOut()">Sign Out</button>
         </main>
       </ng-container>
     </ng-container>

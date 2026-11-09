@@ -16,7 +16,7 @@ export interface ConnectionCreatedResponse {
 }
 
 // Mirrors the Java ConnectionStatus enum's values as they serialize.
-export type ConnectionStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+export type ConnectionStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'COMPLETED';
 
 // Mirrors ConnectionResponse.java (accept/decline/pending/active). The two
 // Instants serialize as ISO-8601 strings under Spring Boot's default Jackson

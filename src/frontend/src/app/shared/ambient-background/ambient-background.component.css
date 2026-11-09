@@ -298,29 +298,6 @@
   }
 }
 
-/* One continuous dashed line, land to land -- endpoints are each landmass's
-   own geometric CENTER (top+height/2, left+width/2 of that .land element
-   above), not an edge estimate: two rounds of edge-estimation both read as
-   "stops short" once the contour rings and elevation shading sat on top, so
-   this trades a little "outskirt to outskirt" precision for the line
-   unambiguously reading as connected to both greens. preserveAspectRatio=
-   "none" (set on the <svg> in the markup) lets the 0-100 viewBox map
-   straight onto whatever non-square shape the host page actually is. */
-.route-path {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  overflow: visible;
-}
-
-.route-path path.air {
-  fill: none;
-  stroke: var(--atlas-route-line);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-dasharray: 1.2 6;
-}
-
 /* A real top-down airplane silhouette (fuselage, swept wings, tail fins) --
    a small standalone inline SVG icon, not tied to an SVG motion path (SVG
    <animateMotion>/<mpath> did not reliably animate in testing -- it sat
@@ -360,7 +337,8 @@
 }
 
 /* The FULL round trip, there and back, in one keyframe -- 11 steps (0%-48%)
-   sampled from the EXACT SAME quadratic bezier .route-path path.air draws
+   sampled from the same quadratic bezier the plane follows (formerly also
+   drawn as a dashed line; the line is gone, the flight path is not)
    ("M18,21 Q50,15 83,61"), using the real formula B(t) = (1-t)^2*P0 +
    2(1-t)t*P1 + t^2*P2 (not hand-eyeballed waypoints, which an earlier
    5-point version was a loose enough approximation of that the plane
@@ -493,177 +471,21 @@
   }
 }
 
-/* Two LOCAL trains, no drawn track under them -- placed on the two
-   landmasses the air route doesn't already dominate the middle of
-   (train-one on the top-left landmass, kept below its mountains and clear
-   of the air route's own start point; train-two on the right landmass, kept
-   clear of the air route's end point and the compass rose). Each now
-   travels nearly the full span of its landmass (a bigger, more noticeable
-   run than the original short hop), as a single straight line -- linearly
-   interpolating between two keyframe endpoints IS a straight line exactly,
-   no intermediate sampling needed the way the air route's curve needed for
-   the plane.
-   Rotation is CONSTANT during each one-way leg (a straight line has one
-   tangent angle the whole way), but still needs the same "+180deg on the
-   way back" fix fly-air-route's own comment explains -- without it, a train
-   visibly moving right-to-left would still have its front pointing as if it
-   were going left-to-right. The 46%-54% (train-one) / 47%-53% (train-two)
-   window is the same "arrive, flip, depart" pause used there, sized a
-   little wider here since these are now longer runs. No `alternate` on
-   either .train-sticker -- see .plane-sticker's own comment for why the
-   round trip has to be authored directly into the keyframe instead. */
-@keyframes ride-route-one {
-  0% {
-    top: 33%;
-    left: -4%;
-    transform: translate(-50%, -50%) rotate(163deg);
-  }
-  46% {
-    top: 19%;
-    left: 40%;
-    transform: translate(-50%, -50%) rotate(163deg);
-  }
-  54% {
-    top: 19%;
-    left: 40%;
-    transform: translate(-50%, -50%) rotate(343deg);
-  }
-  100% {
-    top: 33%;
-    left: -4%;
-    transform: translate(-50%, -50%) rotate(343deg);
-  }
-}
-
-@keyframes ride-route-two {
-  0% {
-    top: 74%;
-    left: 62%;
-    transform: translate(-50%, -50%) rotate(145deg);
-  }
-  46% {
-    top: 46%;
-    left: 102%;
-    transform: translate(-50%, -50%) rotate(145deg);
-  }
-  53% {
-    top: 46%;
-    left: 102%;
-    transform: translate(-50%, -50%) rotate(325deg);
-  }
-  100% {
-    top: 74%;
-    left: 62%;
-    transform: translate(-50%, -50%) rotate(325deg);
-  }
-}
-
-/* The two PERIMETER trains -- "a train moving on the edges, like the
-   corners of the phone." Both trace the rectangular border of
-   .ambient-decor itself (0%/100% of its own width/height, the same box
-   every other percentage position on this page already resolves against),
-   one clockwise (three) and one counter-clockwise (four), at different
-   speeds, so the two never meet at the same corner at the same time --
-   "adjusted smartly" means that deliberate offset, not two identical copies
-   chasing each other in lockstep. Unlike the local trains above, these
-   never reverse direction -- they're continuous loops -- so there's no
-   "flip 180deg" fix needed; each corner is a genuine 90deg turn (an
-   instant corner-turn reads as normal cornering, not a glitch the way an
-   instant 180deg reversal would). */
-@keyframes orbit-perimeter-cw {
-  0% {
-    top: 0%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(180deg);
-  }
-  24% {
-    top: 0%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(180deg);
-  }
-  25% {
-    top: 0%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(270deg);
-  }
-  49% {
-    top: 100%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(270deg);
-  }
-  50% {
-    top: 100%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-  74% {
-    top: 100%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-  75% {
-    top: 100%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(450deg);
-  }
-  99% {
-    top: 0%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(450deg);
-  }
-  100% {
-    top: 0%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(540deg);
-  }
-}
-
-@keyframes orbit-perimeter-ccw {
-  0% {
-    top: 0%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(270deg);
-  }
-  24% {
-    top: 100%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(270deg);
-  }
-  25% {
-    top: 100%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(180deg);
-  }
-  49% {
-    top: 100%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(180deg);
-  }
-  50% {
-    top: 100%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(450deg);
-  }
-  74% {
-    top: 0%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(450deg);
-  }
-  75% {
-    top: 0%;
-    left: 100%;
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-  99% {
-    top: 0%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-  100% {
-    top: 0%;
-    left: 0%;
-    transform: translate(-50%, -50%) rotate(270deg);
-  }
+/* All four trains are driven by AmbientBackgroundComponent through the Web
+   Animations API, so there are deliberately no @keyframes for them here:
+   - wanderers (one/two): a route generated fresh on every pass (random entry
+     side, 2-4 alternating waypoints, random exit side -- see buildPath()).
+   - rail trains (three/four): a loop along the edge of .ambient-decor, whose
+     geometry depends on the decor's real pixel size and the train's own size,
+     which a fixed CSS percentage keyframe cannot express (see buildRailLoop()).
+   They start at the decor's origin and hidden; the component positions them
+   via transform. */
+.train-sticker.wanderer,
+.train-sticker.rail {
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  will-change: transform;
 }
 
 /* translate(-50%, -50%) centers every sticker ON its top/left point instead
@@ -701,50 +523,27 @@
    to be built, not borrowed.
    FOUR instances, all drawn from the same markup at the same size (no
    train reads as a "lesser" copy of another): train-one/train-two are
-   LOCAL (each rides its own straight line across one landmass, there and
-   back -- see ride-route-one/two's own comment for the bigger run and the
-   direction-flip fix), and train-three/train-four ORBIT the scene's own
-   rectangular border (orbit-perimeter-cw/ccw) -- "a train on the edges,
-   like the corners of the phone." Durations are picked to match the SAME
-   travel speed throughout -- a round trip now covers roughly double the
-   distance a one-way alternate leg used to (there AND back in one cycle
-   instead of two alternating legs), so each duration here is roughly
-   double what a one-way leg would need, and the perimeter loops get a much
-   longer duration again since that path is several times longer than a
-   single local hop. All four durations stay mutually prime-ish so none
-   ever fall into a repeating lockstep with each other. */
+   WANDERERS (each pass is a freshly randomised, zigzagging route generated
+   by AmbientBackgroundComponent.buildPath, entering and leaving off-screen),
+   and train-three/train-four are RAIL trains that loop the scene's own edge
+   -- "a train on the edges, like the corners of the phone." Collision
+   avoidance between all four lives in the component, not here (see
+   AmbientBackgroundComponent's own comments). */
 .train-sticker {
   position: absolute;
   width: 100px;
   height: 22px;
   z-index: 3;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+  /* The component swaps in a deeper shadow while a train is held; easing it
+     makes the "lift" and the "put down" gradual instead of a pop. */
+  transition: filter 160ms ease-out;
 }
 
 .train-sticker svg {
   width: 100%;
   height: 100%;
   overflow: visible;
-}
-
-/* No `alternate` on the locals -- the round trip (there AND back, nose
-   flipped on the return leg) is baked directly into ride-route-one/two
-   themselves; see fly-air-route's own comment for why `alternate` alone
-   can't do this correctly. */
-.train-sticker.one {
-  animation: ride-route-one 8.4s ease-in-out infinite;
-}
-
-.train-sticker.two {
-  animation: ride-route-two 11.2s ease-in-out infinite;
-}
-
-.train-sticker.three {
-  animation: orbit-perimeter-cw 34s linear infinite;
-}
-
-.train-sticker.four {
-  animation: orbit-perimeter-ccw 40s linear infinite;
 }
 
 .train-sticker .loco-body,

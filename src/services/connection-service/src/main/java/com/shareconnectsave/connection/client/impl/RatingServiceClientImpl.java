@@ -51,11 +51,31 @@ public class RatingServiceClientImpl implements RatingServiceClient {
         // from Rating Service instead of silently defaulting and hoping for a
         // Kafka event to eventually populate it (the T033 failure mode this
         // ticket closes).
+        // Why exchangeToMono and not retrieve().onStatus(404 -> Mono.empty()):
+        // returning Mono.empty() from onStatus does NOT skip decoding -- it
+        // means "carry on as normal", so WebClient still decoded the 404's
+        // error-envelope body ({code, message, traceId}) into
+        // TrustScoreWireResponse. Jackson ignores the unknown fields and the
+        // missing primitive `int request_limit` silently becomes 0, so every
+        // never-rated user came back as TrustData(0, fromFallback=false): a
+        // REAL-looking limit of zero that InMemoryRequestLimitCache then stored
+        // for 24h, blocking every first connection request (0 >= 0). Lesson:
+        // a missing primitive field deserializes to its zero value instead of
+        // failing, so a wrong-shaped body can masquerade as valid data.
         TrustScoreWireResponse response = ratingServiceWebClient.get()
                 .uri("/trust/{userId}", userId)
-                .retrieve()
-                .onStatus(status -> status.value() == 404, resp -> Mono.empty())
-                .bodyToMono(TrustScoreWireResponse.class)
+                .exchangeToMono(clientResponse -> {
+                    if (clientResponse.statusCode().is2xxSuccessful()) {
+                        return clientResponse.bodyToMono(TrustScoreWireResponse.class);
+                    }
+                    if (clientResponse.statusCode().value() == 404) {
+                        // Never rated: a normal outcome, mapped to null below.
+                        return clientResponse.releaseBody().then(Mono.<TrustScoreWireResponse>empty());
+                    }
+                    // Everything else is a real failure and must still reach
+                    // Resilience4j's failure counter / the fallback.
+                    return clientResponse.createException().flatMap(Mono::error);
+                })
                 // Virtual Threads (spring.threads.virtual.enabled: true) are
                 // what make .block() safe here - this call runs on a cheap
                 // JVM-managed virtual thread that unmounts from its OS

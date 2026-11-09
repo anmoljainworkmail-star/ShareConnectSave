@@ -21,10 +21,16 @@ namespace notification_service.Services;
 // (Redis SCARD via IConnectionTrackingService) rather than a network call to
 // another service — the entire reason this decision can live inline in a
 // Kafka consumer's hot path without risking a stalled poll loop.
+// Observability: without a log line on each branch, "the recipient got no
+// notification" is undiagnosable - SignalR's SendAsync to an empty group
+// succeeds silently, and FCM degrades to a silent no-op without a device token.
+// Logging the DECISION (not the payload) is what lets you tell "never
+// dispatched" from "dispatched to nobody" from "dispatched but not rendered".
 public class NotificationDispatchService(
     IConnectionTrackingService connectionTracking,
     IHubContext<NotificationHub> hubContext,
-    IFcmNotificationService fcmNotificationService)
+    IFcmNotificationService fcmNotificationService,
+    ILogger<NotificationDispatchService> logger)
     : INotificationDispatcher
 {
     public async Task DispatchAsync(
@@ -50,6 +56,9 @@ public class NotificationDispatchService(
             // connection that previously joined "user:{id}" in
             // NotificationHub.OnConnectedAsync receives this independently.
             var payload = new NotificationPayload(title, body, new Dictionary<string, string>(data));
+            logger.LogInformation(
+                "Dispatching {EventName} to user {UserId} via SignalR group {Group}.",
+                eventName, userId, SignalRGroupNames.User(userId));
             await hubContext.Clients
                 .Group(SignalRGroupNames.User(userId))
                 .SendAsync(eventName, payload, cancellationToken);
@@ -62,6 +71,9 @@ public class NotificationDispatchService(
         // FcmNotificationService already degrades to a safe no-op if this
         // user has never registered a device token (T047), so this call
         // never needs its own extra guard here.
+        logger.LogInformation(
+            "User {UserId} has no live SignalR connection; dispatching {EventName} via FCM.",
+            userId, eventName);
         await fcmNotificationService.SendAsync(userId.ToString(), title, body, data);
     }
 }

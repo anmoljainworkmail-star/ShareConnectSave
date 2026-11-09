@@ -1,0 +1,13 @@
+<a class="bell" routerLink="/connections/inbound" [attr.aria-label]="label">
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path
+      d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linejoin="round"
+    />
+    <path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </svg>
+  <span class="badge" *ngIf="count > 0" aria-hidden="true">{{ badgeText }}</span>
+</a>

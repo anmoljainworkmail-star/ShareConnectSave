@@ -38,6 +38,24 @@
   cursor: pointer;
 }
 
+/* Keyboard open: the radar is decorative and fixed-size (flex: none), and
+   with the keyboard taking half the screen it no longer fits above the sheet --
+   it would push the sheet off the bottom of the visible area. Hide it while
+   typing (it returns when the keyboard closes) and pin the sheet to the
+   bottom itself, since the stage's auto margins were what did that. */
+.radar-page.keyboard-open .radar-stage,
+.radar-page.keyboard-open .radar-top-bar {
+  display: none;
+}
+
+.radar-page.keyboard-open .idle-bottom-card {
+  margin-top: auto;
+  flex-shrink: 0;
+  /* Tucked-away offset must not apply while typing -- the fields have to be
+     on screen. */
+  transform: none !important;
+}
+
 /* ---------------------------- Idle bottom card (Screen 06) ---------------------------- */
 .idle-bottom-card {
   position: relative;
@@ -47,6 +65,33 @@
   box-shadow: var(--shadow-bottom-sheet);
   padding: var(--space-4) var(--space-5) var(--space-6);
   color: var(--color-text-primary);
+  /* Slides with the finger while dragging (no transition) and eases to its
+     resting spot on release (transition back on). */
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.idle-bottom-card.dragging {
+  transition: none;
+}
+
+/* The strip you grab: grabber pill + heading. touch-action: none tells the
+   browser "vertical finger movement here is MY drag, not a page scroll" --
+   without it the browser claims the gesture and fires pointercancel. */
+.sheet-drag-zone {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  outline: none;
+}
+
+.idle-bottom-card.dragging .sheet-drag-zone {
+  cursor: grabbing;
+}
+
+.sheet-drag-zone:focus-visible .handle {
+  background: var(--violet-500);
 }
 
 .handle {
@@ -97,6 +142,14 @@
   box-shadow: var(--shadow-card);
   padding: var(--space-1);
   animation: suggestions-drop-in 150ms ease-out;
+}
+
+/* Keyboard open: flip above the field. Capped lower than the default so it
+   fits in the strip of screen above the sheet on a short phone. */
+.destination-search.suggest-up .suggestions-panel {
+  top: auto;
+  bottom: calc(100% - var(--space-2));
+  max-height: min(236px, 38dvh);
 }
 
 @keyframes suggestions-drop-in {
@@ -204,7 +257,13 @@
   flex: 1 1 auto;
   border: none;
   outline: none;
-  font-size: 14px;
+  /* 16px minimum, deliberately: iOS Safari auto-zooms the whole page when a
+     focused input's font-size is under 16px, and does not zoom back to the
+     original scale cleanly afterwards (the "zoomed in while typing, then
+     off-proportion after picking a result" symptom). Fixing the font size is
+     better than the alternative, maximum-scale=1 in the viewport meta, which
+     also blocks users' own pinch-zoom (an accessibility regression). */
+  font-size: 16px;
   font-family: inherit;
   color: var(--color-text-primary);
   background: transparent;
@@ -425,6 +484,33 @@
    wrong attempt at this fix) is a different, heavier-handed pattern this
    project doesn't use anywhere else -- matching auth's own approach instead
    keeps every screen's desktop behavior consistent. */
+/* Phones: the sheet used to take a big slice of a short screen. Tighter
+   padding/gaps/controls make it noticeably shorter, and it can now also be
+   dragged out of the way entirely. */
+@media (max-width: 767px) {
+  .idle-bottom-card {
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+
+  .handle {
+    margin-bottom: var(--space-2);
+  }
+
+  .idle-heading {
+    font-size: 16px;
+    margin-bottom: var(--space-3);
+  }
+
+  .field-label {
+    margin-bottom: var(--space-2);
+    padding: 6px var(--space-3);
+  }
+
+  .start-scan-btn {
+    height: 44px;
+  }
+}
+
 @media (min-width: 768px) {
   .idle-bottom-card,
   .radar-bottom-card {

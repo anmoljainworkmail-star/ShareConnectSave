@@ -77,6 +77,12 @@
           </button>
           <!-- Timeout path only (canSkip); submit()/skip() enforce it too. -->
           <button type="button" class="btn-ghost" *ngIf="canSkip" [disabled]="isSubmitting" (click)="skip()">Skip</button>
+          <!-- Only while the chat is still open (the grace window after Met
+               Successfully): the screen has no app-bar back arrow by design, so
+               this is the one deliberate way back to the conversation. -->
+          <button type="button" class="btn-ghost" *ngIf="canReturnToChat" [disabled]="isSubmitting" (click)="returnToChat()">
+            Back to chat
+          </button>
         </div>
       </main>
     </ng-container>

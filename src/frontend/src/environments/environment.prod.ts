@@ -12,5 +12,8 @@ export const environment = {
   production: true,
   apiBase: process.env['API_BASE_URL'] as string,
   googleClientId: process.env['GOOGLE_CLIENT_ID'] as string,
-  chatLifetimeMinutes: Number(process.env['CHAT_LIFETIME_MINUTES'])
+  chatLifetimeMinutes: Number(process.env['CHAT_LIFETIME_MINUTES']),
+  mapStyleUrl: process.env['MAP_STYLE_URL'] as string,
+  mapDefaultLat: Number(process.env['MAP_DEFAULT_LAT']),
+  mapDefaultLng: Number(process.env['MAP_DEFAULT_LNG'])
 };

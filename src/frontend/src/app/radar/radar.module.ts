@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { SharedModule } from '../shared/shared.module';
 import { RadarRoutingModule } from './radar-routing.module';
 import { DiscoveryFiltersPanelComponent } from './discovery-filters-panel/discovery-filters-panel.component';
+import { RadarMapComponent } from './map-v2/radar-map.component';
 import { RadarComponent } from './radar/radar.component';
 import { UserAvatar3dComponent } from './user-avatar-3d/user-avatar-3d.component';
 import { UserCardModule } from './user-card/user-card.module';
@@ -26,7 +27,9 @@ import { UserCardModule } from './user-card/user-card.module';
 @NgModule({
   // DiscoveryFiltersPanelComponent (T066) is declared here -- Radar-specific
   // (opened only from RadarComponent), same reasoning as UserAvatar3dComponent.
-  declarations: [RadarComponent, UserAvatar3dComponent, DiscoveryFiltersPanelComponent],
+  // RadarMapComponent (v2, /radar/v2) is the map-based scan screen; it reuses
+  // UserCardModule's card and the same discovery services as RadarComponent.
+  declarations: [RadarComponent, RadarMapComponent, UserAvatar3dComponent, DiscoveryFiltersPanelComponent],
   imports: [CommonModule, FormsModule, RadarRoutingModule, SharedModule, UserCardModule]
 })
 export class RadarModule {}

@@ -22,6 +22,10 @@
        this is one shared component instead of a per-screen copy. -->
   <app-ambient-background></app-ambient-background>
 
+  <!-- Way back into a chat the user left via the back arrow (still open until
+       Met Successfully or it closes). Renders nothing when there is none. -->
+  <app-active-chat-pill></app-active-chat-pill>
+
   <!-- ============================= IDLE (Screen 06) ============================= -->
   <div class="radar-top-bar" *ngIf="view === 'idle'">
     <!-- No reverse-geocoded city name exists anywhere in this codebase yet
@@ -37,6 +41,14 @@
       <!-- Persistent home for incoming connection requests: a toast fades,
            this badge stays until the requests are answered or expire. -->
       <app-pending-requests-bell></app-pending-requests-bell>
+      <!-- Radar v2 (3D map) entry point while it is a test route. Falls back
+           to this screen on its own if the map cannot load. -->
+      <a class="icon-button" routerLink="/radar/v2" aria-label="Open the 3D map view (beta)">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          <path d="M9 4v13.5M15 6.5V20" stroke="currentColor" stroke-width="1.8" />
+        </svg>
+      </a>
       <a class="icon-button" routerLink="/profile" aria-label="Profile">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8" />

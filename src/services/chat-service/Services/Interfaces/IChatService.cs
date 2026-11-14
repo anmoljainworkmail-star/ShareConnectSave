@@ -70,7 +70,19 @@ public enum SendMessageResult
     ChatRoomClosed,
 }
 
-public record SendMessageOutcome(SendMessageResult Result, MessageDto? Message, string? ErrorMessage);
+// OtherParticipantId / ConnectionId are only populated on Success. They are
+// trailing optional parameters (not a new record) so every existing failure
+// path -- and ChatController, which ignores them -- compiles unchanged
+// (Open/Closed: extend the outcome without editing its other callers). The
+// hub needs them to notify the person who is NOT the sender; deciding "who is
+// the other participant" stays here in the service because it is a room rule,
+// not a transport concern.
+public record SendMessageOutcome(
+    SendMessageResult Result,
+    MessageDto? Message,
+    string? ErrorMessage,
+    long? OtherParticipantId = null,
+    string? ConnectionId = null);
 
 public enum GetMessagesResult
 {

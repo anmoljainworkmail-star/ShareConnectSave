@@ -78,7 +78,14 @@ public class ChatService : IChatService
         // persist - there is no parallel "fire both at once" path here.
         await _messageRepository.CreateAsync(message);
 
-        return new SendMessageOutcome(SendMessageResult.Success, MessageDto.FromEntity(message), null);
+        var otherParticipantId = room.UserAId == senderId ? room.UserBId : room.UserAId;
+
+        return new SendMessageOutcome(
+            SendMessageResult.Success,
+            MessageDto.FromEntity(message),
+            null,
+            otherParticipantId,
+            room.ConnectionId);
     }
 
     public async Task<GetMessagesOutcome> GetRecentMessagesAsync(string chatId, long requestingUserId, int? requestedLimit)

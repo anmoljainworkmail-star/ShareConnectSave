@@ -43,7 +43,7 @@ public class ScanFilterService {
     // Bearing: compass direction (0-360 degrees, 0 = due north, measured
     // clockwise) from one point to another — the same number a ship's
     // compass would read if pointed from the first point toward the second.
-    private double bearingDegrees(double fromLat, double fromLng, double toLat, double toLng) {
+    public double bearingDegrees(double fromLat, double fromLng, double toLat, double toLng) {
         double lat1 = Math.toRadians(fromLat);
         double lat2 = Math.toRadians(toLat);
         double dLng = Math.toRadians(toLng - fromLng);

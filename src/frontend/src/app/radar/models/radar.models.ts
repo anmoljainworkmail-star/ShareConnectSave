@@ -87,6 +87,11 @@ export interface DiscoveredUserCardDto {
   photo_url: string | null;
   identity_badge: boolean;
   distance_km: number;
+  // Compass direction from the caller to this person (0 = north, clockwise),
+  // added by discovery-service alongside distance_km so the street map can
+  // stand the avatar where the person really is. Optional/nullable: absent on
+  // an older backend and for BLE or degraded cards -- consumers must fall back.
+  bearing_deg?: number | null;
   // Circuit Breaker (Decorator around UserServiceClient, see CLAUDE.md's GoF
   // table) degraded-response marker: true only for the placeholder card
   // DiscoveryCacheService manufactures when User Service's breaker is open.

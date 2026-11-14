@@ -22,5 +22,11 @@ export const environment = {
   // minutes). Display-only -- it feeds the "Chat opened. You have 2 hours." and
   // "closes in 30 minutes" system messages; the SERVER alone decides when a
   // chat actually closes, so a drift here is cosmetic, never a behaviour bug.
-  chatLifetimeMinutes: Number(process.env['CHAT_LIFETIME_MINUTES'])
+  chatLifetimeMinutes: Number(process.env['CHAT_LIFETIME_MINUTES']),
+  // Radar v2 (map). A style URL, not a hardcoded host in the component, so
+  // switching tile provider (OpenFreeMap -> self-hosted) is a build setting.
+  mapStyleUrl: process.env['MAP_STYLE_URL'] as string,
+  // Where the map points when location permission is denied. Display-only.
+  mapDefaultLat: Number(process.env['MAP_DEFAULT_LAT']),
+  mapDefaultLng: Number(process.env['MAP_DEFAULT_LNG'])
 };

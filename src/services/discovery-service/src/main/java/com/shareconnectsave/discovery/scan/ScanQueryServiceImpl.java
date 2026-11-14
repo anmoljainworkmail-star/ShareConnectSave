@@ -143,6 +143,9 @@ public class ScanQueryServiceImpl implements ScanQueryService {
         // per candidate so the final UserCardResponse doesn't recompute it.
         List<Long> nearbyCandidateIds = new ArrayList<>();
         Map<Long, Double> distanceKmBySessionId = new HashMap<>();
+        // Direction caller -> candidate, kept next to distance so the response
+        // carries enough for a map to place the person (see UserCardResponse).
+        Map<Long, Double> bearingDegBySessionId = new HashMap<>();
         for (Long candidateSessionId : preFilteredCandidateIds) {
             ScanLocation candidateLocation = discoveryCacheService.getSessionLocation(candidateSessionId);
             if (candidateLocation == null) {
@@ -155,6 +158,8 @@ public class ScanQueryServiceImpl implements ScanQueryService {
             }
             nearbyCandidateIds.add(candidateSessionId);
             distanceKmBySessionId.put(candidateSessionId, distanceKm);
+            bearingDegBySessionId.put(candidateSessionId, scanFilterService.bearingDegrees(
+                    callerLocation.lat(), callerLocation.lng(), candidateLocation.lat(), candidateLocation.lng()));
         }
 
         // Batch fetch, radius-narrowed and not one findById() per candidate:
@@ -262,7 +267,7 @@ public class ScanQueryServiceImpl implements ScanQueryService {
             // every other match already computed above is never failed.
             UserCardResponse card = discoveryCacheService.getProfile(candidateUserId, distanceKm);
             if (card != null) {
-                results.add(card);
+                results.add(card.withBearing(bearingDegBySessionId.get(candidateSessionId)));
             }
         }
 

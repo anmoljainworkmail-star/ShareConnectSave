@@ -23,6 +23,18 @@ export interface ChatOpenedNotification {
   connection_id: string;
 }
 
+// Mirrors NewMessageNotification.cs -- pushed to the RECIPIENT's personal group
+// for every message, so it arrives even when they have left the chat screen
+// (the room-group "ReceiveMessage" does not). A "something arrived" signal for
+// popups and the unread badge, not a second copy of the conversation: the text
+// itself is capped server-side and the history endpoint stays the source of truth.
+export interface NewMessageNotification {
+  chat_id: string;
+  connection_id: string;
+  sender_id: number;
+  preview: string;
+}
+
 // Mirrors Events/ChatClosedReason.cs (and chat.closed.schema.json's enum).
 export type ChatClosedReason = 'met_successfully' | 'timeout' | 'admin_closed';
 

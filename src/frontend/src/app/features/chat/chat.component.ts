@@ -18,6 +18,7 @@ import {
   ChatTimelineItem,
   RatingEntryPath
 } from './models/chat.models';
+import { ActiveChatService } from './services/active-chat.service';
 import { ChatApiService } from './services/chat-api.service';
 import { ChatFlowService } from './services/chat-flow.service';
 import { ChatSignalrService } from './services/chat-signalr.service';
@@ -105,6 +106,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     private readonly chatSignalr: ChatSignalrService,
     private readonly chatApi: ChatApiService,
     private readonly chatFlow: ChatFlowService,
+    private readonly activeChat: ActiveChatService,
     private readonly connectionService: ConnectionService,
     private readonly userProfileService: UserProfileService,
     private readonly toastService: ToastService,
@@ -140,6 +142,9 @@ export class ChatComponent implements OnInit, OnDestroy {
       return;
     }
     this.connectionId = connectionId;
+    // Opening the screen is what "read" means: clears the unread badge on the
+    // radar's "Return to chat" pill.
+    this.activeChat.markViewed(connectionId);
 
     this.chatSignalr.status$.pipe(takeUntil(this.destroy$)).subscribe(status => {
       this.hubStatus = status;
@@ -335,6 +340,10 @@ export class ChatComponent implements OnInit, OnDestroy {
         next: () => {
           this.isConfirmingMet = false;
           this.showMetDialog = false;
+          // Met is the user's own "I am done here": stop offering a way back
+          // into this chat (the server keeps the room until the other person
+          // confirms too).
+          this.activeChat.markMetConfirmed(this.connectionId);
           this.chatFlow.openRating(this.connectionId, 'met');
         },
         error: (error: ErrorEnvelope) => {

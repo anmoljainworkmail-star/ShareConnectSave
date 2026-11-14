@@ -37,7 +37,8 @@
               }
             ],
             "styles": [
-              "src/styles.css"
+              "src/styles.css",
+              "node_modules/maplibre-gl/dist/maplibre-gl.css"
             ],
             "scripts": []
           },
@@ -65,6 +66,9 @@
               "define": {
                 "process.env.API_BASE_URL": "\"https://api.shareconnectsave.com\"",
                 "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
+                "process.env.MAP_STYLE_URL": "\"https://tiles.openfreemap.org/styles/liberty\"",
+                "process.env.MAP_DEFAULT_LAT": "\"28.6315\"",
+                "process.env.MAP_DEFAULT_LNG": "\"77.2167\"",
                 "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               },
               "serviceWorker": "ngsw-config.json"
@@ -76,6 +80,9 @@
               "define": {
                 "process.env.API_BASE_URL": "\"http://localhost:8080\"",
                 "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
+                "process.env.MAP_STYLE_URL": "\"https://tiles.openfreemap.org/styles/liberty\"",
+                "process.env.MAP_DEFAULT_LAT": "\"28.6315\"",
+                "process.env.MAP_DEFAULT_LNG": "\"77.2167\"",
                 "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               }
             },
@@ -86,6 +93,9 @@
               "define": {
                 "process.env.API_BASE_URL": "\"/gw\"",
                 "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
+                "process.env.MAP_STYLE_URL": "\"https://tiles.openfreemap.org/styles/liberty\"",
+                "process.env.MAP_DEFAULT_LAT": "\"28.6315\"",
+                "process.env.MAP_DEFAULT_LNG": "\"77.2167\"",
                 "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               }
             },
@@ -101,6 +111,9 @@
               "define": {
                 "process.env.API_BASE_URL": "\"/gw\"",
                 "process.env.CHAT_LIFETIME_MINUTES": "\"120\"",
+                "process.env.MAP_STYLE_URL": "\"https://tiles.openfreemap.org/styles/liberty\"",
+                "process.env.MAP_DEFAULT_LAT": "\"28.6315\"",
+                "process.env.MAP_DEFAULT_LNG": "\"77.2167\"",
                 "process.env.GOOGLE_CLIENT_ID": "\"424739114399-5efeemtmbf09cm36v2qvr9f053ss1o9g.apps.googleusercontent.com\""
               },
               "serviceWorker": "ngsw-config.json"
@@ -145,7 +158,8 @@
               }
             ],
             "styles": [
-              "src/styles.css"
+              "src/styles.css",
+              "node_modules/maplibre-gl/dist/maplibre-gl.css"
             ],
             "scripts": []
           }

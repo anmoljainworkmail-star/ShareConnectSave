@@ -1,0 +1,134 @@
+<!--
+  Radar v2: the scan screen drawn over a real, tilted 3D street map
+  (MapLibre GL + OpenFreeMap). The map is created imperatively into #mapHost by
+  the component; everything else here is ordinary Angular template.
+  The classic radar (/radar) is both the alternative and the fallback.
+-->
+<div class="rm-page">
+  <div class="rm-map" #mapHost></div>
+  <div class="rm-vignette" aria-hidden="true"></div>
+
+  <div class="rm-hud">
+    <span class="rm-hud-title">{{ isScanning ? 'Scanning nearby' : 'Map view' }}</span>
+    <span class="rm-hud-found" *ngIf="scanState === 'results'">{{ discoveredUsers.length }} found</span>
+    <span class="rm-hud-badge" [class.rm-hud-badge-offline]="mode === 'BLE'">
+      <span class="rm-hud-dot"></span>{{ mode === 'BLE' ? 'Offline' : 'GPS' }}
+    </span>
+  </div>
+
+  <a class="rm-classic" routerLink="/radar">Classic view</a>
+
+  <!-- Way back into a chat the user left via the back arrow (still open until
+       Met Successfully or it closes). Renders nothing when there is none. -->
+  <app-active-chat-pill></app-active-chat-pill>
+
+  <div class="rm-banner" *ngIf="mode === 'BLE'">
+    No internet. Map tiles may be missing. <a routerLink="/radar">Open the classic radar</a>
+  </div>
+
+  <div class="rm-tiles-blocked" *ngIf="tilesBlocked" role="alert">
+    <strong>Map data could not be loaded.</strong>
+    <span>tiles.openfreemap.org looks blocked on this network (firewall, VPN or ad-blocker). Scanning still works.</span>
+    <span class="rm-tiles-actions">
+      <button type="button" (click)="retryTiles()">Retry</button>
+      <a routerLink="/radar">Classic view</a>
+    </span>
+  </div>
+
+  <div class="rm-loading" *ngIf="mapPhase === 'loading'" role="status">
+    <span class="rm-spinner" aria-hidden="true"></span>
+    Loading map…
+  </div>
+
+  <!-- One bottom stack (not two absolutely-positioned siblings): the floating
+       controls sit directly ABOVE the card whatever height the card has, which
+       it changes as the scan state changes. -->
+  <div class="rm-bottom">
+    <div class="rm-floating">
+      <span class="rm-pill" *ngIf="isScanning && scanState === 'searching'">Searching…</span>
+      <span class="rm-pill" *ngIf="isScanning && scanState === 'empty'">No one nearby · Try a wider radius</span>
+      <button type="button" class="rm-recenter" aria-label="Recenter on my location" (click)="recenter()">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2" fill="currentColor" />
+          <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="rm-card">
+      <div class="rm-handle" aria-hidden="true"></div>
+
+      <ng-container *ngIf="!isScanning">
+        <h2 class="rm-card-title">Scan around you</h2>
+        <p class="rm-card-copy" *ngIf="!locationDenied">
+          Finds travellers within {{ radiusKm }} km of where you are standing.
+        </p>
+        <p class="rm-card-copy rm-card-copy-warn" *ngIf="locationDenied">
+          Location is off, so this map shows a default area. Turn location on to scan.
+        </p>
+
+        <!-- Pick a real place: people are matched by the DIRECTION of their
+             destinations, so both phones need a destination in the same
+             direction (same place works too). -->
+        <div class="rm-dest">
+          <input
+            class="rm-dest-input"
+            type="text"
+            name="destination"
+            autocomplete="off"
+            placeholder="Where are you heading?"
+            aria-label="Destination"
+            [(ngModel)]="destinationLabel"
+            (input)="onDestinationInput()"
+            (focus)="onDestinationFocus()"
+          />
+          <ul class="rm-dest-list" *ngIf="showDestinationSuggestions && destinationLabel.trim().length >= 2 && !selectedDestination">
+            <li class="rm-dest-empty" *ngIf="isSearchingDestinations">Searching…</li>
+            <ng-container *ngIf="!isSearchingDestinations">
+              <li *ngFor="let suggestion of destinationSuggestions">
+                <button type="button" class="rm-dest-option" (mousedown)="selectSuggestion(suggestion)" (click)="selectSuggestion(suggestion)">
+                  <span class="rm-dest-label">{{ suggestion.label }}</span>
+                  <span class="rm-dest-sub">{{ suggestion.subLabel }}</span>
+                </button>
+              </li>
+              <li class="rm-dest-empty" *ngIf="destinationSuggestions.length === 0">No matching places</li>
+            </ng-container>
+          </ul>
+        </div>
+        <p class="rm-card-copy" *ngIf="!selectedDestination && !locationDenied">Pick a destination from the list to start.</p>
+        <p class="rm-error" *ngIf="startError">{{ startError }}</p>
+        <button type="button" class="rm-primary" [disabled]="!canStartScan" (click)="startScan()">
+          {{ isStartingScan ? 'Starting…' : 'Start Scan' }}
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="isScanning">
+        <div class="rm-chip-row" *ngIf="scanState === 'results'">
+          <button
+            type="button"
+            class="rm-chip"
+            *ngFor="let discoveredUser of discoveredUsers; trackBy: trackByUserId"
+            (click)="selectUser(discoveredUser)"
+          >
+            <span class="rm-chip-avatar">{{ initials(discoveredUser.name) }}</span>
+            <span class="rm-chip-name">{{ discoveredUser.name }}</span>
+          </button>
+        </div>
+        <button type="button" class="rm-stop" (click)="stopScan()">Stop Scan</button>
+      </ng-container>
+    </div>
+  </div>
+
+  <!-- User Card (Screen 09) bottom sheet -- tapping a pin or chip opens it. -->
+  <div class="rm-sheet-overlay" *ngIf="selectedUser" (click)="closeUserCard()">
+    <div class="rm-sheet-container" (click)="$event.stopPropagation()">
+      <app-user-card
+        [user]="selectedUser"
+        [connectionState]="connectionStateFor(selectedUser.id)"
+        (sendRequest)="sendRequestTo($event)"
+        (dismissed)="closeUserCard()"
+      ></app-user-card>
+    </div>
+  </div>
+</div>

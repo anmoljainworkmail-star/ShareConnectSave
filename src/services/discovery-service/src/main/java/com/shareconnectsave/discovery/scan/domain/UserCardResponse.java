@@ -30,11 +30,31 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 // candidate"), "User Service is having a bad day" is not a reason to make a
 // real nearby match vanish from someone's radar, just a reason to show it
 // with less detail than usual.
+//
+// bearing_deg: compass direction FROM THE CALLER TO this person (0 = north,
+// clockwise). With distance_km it is exactly enough for the caller's map to
+// stand the avatar where the person really is. It is relative to the caller,
+// never a lat/lng, so the card cannot be used to locate anyone outside the
+// caller's own search radius (the same reach distance_km already had). Null
+// when no live position exists to compute it from (BLE offline matches, a
+// degraded card) -- the client then falls back to a placeholder direction.
 public record UserCardResponse(
         @JsonProperty("id") Long id,
         @JsonProperty("name") String name,
         @JsonProperty("photo_url") String photoUrl,
         @JsonProperty("identity_badge") boolean identityBadge,
         @JsonProperty("distance_km") double distanceKm,
-        @JsonProperty("unavailable") boolean unavailable) {
+        @JsonProperty("unavailable") boolean unavailable,
+        @JsonProperty("bearing_deg") Double bearingDeg) {
+
+    // Keeps every existing 6-argument construction site (profile fetch, cache,
+    // BLE) compiling unchanged: they have no bearing to give, so it is null.
+    // Open/Closed in miniature -- the record grew a field without editing callers.
+    public UserCardResponse(Long id, String name, String photoUrl, boolean identityBadge, double distanceKm, boolean unavailable) {
+        this(id, name, photoUrl, identityBadge, distanceKm, unavailable, null);
+    }
+
+    public UserCardResponse withBearing(Double bearing) {
+        return new UserCardResponse(id, name, photoUrl, identityBadge, distanceKm, unavailable, bearing);
+    }
 }

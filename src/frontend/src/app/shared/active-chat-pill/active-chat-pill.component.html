@@ -1,0 +1,11 @@
+<a
+  class="pill"
+  *ngIf="activeChat$ | async as chat"
+  [routerLink]="['/chat', chat.connectionId]"
+  [attr.aria-label]="label(chat)"
+>
+  <span class="live-dot" aria-hidden="true"></span>
+  <span class="text">Chat in progress</span>
+  <span class="badge" *ngIf="chat.unreadCount > 0" aria-hidden="true">{{ badgeText(chat) }}</span>
+  <span class="action" aria-hidden="true">Return</span>
+</a>

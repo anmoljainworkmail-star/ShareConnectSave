@@ -14,7 +14,8 @@ import {
   ChatClosedNotification,
   ChatHubStatus,
   ChatMessage,
-  ChatOpenedNotification
+  ChatOpenedNotification,
+  NewMessageNotification
 } from '../models/chat.models';
 
 // Observer (GoF) -- the same pattern chat-service's ChatHub documents on the
@@ -73,6 +74,9 @@ export class ChatSignalrService {
   private readonly chatOpenedSubject = new Subject<ChatOpenedNotification>();
   private readonly chatClosedSubject = new Subject<ChatClosedNotification>();
   private readonly messageSubject = new Subject<ChatMessage>();
+  // Personal-group twin of messageSubject: fires for messages from the OTHER
+  // person whether or not this client is currently in the room's group.
+  private readonly newMessageSubject = new Subject<NewMessageNotification>();
   private readonly establishedSubject = new Subject<void>();
   private readonly roomJoinFailedSubject = new Subject<string>();
   private readonly statusSubject = new BehaviorSubject<ChatHubStatus>('disconnected');
@@ -80,6 +84,7 @@ export class ChatSignalrService {
   readonly chatOpened$: Observable<ChatOpenedNotification> = this.chatOpenedSubject.asObservable();
   readonly chatClosed$: Observable<ChatClosedNotification> = this.chatClosedSubject.asObservable();
   readonly messages$: Observable<ChatMessage> = this.messageSubject.asObservable();
+  readonly newMessage$: Observable<NewMessageNotification> = this.newMessageSubject.asObservable();
   readonly established$: Observable<void> = this.establishedSubject.asObservable();
   // Emits the chat id of a room the server refused (not a participant, etc.).
   readonly roomJoinFailed$: Observable<string> = this.roomJoinFailedSubject.asObservable();
@@ -141,6 +146,7 @@ export class ChatSignalrService {
     connection.on('ChatOpened', (notification: ChatOpenedNotification) => this.handleChatOpened(notification));
     connection.on('ReceiveMessage', (message: ChatMessage) => this.messageSubject.next(message));
     connection.on('ChatClosed', (notification: ChatClosedNotification) => this.chatClosedSubject.next(notification));
+    connection.on('NewMessage', (notification: NewMessageNotification) => this.newMessageSubject.next(notification));
 
     connection.onreconnecting(() => this.statusSubject.next('reconnecting'));
     connection.onreconnected(() => this.markEstablished());

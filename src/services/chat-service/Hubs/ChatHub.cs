@@ -1,6 +1,7 @@
 namespace chat_service.Hubs;
 
 using Microsoft.AspNetCore.SignalR;
+using chat_service.Dtos;
 using chat_service.Extensions;
 using chat_service.Services.Interfaces;
 
@@ -118,6 +119,56 @@ public class ChatHub : Hub
         // insert before returning Success - there is no parallel "insert
         // and broadcast at the same time" path.
         await Clients.Group(SignalRGroupNames.Chat(chatId)).SendAsync("ReceiveMessage", outcome.Message);
+
+        await NotifyOtherParticipantAsync(chatId, outcome);
+    }
+
+    // Best-effort second push to the OTHER person's personal group (see
+    // NewMessageNotification for the room-vs-personal-group reasoning). It
+    // runs AFTER the persisted message was broadcast, and a failure here is
+    // swallowed on purpose: the message is already saved and delivered to
+    // the room, and an alert popup failing must never turn a successful send
+    // into an error for the sender (who would then retry and double-send).
+    // Sent even if the recipient is still in the room group -- the client
+    // suppresses the popup when it is already looking at that chat, which is
+    // a presentation decision the server cannot make (it does not know which
+    // screen is open).
+    private async Task NotifyOtherParticipantAsync(string chatId, SendMessageOutcome outcome)
+    {
+        // Guard clauses: nothing to notify without both facts the service
+        // resolved. Never true on Success today; kept so a future outcome
+        // shape change cannot turn into a NullReferenceException mid-send.
+        if (outcome.Message is null || outcome.OtherParticipantId is null || outcome.ConnectionId is null)
+        {
+            return;
+        }
+
+        var notification = new NewMessageNotification(
+            chatId,
+            outcome.ConnectionId,
+            outcome.Message.SenderId,
+            BuildPreview(outcome.Message.Content));
+
+        try
+        {
+            await Clients.Group(SignalRGroupNames.User(outcome.OtherParticipantId.Value))
+                .SendAsync("NewMessage", notification);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to push NewMessage for chat {ChatId} to user {UserId}.", chatId, outcome.OtherParticipantId);
+        }
+    }
+
+    // A popup is a glance, not a reader: cap the text so a 2,000-character
+    // message cannot blow up a banner (or leak far more than a lock-screen
+    // style preview should show).
+    private const int PreviewMaxLength = 80;
+
+    private static string BuildPreview(string content)
+    {
+        var trimmed = content.Trim();
+        return trimmed.Length <= PreviewMaxLength ? trimmed : trimmed[..PreviewMaxLength] + "...";
     }
 
     private bool TryGetCallerUserId(out long userId)

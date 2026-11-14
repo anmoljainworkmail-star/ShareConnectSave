@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
+import { ActiveChatPillComponent } from './active-chat-pill/active-chat-pill.component';
 import { AmbientBackgroundComponent } from './ambient-background/ambient-background.component';
 import { PendingRequestsBellComponent } from './pending-requests-bell/pending-requests-bell.component';
 import { PullToRefreshComponent } from './pull-to-refresh/pull-to-refresh.component';
@@ -19,8 +20,20 @@ import { ToastHostComponent } from './toast/toast-host.component';
 // to no single one. RouterModule (not forRoot -- just the routerLink
 // directive) is imported because the in-app banner's action is a routerLink.
 @NgModule({
-  declarations: [AmbientBackgroundComponent, ToastHostComponent, PullToRefreshComponent, PendingRequestsBellComponent],
+  declarations: [
+    AmbientBackgroundComponent,
+    ToastHostComponent,
+    PullToRefreshComponent,
+    PendingRequestsBellComponent,
+    ActiveChatPillComponent
+  ],
   imports: [CommonModule, RouterModule],
-  exports: [AmbientBackgroundComponent, ToastHostComponent, PullToRefreshComponent, PendingRequestsBellComponent]
+  exports: [
+    AmbientBackgroundComponent,
+    ToastHostComponent,
+    PullToRefreshComponent,
+    PendingRequestsBellComponent,
+    ActiveChatPillComponent
+  ]
 })
 export class SharedModule {}
